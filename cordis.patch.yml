@@ -1,0 +1,10 @@
+# dsh-sticky-notes —— bundle 补丁层
+#
+# 以本地 link 方式安装：
+#   plugin_manager install_bundle  target=link:/absolute/path/to/dsh-sticky-notes
+#
+# 用户设置写在插件自己的 data/settings.json（面板内齿轮抽屉编辑），
+# 不写 profile patch，也不会往 Obsidian 仓库里塞配置文件。
+- insert:
+    - id: sticky-notes
+      name: 'dsh-sticky-notes'

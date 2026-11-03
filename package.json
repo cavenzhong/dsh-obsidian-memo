@@ -1,0 +1,40 @@
+{
+  "name": "dsh-sticky-notes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Obsidian MEMO：把 Obsidian 进行时文件夹以淡色便签形式放进 DSH，支持阅读/编辑、AI 评论、归档与开档。",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT"
+}
