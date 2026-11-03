@@ -275,6 +275,29 @@ test('parseNote：空文本不炸', () => {
   assert.equal(parsed.projects, null)
 })
 
+test('parseNote：分界线作为独立块保留', () => {
+  const parsed = parseNote('标题\n\n---\n\n后续内容')
+  assert.ok(parsed.blocks.some((block) => block.kind === 'hr'))
+  assert.ok(parsed.blocks.some((block) => block.text === '后续内容'))
+})
+
+test('parseNote：行内图片保留前后文字，支持网络、空格路径和 Obsidian 图片', () => {
+  const parsed = parseNote('图前 ![说明](https://example.com/a_(b).png "标题") 图后\n\n![本地](<../附件/图 片.png>)\n\n![[附件/截图.png|300]]')
+  const images = parsed.blocks.filter((block) => block.kind === 'image')
+  assert.equal(images.length, 3)
+  assert.equal(images[0].source, 'https://example.com/a_(b).png')
+  assert.equal(images[0].alt, '说明')
+  assert.equal(images[1].source, '../附件/图 片.png')
+  assert.equal(images[2].source, '附件/截图.png')
+  assert.equal(images[2].wiki, true)
+  assert.equal(parsed.excerpt, '图前 图后')
+})
+
+test('parseNote：代码块中的图片和任务保持代码，紧接段落的分界线不被吞掉', () => {
+  const parsed = parseNote('正文\n***\n\n```md\n![示例](x.png)\n- [ ] 示例\n```')
+  assert.deepEqual(parsed.blocks.map((block) => block.kind), ['p', 'hr', 'code'])
+})
+
 test('parseNote：title / excerpt / comment 都不含 markdown 记号', () => {
   const parsed = parseNote(
     '# **标题** 带 `代码`\n\n**正文** 有 ==高亮== 和 ~~删除~~ 与 [链接](https://x)。\n\n> [!tip] 💡 延伸 · 2026-11-03 22:10\n> **评论** 内容 [[a/b|别名]]\n',

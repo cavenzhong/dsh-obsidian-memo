@@ -457,6 +457,47 @@ test('saveNote：BOM 保留', async () => {
   assert.match(content, /新正文\n$/)
 })
 
+test('saveNote：同一次保存同时改文件名和正文', async () => {
+  const c = await makeCase({ notes: { '旧名.md': '---\nkeep: true\n---\n\n旧正文\n' } })
+  const result = await c.call('saveNote', { path: c.seeded['旧名.md'], name: '新名', body: '新正文' })
+  assert.equal(result.ok, true)
+  assert.equal(result.value.note.path, join(c.notesDir, '新名.md'))
+  assert.equal(await readFile(join(c.notesDir, '新名.md'), 'utf8'), '---\nkeep: true\n---\n\n新正文\n')
+  assert.equal(await exists(c.seeded['旧名.md']), false)
+})
+
+test('saveNote：保留原有长文件名与大写扩展名；重名失败不写入正文', async () => {
+  const filename = `${'a'.repeat(70)}.MD`
+  const c = await makeCase({ notes: { [filename]: '原正文\n', 'existing.md': '保留\n' } })
+  const path = c.seeded[filename]
+  const saved = await c.call('saveNote', { path, name: 'a'.repeat(70), body: '新正文' })
+  assert.equal(saved.ok, true)
+  assert.equal(saved.value.note.path, path)
+  const conflict = await c.call('saveNote', { path, name: 'existing', body: '不应保存' })
+  assert.equal(conflict.error.code, 'exists')
+  assert.equal(await readFile(path, 'utf8'), '新正文\n')
+  assert.equal(await readFile(join(c.notesDir, 'existing.md'), 'utf8'), '保留\n')
+})
+
+test('note：打开全文时刷新缓存中的外部修改', async () => {
+  const c = await makeCase({ notes: { '外部.md': '旧内容\n' } })
+  const path = c.seeded['外部.md']
+  await c.call('state')
+  await writeFile(path, '外部新增的内容\n')
+  const result = await c.call('note', { path })
+  assert.equal(result.value.body, '外部新增的内容\n')
+})
+
+test('toggleTask：无 frontmatter 的首行任务保留 BOM', async () => {
+  const original = '\uFEFF- [ ] 首行\r\n'
+  const c = await makeCase({ notes: { '首行.md': original } })
+  const path = c.seeded['首行.md']
+  const note = (await c.call('note', { path })).value
+  const result = await c.call('toggleTask', { path, sourceLine: 0, checked: true, expectedBody: note.body })
+  assert.equal(result.ok, true)
+  assert.equal(await readFile(path, 'utf8'), original.replace('[ ]', '[x]'))
+})
+
 test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', async () => {
   const c = await makeCase({ notes: { '甲.md': '# 甲\n\n原文\n' } })
   const notePath = c.seeded['甲.md']
@@ -474,6 +515,83 @@ test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', a
 })
 
 /* ─────────────────────────── browseDirectory ─────────────────────────── */
+
+test('toggleTask：只改任务标记，保留 BOM、CRLF 和 frontmatter，可取消勾选', async () => {
+  const original = '\uFEFF---\r\nkeep: true\r\n---\r\n\r\n- [ ] 任务\r\n\r\n正文\r\n'
+  const c = await makeCase({ notes: { '任务.md': original } })
+  const path = c.seeded['任务.md']
+  let note = (await c.call('note', { path })).value
+  const sourceLine = note.blocks.find((block) => block.kind === 'li').sourceLine
+  const checked = await c.call('toggleTask', { path, sourceLine, checked: true, expectedBody: note.body })
+  assert.equal(checked.ok, true)
+  assert.equal(await readFile(path, 'utf8'), original.replace('[ ]', '[x]'))
+  note = (await c.call('note', { path })).value
+  assert.equal(note.blocks.find((block) => block.kind === 'li').checked, true)
+  const unchecked = await c.call('toggleTask', { path, sourceLine, checked: false, expectedBody: note.body })
+  assert.equal(unchecked.ok, true)
+  assert.equal(await readFile(path, 'utf8'), original)
+})
+
+test('toggleTask：拒绝旧内容和代码块，不覆盖外部变更', async () => {
+  const c = await makeCase({ notes: { '任务.md': '- [ ] 原任务\n\n```md\n- [ ] 示例\n```\n' } })
+  const path = c.seeded['任务.md']
+  const note = (await c.call('note', { path })).value
+  const codeTask = await c.call('toggleTask', { path, sourceLine: 3, checked: true, expectedBody: note.body })
+  assert.equal(codeTask.error.code, 'bad-request')
+  const changed = '- [ ] 外部新增\n' + note.body
+  await writeFile(path, changed)
+  const stale = await c.call('toggleTask', { path, sourceLine: 0, checked: true, expectedBody: note.body })
+  assert.equal(stale.error.code, 'conflict')
+  assert.equal(await readFile(path, 'utf8'), changed)
+})
+
+test('toggleTask：并发提交旧版本时只接受第一次变更', async () => {
+  const c = await makeCase({ notes: { '任务.md': '- [ ] 一\n- [ ] 二\n' } })
+  const path = c.seeded['任务.md']
+  const { body } = (await c.call('note', { path })).value
+  const results = await Promise.all([0, 1].map((sourceLine) => c.call('toggleTask', { path, sourceLine, checked: true, expectedBody: body })))
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.filter((result) => result.error?.code === 'conflict').length, 1)
+})
+
+test('readImage：相对路径、仓库路径、Obsidian 附件名和 URL 编码', async () => {
+  const c = await makeCase({ notes: { '图片.md': '![[图 片.png]]\n' } })
+  const path = c.seeded['图片.md']
+  const bytes = Buffer.from('89504e470d0a1a0a', 'hex')
+  await mkdir(join(c.vault, '附件'))
+  await writeFile(join(c.vault, '附件', '图 片.png'), bytes)
+  for (const options of [
+    { source: '../附件/图 片.png' },
+    { source: '附件/图 片.png' },
+    { source: '图 片.png', wiki: true },
+    { source: '../附件/%E5%9B%BE%20%E7%89%87.png' },
+  ]) {
+    const result = await c.call('readImage', { path, ...options })
+    assert.equal(result.ok, true, JSON.stringify(result))
+    assert.equal(result.value.dataUrl, `data:image/png;base64,${bytes.toString('base64')}`)
+  }
+})
+
+test('readImage：拒绝越界、符号链接、非图片、超限和同名歧义附件', async () => {
+  const c = await makeCase({ notes: { '图片.md': '正文' } })
+  const path = c.seeded['图片.md']
+  const outside = join(c.dir, 'outside.png')
+  await writeFile(outside, 'private')
+  await symlink(outside, join(c.notesDir, 'linked.png'))
+  await writeFile(join(c.notesDir, 'large.png'), Buffer.alloc(8 * 1024 * 1024 + 1))
+  for (const source of ['../../outside.png', 'linked.png', '图片.md', 'large.png', 'https://example.com/x.png', 'file:///tmp/a.png']) {
+    const result = await c.call('readImage', { path, source })
+    assert.equal(result.ok, false, source)
+    assert.equal(result.error.code, 'bad-request', source)
+  }
+  for (const dir of ['a', 'b']) {
+    await mkdir(join(c.vault, dir))
+    await writeFile(join(c.vault, dir, 'same.png'), 'image')
+  }
+  const ambiguous = await c.call('readImage', { path, source: 'same.png', wiki: true })
+  assert.equal(ambiguous.ok, false)
+  assert.match(ambiguous.error.message, /多个同名/)
+})
 
 test('browseDirectory：列目录、目录优先排序、隐藏项跳过、parent/crumbs/shortcuts', async () => {
   const c = await makeCase({ notes: {} })
@@ -642,6 +760,18 @@ test('note：返回全文 blocks / comments / projects', async () => {
 })
 
 /* ─────────────────────────────── comment ─────────────────────────────── */
+
+test('renameNote：更新文件名且拒绝同名覆盖', async () => {
+  const c = await makeCase({ notes: { '原名.md': '# 标题\n', '已存在.md': '保留\n' } })
+  const result = await c.call('renameNote', { path: c.seeded['原名.md'], name: '新 名' })
+  assert.equal(result.ok, true)
+  assert.equal(result.value.note.name, '新 名')
+  assert.equal(await readFile(join(c.notesDir, '新 名.md'), 'utf8'), '# 标题\n')
+  const duplicate = await c.call('renameNote', { path: join(c.notesDir, '新 名.md'), name: '已存在' })
+  assert.equal(duplicate.ok, false)
+  assert.equal(duplicate.error.code, 'exists')
+  assert.equal(await readFile(join(c.notesDir, '已存在.md'), 'utf8'), '保留\n')
+})
 
 test('comment：异步生成后写入 callout，轮询到 done', async () => {
   const c = await makeCase({ notes: { '评论.md': '# 评论标题\n\n评论正文。\n' } })

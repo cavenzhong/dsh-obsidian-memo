@@ -103,7 +103,7 @@ interface Comment {
 ```ts
 interface NoteFull extends NoteSummary {
   body: string          // 原始正文（不含 frontmatter，编辑模式直接编辑它）
-  blocks: { kind: 'p' | 'h' | 'li' | 'quote' | 'code'; text: string; checked?: boolean }[]  // 正文块（含第一段；不含 callout 与 frontmatter；任务项 li 带 checked）
+  blocks: { kind: 'p' | 'h' | 'li' | 'quote' | 'code' | 'hr' | 'image'; text: string; checked?: boolean; sourceLine?: number; source?: string; alt?: string; wiki?: boolean }[]  // sourceLine 为去掉 frontmatter 后正文的零基行号；image 带 source/alt/wiki
   comments: Comment[]   // 全部评论（最多 30 条）
   projects: string | null  // frontmatter 里 PROJECTS 的值（原文）
 }
@@ -154,7 +154,10 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 |---|---|---|---|
 | `state` | `{ knownRevision?: string \| null }` | 见下 | 主轮询入口 |
 | `note` | `{ path: string }` | `NoteFull` | 打开右侧抽屉只读视图 / 编辑前取全文 |
-| `saveNote` | `{ path: string, body: string }` | `{ note: NoteSummary }` | 编辑模式保存：只替换正文，frontmatter 原样保留 |
+| `saveNote` | `{ path: string, body: string, name?: string }` | `{ note: NoteSummary }` | 同时保存正文与文件名，拒绝同名覆盖 |
+| `renameNote` | `{ path: string, name: string }` | `{ note: NoteSummary }` 或不变时 `{ path, name }` | 保留的独立 Host 改名接口，编辑器统一走 saveNote |
+| `toggleTask` | `{ path: string, sourceLine: number, checked: boolean, expectedBody: string }` | `{ note: NoteSummary }` | 只修改任务标记；内容已变化返回 conflict；不允许修改代码块 |
+| `readImage` | `{ path: string, source: string, wiki?: boolean }` | `{ dataUrl: string }` | 读取仓库内不超过 8 MB 的图片；校验真实路径；wiki 裸附件名歧义时拒绝 |
 | `comment` | `{ path: string, emojiId: string }` | `{ jobId: string }` | 启动 AI 评论任务，立即返回 |
 | `archive` | `{ path: string, targetId: string }` | `{ undoToken: string, to: string, targetId: string }` | 移动到归档目录 |
 | `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档 |
@@ -279,7 +282,7 @@ function apply(ctx) {
 - **可拖宽**：默认 `width: 34%`（`min-width: 340px; max-width: 620px` 起步），抽屉左边缘 8px 拖拽把手（`cursor: col-resize`），拖动范围 `[320px, min(960px, 面板宽 × 0.8)]`；宽度写入 `localStorage['dsh-sticky-notes.drawerWidth']`，双击把手恢复 34%。
 - **查看态**：顶部标题（文件名）+ tag + 关闭按钮；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ 评论 callout + PROJECTS；可滚动。
 - **双击正文区进入编辑态**（双击按钮/空白边缘不算）：正文变成 textarea，显示 `note.body` 原始 Markdown（不渲染），工具栏出现 `保存` / `取消`；`Cmd/Ctrl+S` 保存，`Esc`/取消退出编辑态（丢弃未保存修改，若有修改 toast「已取消编辑」）。
-- **保存**：`saveNote { path, body }`；成功后重新取 `note` 回到查看态并刷新 state；失败 toast `error.message`。
+- **保存**：`saveNote { path, body, name }`；成功后同步抽屉路径、退出编辑态，再取 `note` 并刷新 state；失败保留草稿并 toast `error.message`。
 - **焦点规则**：
   - 抽屉查看态：单击同一张卡片或空白墙 → 关闭；“失去焦点返回”。单击另一张卡片 → 切换内容。
   - 卡片 hover 操作行在抽屉打开时不可用（不弹菜单/不响应点击）。
