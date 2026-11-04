@@ -84,7 +84,7 @@ function createReactStub() {
       return context?._currentValue
     },
   }
-  // 0.12 可能新增别的 React API；未实现的一律返回 noop，避免 factory 定义期报错。
+  // 后续版本可能新增别的 React API；未实现的一律返回 noop，避免 factory 定义期报错。
   return new Proxy(base, {
     get(target, prop) {
       return prop in target ? target[prop] : () => null
@@ -137,7 +137,7 @@ function loadClient(t, { storage = makeStorage() } = {}) {
   return { mod, registration, storage }
 }
 
-/** 取 __test 并断言 0.12 要求的全部纯函数都暴露了。 */
+/** 取 __test 并断言契约 §6.1 要求的全部纯函数都暴露了。 */
 function getTestApi(mod) {
   assert.equal(typeof mod, 'object', 'factory 应返回模块导出对象')
   assert.notEqual(mod.__test, undefined, '模块应导出 __test（契约 §6.1）')
@@ -150,6 +150,7 @@ function getTestApi(mod) {
     'cardImages',
     'drawerWidthBounds',
     'nextPollDelay',
+    'formatVersionLabel',
   ]) {
     assert.notEqual(api[key], undefined, `__test.${key} 缺失（契约 §6.1）`)
   }
@@ -170,27 +171,48 @@ test('client bundle：__ModuleLoader__ 注册 id / factory / inject / __test', (
   getTestApi(mod)
 })
 
-test('client __test：APP_VERSION 与 package.json 的 0.12 对齐', (t) => {
+test('client __test：APP_VERSION 与 package.json 的 major.minor 对齐（0.13）', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  assert.equal(api.APP_VERSION, '0.12')
-  assert.equal(PACKAGE_JSON.version, '0.12.0')
+  assert.equal(api.APP_VERSION, '0.13')
+  assert.equal(PACKAGE_JSON.version, '0.13.0')
+  // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的 major.minor
+  const majorMinor = PACKAGE_JSON.version.split('.').slice(0, 2).join('.')
+  assert.equal(api.APP_VERSION, majorMinor)
   assert.equal(PACKAGE_JSON.version.startsWith(`${api.APP_VERSION}.`), true)
 })
 
-test('client 源码：byline 为 by caven v0.12 且只在顶栏（宽松静态检查）', () => {
-  // 契约 §6.3（修正轮）：署名只在面板顶栏大标题后，文案小写 v，版本来自 APP_VERSION。
-  assert.match(CLIENT_SOURCE, /by caven v/, 'byline 文案应为小写 v 的 by caven v0.12')
+test('client __test：formatVersionLabel 取 major.minor，缺失/非法回退 APP_VERSION', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.equal(typeof api.formatVersionLabel, 'function', '__test.formatVersionLabel 缺失（v0.13）')
+  // 正常版本：取 major.minor，支持 v 前缀、预发布后缀、首尾空白
+  assert.equal(api.formatVersionLabel('0.13.0'), '0.13')
+  assert.equal(api.formatVersionLabel('v0.13.2'), '0.13')
+  assert.equal(api.formatVersionLabel('0.13.0-beta.1'), '0.13')
+  assert.equal(api.formatVersionLabel('  0.13.4  '), '0.13')
+  assert.equal(api.formatVersionLabel('1.2.3'), '1.2')
+  // 缺失 / 空 / 非法 → 回退 APP_VERSION（旧 Host 没下发 version 的情况）
+  for (const bad of [undefined, null, '', '   ', 'abc', 'v', 0, 123, true, {}, []]) {
+    assert.equal(
+      api.formatVersionLabel(bad),
+      api.APP_VERSION,
+      `formatVersionLabel(${JSON.stringify(bad)}) 应回退 APP_VERSION`,
+    )
+  }
+})
+
+test('client 源码：byline 为 by caven v<state.version> 且只在顶栏（宽松静态检查）', () => {
+  // v0.13：BYLINE 常量已删除，版本从 Host 的 state.version 派生（旧 Host 才回退 APP_VERSION）。
+  assert.doesNotMatch(CLIENT_SOURCE, /\bBYLINE\b/, 'BYLINE 常量应已删除（版本改由 state.version 派生）')
+  assert.match(CLIENT_SOURCE, /by caven v/, 'byline 文案应为小写 v 的 by caven v<version>')
   assert.doesNotMatch(CLIENT_SOURCE, /by caven V/, '旧文案 by caven V0.12 不应保留')
-  // 允许两种实现：常量字符串拼接，或模板串；也允许直接写死 by caven v0.12
-  assert.match(
-    CLIENT_SOURCE,
-    /'by caven v'\s*\+\s*APP_VERSION|`by caven v\$\{APP_VERSION\}`|by caven v0\.12/,
-    'byline 应由 APP_VERSION 派生或与 0.12 对齐',
-  )
-  // 卡片与抽屉不再各渲染一处：旧实现是「声明 + 卡片 + 抽屉」共 3 处 BYLINE 引用，
-  // 修正后应只剩「声明 + 顶栏一处」≤ 2 处。不绑定具体类名/组件名，避免脆测试。
-  const bylineRefs = (CLIENT_SOURCE.match(/\bBYLINE\b/g) ?? []).length
-  assert.ok(bylineRefs <= 2, `BYLINE 引用次数应 <= 2（声明 + 顶栏一处），实际 ${bylineRefs}`)
+  // 只检查代码里的字符串字面量（注释里可以出现版本说明）；写死版本会被这条拦住
+  assert.doesNotMatch(CLIENT_SOURCE, /['"]by caven v\d/, 'byline 不应写死版本号，应由 state.version 派生')
+  // 渲染时应由 formatVersionLabel(view.version) 派生（不绑定具体拼接/模板写法）
+  assert.match(CLIENT_SOURCE, /formatVersionLabel\(view\.version\)/, 'byline 应由 state.version 派生')
+  // 只在顶栏出现：顶栏 byline span 有且只有一个渲染点，卡片/抽屉没有 byline 类名
+  const headBylineSites = (CLIENT_SOURCE.match(/SN_headByline/g) ?? []).length
+  assert.ok(headBylineSites >= 1, '顶栏应有 byline 渲染点')
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_noteDrawerByline|SN_cardByline|SN_byline\b/)
 })
 
 /* ─────────────────────────── 面板锁（§7.3） ─────────────────────────── */
@@ -447,26 +469,51 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
     configured: true,
     error: null,
     revision: 'r1',
+    version: '0.13.0',
     settings,
     jobs: [],
     notes: [{ path: '/vault/notes/a.md' }],
   }
 
-  // unchanged 且 configured/error/revision/settings/jobs 签名都没变 → 必须原样返回 prev
+  // unchanged 且 configured/error/revision/version/settings/jobs 签名都没变 → 必须原样返回 prev
   const same = api.mergeState(prev, {
     configured: true,
     revision: 'r1',
     unchanged: true,
+    version: '0.13.0',
     jobs: [],
     settings: { ...settings, emojis: settings.emojis.map((item) => ({ ...item })) },
   })
   assert.equal(same, prev, 'unchanged 且签名相同应返回同一对象，避免整墙重渲染')
+
+  // 旧 Host 没下发 version（缺失）时视为不变，不应触发重渲染
+  const missingVersion = api.mergeState(prev, {
+    configured: true,
+    revision: 'r1',
+    unchanged: true,
+    jobs: [],
+    settings,
+  })
+  assert.equal(missingVersion, prev, '缺失 version 应视为不变')
+
+  // version 变化必须新建 view（顶栏 byline 随之更新）
+  const versionChanged = api.mergeState(prev, {
+    configured: true,
+    revision: 'r1',
+    unchanged: true,
+    version: '0.14.0',
+    jobs: [],
+    settings,
+  })
+  assert.notEqual(versionChanged, prev)
+  assert.equal(versionChanged.version, '0.14.0')
 
   // jobs 变化要新建 view（pending 展示依赖）
   const jobsChanged = api.mergeState(prev, {
     configured: true,
     revision: 'r1',
     unchanged: true,
+    version: '0.13.0',
     jobs: [{ id: 'job-1', status: 'running' }],
     settings,
   })
@@ -477,6 +524,7 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
   const revisionChanged = api.mergeState(prev, {
     configured: true,
     revision: 'r2',
+    version: '0.13.0',
     jobs: [],
     settings,
     notes: [{ path: '/vault/notes/b.md' }],

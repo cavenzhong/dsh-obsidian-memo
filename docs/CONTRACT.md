@@ -1,17 +1,17 @@
 # dsh-sticky-notes · 实现契约（Host ↔ Client）
 
-> 这是并行开发的唯一接口真相。0.12 起 Host 端 `lib/notes.js`、`lib/settings.js`、`lib/scan.js`、`lib/ai.js`、`lib/index.js` 与 `lib/shared.js` 由 Lead / host-core 实现；`lib/client.js` 由 client-ui 实现；`test/` 由 verifier 实现。任何一方需要改契约，先在共享任务/消息里说，不要单方面改。
+> 这是并行开发的唯一接口真相。0.13 起 Host 端 `lib/notes.js`、`lib/settings.js`、`lib/scan.js`、`lib/ai.js`、`lib/index.js` 与 `lib/shared.js` 由 Lead / host-core 实现；`lib/client.js` 由 client-ui 实现；`test/` 由 verifier 实现。任何一方需要改契约，先在共享任务/消息里说，不要单方面改。
 
 ## 0. 一句话
 
 Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中央全宽便签墙。只读写 md 文件本身，不碰 Obsidian。
 
-**当前版本：0.12.0**。0.12 的目标是「更轻的日间视觉 + 更实用的阅读/编辑 + 更有性格的 AI 评论」，具体 UX 见 §7。
+**当前版本：0.13.0**。0.13 的目标是「更轻的日间视觉 + 更实用的阅读/编辑 + 更有性格的 AI 评论」，具体 UX 见 §7。
 
 ## 1. 包结构与运行方式
 
 - 包目录：`/Users/cavenzhong/Documents/个人项目/memobisidian/dsh-sticky-notes`
-- 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 版本 `0.12.0`。
+- 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 版本 `0.13.0`。
 - Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）。
 - Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-sticky-notes', factory(require) { ... } })`）。
 - 设置：`data/settings.json`（插件目录内，运行时生成，HMR 已忽略 `data`）。绝不写 Obsidian 仓库里的配置文件。
@@ -52,14 +52,14 @@ interface Settings {
   archiveTargets: { id: string; label: string; path: string }[]  // path 绝对
   emojis: { id: string; emoji: string; label: string; prompt: string; callout: string }[]
   projectPrompt: string        // 开档结构化文档的提示词（可编辑）
-  includeSubfolders: boolean   // 0.12 新增：是否扫描便签目录的子文件夹；缺省/非 false 一律 true
+  includeSubfolders: boolean   // 0.13 新增：是否扫描便签目录的子文件夹；缺省/非 false 一律 true
 }
 ```
 
 - `callout` 取值：`note | abstract | info | todo | tip | success | question | warning | failure | danger | bug | example | quote`。
 - Host 保存时会规范化：空串保留；路径不是绝对路径时相对 `vaultPath` 解析；emoji 去重 id；空 prompt 用默认值。
 - 默认值见 `lib/settings.js` 的 `DEFAULT_SETTINGS`（含 4 枚默认 emoji 与默认建档提示词）。
-- **预设迁移（0.12）**：`readSettingsFile` 读到旧版（0.11 及更早）默认预设、且与 `LEGACY_EMOJIS` 逐字段完全一致时，整组替换为 0.12 的四个预设（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）。用户改过任何一项就原样保留。迁移只在读盘时发生在内存里，下次 `saveSettings` 落盘。
+- **预设迁移（0.13）**：`readSettingsFile` 读到旧版（0.11 及更早）默认预设、且与 `LEGACY_EMOJIS` 逐字段完全一致时，整组替换为 0.13 的四个预设（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）。用户改过任何一项就原样保留。迁移只在读盘时发生在内存里，下次 `saveSettings` 落盘。
 
 ### 3.2 NoteSummary（卡片直接用这个）
 
@@ -90,9 +90,9 @@ interface NoteSummary {
   mtime: number
   size: number
   pending: { emoji: string; label: string } | null   // 该便签有一个 AI 评论任务在跑
-  images: { source: string; alt: string; wiki: boolean }[]  // 0.12：正文图片前 3 张（不含评论 callout 里的图）
-  imageCount: number   // 0.12：正文图片总数；> images.length 时卡片显示「＋N」
-  commentKinds: string[] // 0.12：全部评论里出现过的 emoji 去重（按出现顺序），用于"同类评论"判断
+  images: { source: string; alt: string; wiki: boolean }[]  // 0.13：正文图片前 3 张（不含评论 callout 里的图）
+  imageCount: number   // 0.13：正文图片总数；> images.length 时卡片显示「＋N」
+  commentKinds: string[] // 0.13：全部评论里出现过的 emoji 去重（按出现顺序），用于"同类评论"判断
 }
 
 interface Comment {
@@ -139,7 +139,7 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 
 按 `tag` 稳定分配（同一 tag 恒同色），无 tag 用纸白。Host 在 `NoteSummary.color` 里给十六进制色。
 
-0.12 把日间纸色整体往白里调两档（用户反馈"卡片颜色更偏白、更淡一些"）：
+0.13 把日间纸色整体往白里调两档（用户反馈"卡片颜色更偏白、更淡一些"）：
 
 | 名字 | 浅色 card.color | 深色 card.darkColor |
 |---|---|---|
@@ -152,7 +152,7 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 | 胭脂 | `#FDF5F6` | `#2E2426` |
 | 青瓷 | `#F5F9F7` | `#222C29` |
 
-浅色模式墨色（0.12：正文墨色统一压到 80% 不透明度，标题 100%）：
+浅色模式墨色（0.13：正文墨色统一压到 80% 不透明度，标题 100%）：
 标题 `#2b2620`、正文 `rgba(87,81,74,.8)`、评论 `rgba(107,100,92,.78)`、弱化 `rgba(138,129,119,.72)`。
 暗色模式（`body[data-ds-dark-theme]`）墨色：标题 `#EDE6D8`、正文 `rgba(210,201,186,.8)`、评论 `rgba(182,172,157,.78)`、弱化 `rgba(143,135,121,.72)`；卡片用 `darkColor`，卡内白底小块（tag/mini 按钮）改为 `rgba(255,255,255,.07~.14)`。
 阅读抽屉（不在卡片上）正文文字同样压到 80%：用 `color-mix(in srgb, var(--dsw-alias-label-primary) 80%, transparent)`，并在前面写一条普通 `color` 作为不支持时的回退。
@@ -184,6 +184,7 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 interface StateValue {
   configured: boolean       // vaultPath 与 notesDir 都已配置且 notesDir 存在
   revision: string          // 便签集合指纹；变化时 notes 才会下发
+  version: string           // 0.13：插件实际版本（package.json 的 version；旧 Host 可不带）
   unchanged?: true          // 传入的 knownRevision 与当前一致：本次不含 notes
   notes: NoteSummary[]
   jobs: Job[]
@@ -210,13 +211,13 @@ interface StateValue {
   > 评论正文
   ```
 
-  0.12：Host 在 `NoteSummary.commentKinds` 里给出已有评论的 emoji 去重集合；Client 在生成同 emoji 评论前先弹确认（见 7.7）。
+  0.13：Host 在 `NoteSummary.commentKinds` 里给出已有评论的 emoji 去重集合；Client 在生成同 emoji 评论前先弹确认（见 7.7）。
 - **子文件夹**：`settings.includeSubfolders === false` 时只扫描便签目录顶层 md（不再递归，tag 全为 null）；true 时递归到 5 层（隐藏目录 / `.obsidian` / 符号链接照旧跳过）。设置变化写入 revision，触发整份 notes 刷新。
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
 - **归档**：移动文件到目标目录；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。
 - **开档**：`<projectDir>/<项目名>/<项目名>.md`；生成结构化文档；源便签 frontmatter 的 `PROJECTS` 为空时写回项目 wikilink（已有值不覆盖，value 里会有说明）。
 - **标题 = md 文件名**（去掉 `.md`）：卡片和阅读视图都用文件名，不再取第一段；第一段属于正文。
-- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。0.12 起，仅大小写不同的改名（macOS/Windows 大小写不敏感文件系统上 `fileExists` 会命中自己）如果 `realpath` 指向同一文件则允许，不再误报 `exists`。
+- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。0.13 起，仅大小写不同的改名（macOS/Windows 大小写不敏感文件系统上 `fileExists` 会命中自己）如果 `realpath` 指向同一文件则允许，不再误报 `exists`。
 - **不渲染 meta**：frontmatter 不进卡片内容。
 - **文件监听**：Client 轮询 `state`（默认 4 秒，页面隐藏时暂停）；Obsidian 编辑会在数秒内反映。
 
@@ -241,7 +242,7 @@ window.__ModuleLoader__.load({
 - 不用 JSX（手写 `h(...)`），不用 TypeScript。
 - 不读写别人的 DOM；不向 `document.body` 挂节点（自己的浮层都挂在面板容器内）。
 - 样式用 `ctx.effect` 注入一个 `<style data-plugin="sticky-notes">`，卸载时移除。
-- 0.12 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`、`nextPollDelay(prevDelay, unchanged)`（见 §7.8）；图片队列/缓存若有额外统计函数（如 `imageCacheBytes()`）也一并导出。
+- 0.13 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`（旧 Host 兜底）、`formatVersionLabel(version)`（取 major.minor；缺失/非法回退 APP_VERSION）、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`、`nextPollDelay(prevDelay, unchanged)`（见 §7.8）；图片队列/缓存若有额外统计函数（如 `imageCacheBytes()`）也一并导出。
 
 ### 6.2 注册
 
@@ -269,11 +270,11 @@ function apply(ctx) {
 - 面板背景/边框/主文字用 token：`--dsw-alias-bg-base`、`--dsw-alias-bg-layer-1`、`--dsw-alias-border-l1`、`--dsw-alias-label-primary/secondary`、`--dsw-alias-brand-primary`、`--dsw-alias-state-error-primary`。不要写死面板色。
 - 卡片颜色用 `NoteSummary.color`（淡色纸），卡上文字用固定墨色（见 3.5），浅色卡片在深浅主题下都好看。
 - 字体：
-  - 标题（保持 0.11 的宋体加粗，0.12 曾试过猴尊宋体但效果不好已撤回）：`"Songti SC", "STSong", "Songti TC", "SimSun", "宋体", "Noto Serif CJK SC", "Noto Serif SC", serif`
+  - 标题（保持 0.11 的宋体加粗，0.13 曾试过猴尊宋体但效果不好已撤回）：`"Songti SC", "STSong", "Songti TC", "SimSun", "宋体", "Noto Serif CJK SC", "Noto Serif SC", serif`
   - 正文/控件：`"PingFang SC", "Heiti SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`
 - 尺寸对比要明显：标题 19–21px / 600；正文 12.5–13px / 400、行高 1.55–1.65；评论 11.5–12px；tag 10.5px、字距 .04em。
-- 0.12 正文透明度：卡片摘要与抽屉正文文字统一 80% 不透明度（见 3.5）；标题保持 100%。
-- 0.12 署名：**只在面板顶栏大标题「Obsidian MEMO」之后**跟一枚小字 `by caven v0.12`（约 11px、非常淡、透明度约 45%、baseline 对齐、不换行）；**卡片与抽屉标题不再带 byline**。版本号由 Client 常量 `APP_VERSION = '0.12'` 提供，与 `package.json` 的 `0.12.0` 对齐。
+- 0.13 正文透明度：卡片摘要与抽屉正文文字统一 80% 不透明度（见 3.5）；标题保持 100%。
+- 0.13 署名（自动对齐版本）：**只在面板顶栏大标题「Obsidian MEMO」之后**跟一枚小字 `by caven v0.13`（约 11px、非常淡、透明度约 45%、baseline 对齐、不换行）；**卡片与抽屉标题不再带 byline**。版本号**不写死**：Host 从 `package.json` 读实际版本并在 `state.version` 下发（如 `0.13.0`），Client 用 `formatVersionLabel()` 取 `major.minor`（→ `0.13`）渲染；只有旧 Host 没下发 `version` 时才回退 Client 常量 `APP_VERSION = '0.13'`。因此**升版本只改 `package.json` 一处**，标题旁的数字自动跟着变。
 - 整体简约、留白足；圆角 10–12px；卡片阴影很轻（`0 1px 2px rgba(0,0,0,.04)`）。
 
 ## 7. UX 规格
@@ -281,12 +282,12 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.12`（约 11px、透明度 .45）+ 计数（`123 张便签` 次要色）；右侧从左到右：**子文件夹开关（0.12 新增）**、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
-- **子文件夹开关（0.12）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
-- 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.12 明确：卡片有图片时也不加高。**
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.13`（约 11px、透明度 .45）+ 计数（`123 张便签` 次要色）；右侧从左到右：**子文件夹开关（0.13 新增）**、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
+- 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - 默认排序 = 文件创建时间降序（新 → 旧）；排序依据 host 下发的 `note.created`，前端可切换。
 
-### 7.2 卡片（0.12 版）
+### 7.2 卡片（0.13 版）
 
 - 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
 - **图片条（第 3 轮修正）**：`note.images` 前 3 张正方形缩略图（**64×64**、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
@@ -294,7 +295,7 @@ function apply(ctx) {
   - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，**按字节预算 ~24MB 的 LRU**，条目上限兜底，面板卸载清空），切走再回来不重复请求。
   - **并发上限（第 3 轮）**：图片加载走模块级队列，同时最多 3 个 `readImage` 在飞；排队项在卡片卸载/abort 时取消，避免一次涌入多个 MB 级 base64 造成主线程卡顿。
   - **有图时标题不压缩**：只吃掉摘要/评论的行数，卡片高度保持 208px。
-- **hover 操作区（0.12 修正版）**：hover / focus-within 时浮出：
+- **hover 操作区（0.13 修正版）**：hover / focus-within 时浮出：
   1. 一行：**所有 AI emoji 预设平铺**（`settings.emojis` 每枚一个 27×27 方形 icon 按钮，只画 emoji 字形，`flex-wrap` 支持最多 12 枚）。**鼠标悬停（或键盘 focus）某一枚时，在该按钮上方浮出一枚小标签显示该预设的 `label`**（如「毒舌」「另一面」「落地」「真心话」）——不是折叠菜单、不需要点击展开。点击某枚 = 对该便签发 `comment`（同 emoji 已有评论时先确认，见 7.7）。
   2. **分割线**。
   3. 一行：`归档`（弹现有归档目标菜单）/ `开档`（现有对话框）。
@@ -309,14 +310,14 @@ function apply(ctx) {
 
 - **overlay 态（未锁定）**：从面板右侧推出，宽度约面板 1/3（`width: 34%; min-width: 340px; max-width: 620px`），占满面板高度，左侧卡片区仍可见、不加遮罩。滑入动画 160–200ms。
 - **可拖宽**：默认 `width: 34%`，抽屉左边缘 8px 拖拽把手（`cursor: col-resize`），未锁定范围 `[320px, min(960px, 面板宽 × 0.8)]`；宽度写入 `localStorage['dsh-sticky-notes.drawerWidth']`，双击把手恢复 34%。
-- **锁定（0.12 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（锁/解锁图标，`aria-pressed`）。**锁定态不显示关闭按钮**（只留锁定/解锁按钮）；解锁态才显示关闭。两种模式都可用 `Esc` 关闭（锁定态的键盘退路）。
+- **锁定（0.13 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（锁/解锁图标，`aria-pressed`）。**锁定态不显示关闭按钮**（只留锁定/解锁按钮）；解锁态才显示关闭。两种模式都可用 `Esc` 关闭（锁定态的键盘退路）。
   - 未锁定 = 上述 overlay：覆盖在便签墙之上；点空白墙 / 同一张卡片关闭。
   - 锁定 = **内联双栏**：`.SN_body` 改为 `display:flex; flex-direction:row`，便签墙 `flex:1; min-width:0`，抽屉作为普通 flex 子项（无阴影、无绝对定位），左右并排、互不遮挡；抽屉打开/切换卡片时保持锁定。
   - 状态持久化 `localStorage['dsh-sticky-notes.panelLocked'] = '1'`（默认 '0'）。锁定态点空白墙 / 同一张卡片**不关闭**，只切换内容；`Esc` 仍关闭（没有关闭按钮）；编辑态在墙上按下仍只退出编辑。
   - 拖宽两种模式都可用；锁定态上限 = `max(320, min(960, 面板宽 - 260))`（给墙留至少 260px）；双击把手恢复默认宽度。
   - 锁定按钮本身也使用统一紫色选中样式（见 7.8）。
 - **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；`header` 分割线下方是**抽屉操作条（第 3 轮新增，见 7.3.2）**；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
-- **评论固定区（0.12）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、`max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
+- **评论固定区（0.13）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、`max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
 - **双击正文区进入编辑态**（双击按钮/空白边缘不算）：正文变成 textarea，显示 `note.body` 原始 Markdown（不渲染），工具栏出现 `保存` / `取消`；`Cmd/Ctrl+S` 保存，`Esc`/取消退出编辑态（丢弃未保存修改，若有修改 toast「已取消编辑」）。
 - **编辑态标题（第 4 轮修正）**：标题编辑是**多行 textarea**，宽度 100%、自动换行（`white-space:pre-wrap`，高度随内容 24–132px 自适应），完整显示文件名，**不需要横向滚动到尾部**；文件名不允许换行，`Enter` 不插入换行（保存仍用 Cmd/Ctrl+S 或按钮）。
 - **保存**：`saveNote { path, body, name }`；成功后同步抽屉路径、退出编辑态，再取 `note` 并刷新 state；失败保留草稿并 toast `error.message`。
@@ -374,7 +375,7 @@ function apply(ctx) {
 - 不要拦截全局快捷键（Esc 仅在右侧抽屉/设置抽屉/菜单打开时处理）。
 - 文本禁止选中拖拽问题：卡片正文 `user-select: text` 便于复制。
 
-### 7.7 同类评论确认（0.12）
+### 7.7 同类评论确认（0.13）
 
 - 点击卡片上的某个预设生成评论前，若 `note.commentKinds` 已包含该预设的 `emoji`，先弹确认框（与开档对话框同风格）：
   - 标题：`已有同类评论`
@@ -400,7 +401,7 @@ function apply(ctx) {
 | `lib/client.js` | client-ui（唯一写入者） |
 | `test/*` | verifier（唯一写入者） |
 | `lib/index.js`、`lib/notes.js`、`lib/settings.js`、`lib/scan.js`、`lib/ai.js` | host-core |
-| `lib/shared.js` | Lead（0.12：色板 / 预设 / LIMITS 已由 Lead 先改好，host-core 只读） |
+| `lib/shared.js` | Lead（0.13：色板 / 预设 / LIMITS 已由 Lead 先改好，host-core 只读） |
 | `docs/CONTRACT.md`、`package.json`、`cordis.patch.yml`、`locale/*`、`icon.svg`、`README.md` | Lead |
 | `package.json` 版本号 / byline 常量 | Lead |
 
@@ -409,7 +410,7 @@ function apply(ctx) {
 ## 9. 验收清单（Client）
 
 - [ ] 侧栏出现便签图标，点击切到面板，选中态正确
-- [ ] 顶栏「Obsidian MEMO」是宋体加粗，后面跟小字 by caven v0.12；卡片/抽屉标题没有 byline
+- [ ] 顶栏「Obsidian MEMO」是宋体加粗，后面跟小字 by caven v0.13（**版本号自动跟随 package.json**，改 package.json 后无需改代码）；卡片/抽屉标题没有 byline
 - [ ] 便签墙渲染 title/excerpt/comments/tag/color，meta 不出现；日间卡片色很淡（#FDFAF4 系）
 - [ ] 正文与卡片摘要是 80% 墨色
 - [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px

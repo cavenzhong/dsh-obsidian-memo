@@ -32,6 +32,9 @@ const requestsLogExistedBefore = existsSync(REQUESTS_LOG)
 
 const { apply } = await import('../lib/index.js')
 
+// Host 从 package.json 读实际版本并随 state 下发；测试直接读同一份文件比对。
+const PACKAGE_JSON = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+
 after(async () => {
   await rm(ROOT, { recursive: true, force: true })
   assert.equal(
@@ -322,6 +325,10 @@ test('state：返回 configured / notes / settings，knownRevision 相同时 unc
   const first = await c.call('state')
   assert.equal(first.ok, true)
   assert.equal(first.value.configured, true)
+  // 0.13：Host 从 package.json 读版本，state value 下发实际版本（Client 顶栏 byline 用它）
+  assert.equal(typeof first.value.version, 'string')
+  assert.equal(first.value.version, PACKAGE_JSON.version)
+  assert.match(first.value.version, /^\d+\.\d+\.\d+/)
   assert.equal(first.value.error, undefined)
   assert.equal(first.value.notes.length, 2)
   assert.match(first.value.revision, /^[0-9a-f]{16}$/)
@@ -367,6 +374,7 @@ test('state：返回 configured / notes / settings，knownRevision 相同时 unc
   const same = await c.call('state', { knownRevision: first.value.revision })
   assert.equal(same.ok, true)
   assert.equal(same.value.unchanged, true)
+  assert.equal(same.value.version, PACKAGE_JSON.version)
   assert.equal(same.value.notes, undefined)
   assert.equal(same.value.revision, first.value.revision)
 })
