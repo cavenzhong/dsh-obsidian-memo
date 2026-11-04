@@ -241,7 +241,7 @@ window.__ModuleLoader__.load({
 - 不用 JSX（手写 `h(...)`），不用 TypeScript。
 - 不读写别人的 DOM；不向 `document.body` 挂节点（自己的浮层都挂在面板容器内）。
 - 样式用 `ctx.effect` 注入一个 `<style data-plugin="sticky-notes">`，卸载时移除。
-- 0.12 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`。
+- 0.12 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`、`nextPollDelay(prevDelay, unchanged)`（见 §7.8）；图片队列/缓存若有额外统计函数（如 `imageCacheBytes()`）也一并导出。
 
 ### 6.2 注册
 
@@ -282,16 +282,17 @@ function apply(ctx) {
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
 - 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.12`（约 11px、透明度 .45）+ 计数（`123 张便签` 次要色）；右侧从左到右：**子文件夹开关（0.12 新增）**、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
-- **子文件夹开关（0.12）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用品牌色/淡底标识。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
+- **子文件夹开关（0.12）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.12 明确：卡片有图片时也不加高。**
 - 默认排序 = 文件创建时间降序（新 → 旧）；排序依据 host 下发的 `note.created`，前端可切换。
 
 ### 7.2 卡片（0.12 版）
 
-- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行**）→ 评论条（最多 2 条；有图时最多 1 条且不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距略收紧（`padding:12px 15px; gap:4px`），保证 208px 内不溢出。
-- **图片条（0.12 修正）**：`note.images` 前 3 张正方形缩略图（52×52、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
+- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:3px`，保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 9 = 203.8px）。
+- **图片条（第 3 轮修正）**：`note.images` 前 3 张正方形缩略图（**64×64**、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
   - 懒加载：卡片接近视口（IntersectionObserver，root 为便签墙，提前约 200px）才请求 `readImage { path, source, wiki, maxBytes: 1500000 }`；失败/超限/非图渲染同色系淡占位，不出错误文案、不打断卡片。
-  - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，LRU 上限 160 条，面板卸载清空），切走再回来不重复请求。
+  - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，**按字节预算 ~24MB 的 LRU**，条目上限兜底，面板卸载清空），切走再回来不重复请求。
+  - **并发上限（第 3 轮）**：图片加载走模块级队列，同时最多 3 个 `readImage` 在飞；排队项在卡片卸载/abort 时取消，避免一次涌入多个 MB 级 base64 造成主线程卡顿。
   - **有图时标题不压缩**：只吃掉摘要/评论的行数，卡片高度保持 208px。
 - **hover 操作区（0.12 修正版）**：hover / focus-within 时浮出：
   1. 一行：**所有 AI emoji 预设平铺**（`settings.emojis` 每枚一个 27×27 方形 icon 按钮，只画 emoji 字形，`flex-wrap` 支持最多 12 枚）。**鼠标悬停（或键盘 focus）某一枚时，在该按钮上方浮出一枚小标签显示该预设的 `label`**（如「毒舌」「另一面」「落地」「真心话」）——不是折叠菜单、不需要点击展开。点击某枚 = 对该便签发 `comment`（同 emoji 已有评论时先确认，见 7.7）。
@@ -308,12 +309,13 @@ function apply(ctx) {
 
 - **overlay 态（未锁定）**：从面板右侧推出，宽度约面板 1/3（`width: 34%; min-width: 340px; max-width: 620px`），占满面板高度，左侧卡片区仍可见、不加遮罩。滑入动画 160–200ms。
 - **可拖宽**：默认 `width: 34%`，抽屉左边缘 8px 拖拽把手（`cursor: col-resize`），未锁定范围 `[320px, min(960px, 面板宽 × 0.8)]`；宽度写入 `localStorage['dsh-sticky-notes.drawerWidth']`，双击把手恢复 34%。
-- **锁定（0.12 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（锁/解锁图标，`aria-pressed`）。
+- **锁定（0.12 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（锁/解锁图标，`aria-pressed`）。**锁定态不显示关闭按钮**（只留锁定/解锁按钮）；解锁态才显示关闭。两种模式都可用 `Esc` 关闭（锁定态的键盘退路）。
   - 未锁定 = 上述 overlay：覆盖在便签墙之上；点空白墙 / 同一张卡片关闭。
   - 锁定 = **内联双栏**：`.SN_body` 改为 `display:flex; flex-direction:row`，便签墙 `flex:1; min-width:0`，抽屉作为普通 flex 子项（无阴影、无绝对定位），左右并排、互不遮挡；抽屉打开/切换卡片时保持锁定。
-  - 状态持久化 `localStorage['dsh-sticky-notes.panelLocked'] = '1'`（默认 '0'）。锁定态点空白墙 / 同一张卡片**不关闭**，只切换内容；关闭按钮 / `Esc` 仍关闭；编辑态在墙上按下仍只退出编辑。
+  - 状态持久化 `localStorage['dsh-sticky-notes.panelLocked'] = '1'`（默认 '0'）。锁定态点空白墙 / 同一张卡片**不关闭**，只切换内容；`Esc` 仍关闭（没有关闭按钮）；编辑态在墙上按下仍只退出编辑。
   - 拖宽两种模式都可用；锁定态上限 = `max(320, min(960, 面板宽 - 260))`（给墙留至少 260px）；双击把手恢复默认宽度。
-- **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
+  - 锁定按钮本身也使用统一紫色选中样式（见 7.8）。
+- **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；`header` 分割线下方是**抽屉操作条（第 3 轮新增，见 7.3.2）**；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
 - **评论固定区（0.12）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、`max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
 - **双击正文区进入编辑态**（双击按钮/空白边缘不算）：正文变成 textarea，显示 `note.body` 原始 Markdown（不渲染），工具栏出现 `保存` / `取消`；`Cmd/Ctrl+S` 保存，`Esc`/取消退出编辑态（丢弃未保存修改，若有修改 toast「已取消编辑」）。
 - **保存**：`saveNote { path, body, name }`；成功后同步抽屉路径、退出编辑态，再取 `note` 并刷新 state；失败保留草稿并 toast `error.message`。
@@ -323,6 +325,15 @@ function apply(ctx) {
   - 抽屉编辑态：在左侧便签墙按下鼠标 → 只退出编辑态（丢弃未保存修改），抽屉保持打开。
   - 点击抽屉内部不关闭；关闭按钮 / `Esc`（查看态）关闭。
 - 切换卡片：抽屉打开时单击另一张卡片可直接切换内容。
+
+### 7.3.2 抽屉操作条（第 3 轮新增）
+
+- 阅读态抽屉在 header 分割线正下方渲染一行 `.SN_drawerActions`，**锁定与否都显示**；编辑态隐藏整条。
+- 一行两段，不换行：
+  - **左侧**：所有 AI emoji 评论按钮（与卡片同款 27×27 `.SN_aiBtn`，hover/focus 时按钮上方浮出 label 小标签）。点击 = 对当前打开的便签生成评论（同 emoji 已有评论先确认，见 §7.7）；pending 时左侧替换为 `✍️ 正在写评论…`。
+  - **右侧**：`归档`（点击弹出归档目标下拉，选目标后执行归档，成功后关闭抽屉）与 `开档`（打开开档对话框）。
+- 归档目标下拉锚定在操作条下方、右对齐；点外部 / `Esc` 关闭。不要复用卡片内的 `.SN_menu` 定位。
+- 抽屉打开时卡片 hover 操作区仍不出现（避免重复入口）。
 
 ### 7.3.1 排序菜单
 
@@ -371,6 +382,16 @@ function apply(ctx) {
 - 确认后才发 `comment`；取消则什么都不做。确认框打开时 `Esc` 只关确认框。
 - 自定义预设同样按 emoji 判断；`commentKinds` 缺失（旧 Host）时不做确认、直接生成。
 
+### 7.8 统一 icon 选中样式 + 性能与轮询（第 3 轮）
+
+- **统一 icon 选中样式**：`--sn-accent:#8B5CF6`（暗色主题 `#A78BFA`）。所有 30×30 `.SN_iconBtn` 在选中/激活态用 `data-active="true"`：**浅紫半透明底 + 紫色图标**（`color-mix(in srgb, var(--sn-accent) 10%, transparent)`，前置 rgba 兜底；hover 14%），不要品牌蓝深色块。至少覆盖：子文件夹开关（开）、锁定按钮（已锁定）、排序按钮（排序菜单打开）、设置齿轮（设置抽屉打开）。
+- **轮询自适应退避**：base 4s；一次响应 `unchanged` 时下一次 delay = `min(30000, round(prev * 1.5))`；有变化或用户主动操作（刷新/rescan/保存/评论等）重置回 4s。纯函数 `nextPollDelay(prevDelay, unchanged)` 导出到 `__test`。
+- **不可见时暂停**：面板不可见（`panelRef.current.getClientRects().length === 0` 或 `document.hidden`）时不发 `state` RPC，按约 15s 继续调度；`visibilitychange` 变可见立即跑一次并重置 delay。
+- **无变化不重渲染**：`mergeState` 在 `unchanged` 且 configured/error/revision、settings 签名、jobs 签名、notes 引用都相同时**返回 prev 对象**（不新建 view）。
+- **卡片 memo**：`NoteCard` 用 `React.memo`；`t` 与全部回调收进稳定 `actionsRef`（卡片调用 `props.actions.current.xxx`），面板因 toast/菜单/轮询重渲染时未变化的卡片跳过重渲染。
+- **图片加载**：并发 ≤3 的模块级队列 + 按字节预算的 LRU 缓存（~24MB，条目上限兜底），卸载/abort 清理。
+- **Host 侧配套**：扫描单飞（同一设置指纹下并发请求复用同一个 scan，scanEpoch 防止写后旧结果回写）；`readImage` wiki 附件名 miss 负缓存 60s；`DSH_STICKY_NOTES_DEBUG=1` 时输出 scan/readImage/state 计时日志（默认静默）。
+
 ## 8. 文件所有权
 
 | 文件 | 所有者 |
@@ -392,12 +413,17 @@ function apply(ctx) {
 - [ ] 正文与卡片摘要是 80% 墨色
 - [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px
 - [ ] 卡片 hover：所有 AI emoji 平铺一行，悬停某枚时上方浮出文字标题；分割线下是归档/开档；emoji 行 hover 时同色渐变蒙版
+- [ ] 卡片图片 64×64，贴在卡片左下角；有图卡片 208px 不溢出
+- [ ] 抽屉 header 分割线下有操作条：左 emoji 评论、右 归档/开档；锁定/未锁定都在
+- [ ] 锁定态没有关闭按钮，只能解锁后关闭或 Esc；解锁恢复关闭按钮
+- [ ] 子文件夹/锁定/排序/设置四个 icon 激活态统一为紫色高亮（浅紫底+紫图标）
+- [ ] 空闲轮询会退避（4s→最长 30s），面板不可见时不请求；无变化时不整墙重渲染
 - [ ] 已有同类评论时点击 emoji → 弹「再生成一条？」确认；确认后才生成
 - [ ] 单击卡片推出抽屉；点左侧卡片区关闭；编辑态点左侧只退出编辑
 - [ ] 抽屉内双击标题或正文进入编辑，原始 Markdown textarea；保存只替换正文、frontmatter 不动
 - [ ] 抽屉阅读态评论固定在下方面板内，正文滚动不影响评论
 - [ ] 抽屉锁定 → 变成右侧内联双栏、不遮挡；解锁恢复 overlay；刷新后锁定状态记住
-- [ ] 顶栏子文件夹 icon 切换：关闭后墙只剩顶层便签，刷新后状态记住
+- [ ] 顶栏子文件夹 icon 切换：关闭后墙只剩顶层便签，刷新后状态记住；激活态是紫色高亮
 - [ ] 排序按钮与菜单（默认创建时间新→旧），刷新后记住
 - [ ] 设置里目录字段走系统选择器，能直接选 iCloud 里的 Obsidian 库（也可手动输入 `~` 路径）
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
