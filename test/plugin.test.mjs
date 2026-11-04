@@ -986,6 +986,77 @@ test('comment：llm 不可用时 job.status 为 error 且文件不变', async ()
   assert.equal(await readFile(notePath, 'utf8'), before)
 })
 
+test('comment：按这枚 emoji 自己的 AI 预算请求模型', async () => {
+  const seen = []
+  const c = await makeCase({
+    notes: { '预算.md': '# 预算\n\n正文\n' },
+    settings: {
+      emojis: [
+        { id: 'devil', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'off', maxTokens: 3000 } },
+      ],
+    },
+    ctx: {
+      llm: {
+        async *stream(options) {
+          seen.push(options)
+          yield { type: 'text-delta', text: '评论' }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        },
+      },
+    },
+  })
+  const started = await c.call('comment', { path: c.seeded['预算.md'], emojiId: 'devil' })
+  assert.equal(started.ok, true)
+  const job = await waitForJob(c.call, started.value.jobId)
+  assert.equal(job.status, 'done')
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0].maxTokens, 3000)
+  assert.equal(seen[0].reasoningEffort, 'off')
+})
+
+test('comment：思考吃光预算（无正文）→ llm-token-budget，文件不变', async () => {
+  const c = await makeCase({
+    notes: { '断粮.md': '# 断粮\n\n原文\n' },
+    ctx: {
+      llm: {
+        async *stream() {
+          yield { type: 'finish', reason: { kind: 'max-tokens' } }
+        },
+      },
+    },
+  })
+  const notePath = c.seeded['断粮.md']
+  const before = await readFile(notePath, 'utf8')
+
+  const started = await c.call('comment', { path: notePath, emojiId: 'devil' })
+  const job = await waitForJob(c.call, started.value.jobId)
+  assert.equal(job.status, 'error')
+  // 0.13：带错误码，Client 据此弹「去调 AI 预算」提示
+  assert.equal(job.errorCode, 'llm-token-budget')
+  assert.match(job.error, /思考/)
+  assert.equal(await readFile(notePath, 'utf8'), before)
+})
+
+test('comment：撞上 token 上限但有正文 → done + truncated，评论仍写入', async () => {
+  const c = await makeCase({
+    notes: { '半截.md': '# 半截\n\n原文\n' },
+    ctx: {
+      llm: {
+        async *stream() {
+          yield { type: 'text-delta', text: '写到一半的评论' }
+          yield { type: 'finish', reason: { kind: 'max-tokens' } }
+        },
+      },
+    },
+  })
+  const notePath = c.seeded['半截.md']
+  const started = await c.call('comment', { path: notePath, emojiId: 'devil' })
+  const job = await waitForJob(c.call, started.value.jobId)
+  assert.equal(job.status, 'done')
+  assert.equal(job.truncated, true)
+  assert.match(await readFile(notePath, 'utf8'), /写到一半的评论/)
+})
+
 /* ────────────────────────── archive / undoArchive ────────────────────────── */
 
 test('archive：移动文件到归档目录，undoArchive 恢复', async () => {
@@ -1114,6 +1185,33 @@ test('openProject：重名 exists、空项目名 bad-request、未配置开档�
   assert.equal(duplicate.error.code, 'exists')
 })
 
+test('openProject：按 projectAi 的预算请求模型，撞上限但有正文时 job.truncated', async () => {
+  const seen = []
+  const c = await makeCase({
+    notes: { '开档.md': '# 开档\n\n正文\n' },
+    settings: { projectAi: { preset: 'custom', reasoningEffort: 'low', maxTokens: 5000 } },
+    ctx: {
+      llm: {
+        async *stream(options) {
+          seen.push(options)
+          yield { type: 'text-delta', text: '# 半截项目\n\n正文' }
+          yield { type: 'finish', reason: { kind: 'max-tokens' } }
+        },
+      },
+    },
+  })
+  const started = await c.call('openProject', { path: c.seeded['开档.md'], name: '截断项目' })
+  assert.equal(started.ok, true)
+  const job = await waitForJob(c.call, started.value.jobId)
+  assert.equal(job.status, 'done')
+  assert.equal(job.truncated, true)
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0].maxTokens, 5000)
+  assert.equal(seen[0].reasoningEffort, 'low')
+  const document = await readFile(join(c.projectDir, '截断项目', '截断项目.md'), 'utf8')
+  assert.match(document, /半截项目/)
+})
+
 test('openProject：未配置 / 仓库外开档目录被拒绝', async () => {
   const unconfigured = await makeCase({
     notes: { '甲.md': '# 甲\n' },
@@ -1173,6 +1271,35 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
   assert.equal(state.value.settings.notesDir, notesDir2)
   assert.equal(state.value.settings.projectPrompt, '新的建档提示词')
   assert.deepEqual(state.value.notes.map((note) => note.name), ['新'])
+})
+
+test('saveSettings：每枚 emoji 的 ai 与 projectAi 规范化后落盘并读回', async () => {
+  const c = await makeCase({ notes: { '甲.md': '# 甲\n' } })
+  const result = await c.call('saveSettings', {
+    settings: {
+      vaultPath: c.vault,
+      notesDir: c.notesDir,
+      projectDir: c.projectDir,
+      archiveTargets: [],
+      emojis: [
+        { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'low' } },
+        { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
+      ],
+      projectAi: { preset: 'medium' },
+    },
+  })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.value.settings.emojis.map((item) => item.ai.preset), ['low', 'custom'])
+  assert.deepEqual(result.value.settings.emojis[0].ai, { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
+  assert.deepEqual(result.value.settings.emojis[1].ai, { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 })
+  assert.deepEqual(result.value.settings.projectAi, { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
+
+  const onDisk = JSON.parse(await readFile(SETTINGS_FILE, 'utf8'))
+  assert.equal(onDisk.emojis[0].ai.preset, 'low')
+  assert.equal(onDisk.projectAi.preset, 'medium')
+
+  const state = await c.call('state')
+  assert.equal(state.value.settings.projectAi.preset, 'medium')
 })
 
 test('saveSettings：越界路径 / 不存在的便签目录 / 非法 payload 被拒绝', async () => {

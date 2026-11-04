@@ -105,6 +105,95 @@ test('normalizeSettings：includeSubfolders 参与 settingsEqual 比较', () => 
   assert.equal(settingsEqual({ includeSubfolders: false }, {}), false)
 })
 
+/* ─────────────────────────── AI 预算（0.13） ─────────────────────────── */
+
+test('DEFAULT_SETTINGS：每枚 emoji 与开档都有默认高预算（high / 8192）', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.projectAi, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  for (const emoji of DEFAULT_SETTINGS.emojis) {
+    assert.deepEqual(emoji.ai, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 }, `${emoji.id} 默认预算`)
+  }
+  // normalizeSettings 缺省 / 旧设置文件（没有 ai 字段）同样补默认高。
+  const settings = normalizeSettings({})
+  for (const emoji of settings.emojis) assert.equal(emoji.ai.preset, 'high')
+  assert.equal(settings.projectAi.preset, 'high')
+})
+
+test('normalizeSettings：四档预设映射正确（低=off/2048 中=low/4096 高=high/8192）', () => {
+  const preset = (id) => normalizeSettings({ projectAi: { preset: id } }).projectAi
+  assert.deepEqual(preset('low'), { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
+  assert.deepEqual(preset('medium'), { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
+  assert.deepEqual(preset('high'), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+})
+
+test('normalizeSettings：非自定义档以预设数值为准（手改值不生效）', () => {
+  const settings = normalizeSettings({ projectAi: { preset: 'medium', reasoningEffort: 'max', maxTokens: 1 } })
+  assert.deepEqual(settings.projectAi, { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
+})
+
+test('normalizeSettings：自定义档保留 effort，maxTokens 夹紧并取整', () => {
+  const custom = (raw) => normalizeSettings({ projectAi: raw }).projectAi
+  assert.deepEqual(custom({ preset: 'custom', reasoningEffort: 'max', maxTokens: 12345 }), {
+    preset: 'custom', reasoningEffort: 'max', maxTokens: 12345,
+  })
+  // effort 非法 → 回退 high
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'ultra', maxTokens: 1000 }).reasoningEffort, 'high')
+  // 低于下限 / 高于上限 / 小数
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 1 }).maxTokens, 256)
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 10 ** 9 }).maxTokens, 65536)
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 3000.6 }).maxTokens, 3001)
+  // 非法 maxTokens → 默认 8192
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 'x' }).maxTokens, 8192)
+  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off' }).maxTokens, 8192)
+})
+
+test('normalizeSettings：预设值非法时回退默认高；每枚 emoji 的 ai 独立保留', () => {
+  const settings = normalizeSettings({
+    projectAi: { preset: 'nope', reasoningEffort: 'off', maxTokens: 1000 },
+    emojis: [
+      { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'low' } },
+      { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
+      { id: 'c', emoji: '🧭', label: '落地', callout: 'info', prompt: 'p' },
+    ],
+  })
+  assert.deepEqual(settings.projectAi, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  assert.deepEqual(settings.emojis.map((item) => item.ai.preset), ['low', 'custom', 'high'])
+  assert.equal(settings.emojis[0].ai.reasoningEffort, 'off')
+  assert.equal(settings.emojis[1].ai.maxTokens, 5000)
+  assert.equal(settings.emojis[2].ai.maxTokens, 8192)
+})
+
+test('writeSettingsFile / readSettingsFile：AI 预算落盘并读回', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-ai-'))
+  const file = join(dir, 'settings.json')
+  try {
+    const saved = await writeSettingsFile(file, {
+      emojis: [{ id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 } }],
+      projectAi: { preset: 'low' },
+    })
+    assert.equal(saved.emojis[0].ai.maxTokens, 6000)
+    const onDisk = JSON.parse(await readFile(file, 'utf8'))
+    assert.equal(onDisk.emojis[0].ai.preset, 'custom')
+    assert.equal(onDisk.projectAi.preset, 'low')
+    const readBack = await readSettingsFile(file)
+    assert.deepEqual(readBack.emojis[0].ai, { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 })
+    assert.deepEqual(readBack.projectAi, { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('settingsEqual：AI 预算变化算不同设置', () => {
+  assert.equal(settingsEqual({ projectAi: { preset: 'high' } }, {}), true)
+  assert.equal(settingsEqual({ projectAi: { preset: 'low' } }, {}), false)
+  assert.equal(
+    settingsEqual(
+      { emojis: [{ emoji: '😈', label: 'x', callout: 'quote', prompt: 'p', ai: { preset: 'low' } }] },
+      { emojis: [{ emoji: '😈', label: 'x', callout: 'quote', prompt: 'p' }] },
+    ),
+    false,
+  )
+})
+
 test('locale / package meta：已改名为 Obsidian MEMO（包名/安装 id 不变）', async () => {
   const readJson = async (relativePath) => JSON.parse(await readFile(new URL(relativePath, import.meta.url), 'utf8'))
   const zh = await readJson('../locale/zh.json')

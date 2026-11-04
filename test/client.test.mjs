@@ -145,8 +145,22 @@ function getTestApi(mod) {
   for (const key of [
     'APP_VERSION',
     'PINNED_KEY',
+    'PINNED_NOTE_KEY',
     'readStoredPinned',
     'storePinned',
+    'readStoredPinnedNote',
+    'storePinnedNote',
+    'clearStoredPinnedNote',
+    'DATE_FILTERS',
+    'DEFAULT_DATE_FILTER',
+    'readStoredDateFilter',
+    'storeDateFilter',
+    'readStoredDateRealtime',
+    'storeDateRealtime',
+    'dateFilterBounds',
+    'dateFilterAnchor',
+    'filterNotesByDate',
+    'replaceNoteAtPath',
     'cardImages',
     'drawerWidthBounds',
     'nextPollDelay',
@@ -171,25 +185,24 @@ test('client bundle：__ModuleLoader__ 注册 id / factory / inject / __test', (
   getTestApi(mod)
 })
 
-test('client __test：APP_VERSION 与 package.json 的 major.minor 对齐（0.13）', (t) => {
+test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.4）', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  assert.equal(api.APP_VERSION, '0.13')
-  assert.equal(PACKAGE_JSON.version, '0.13.0')
-  // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的 major.minor
-  const majorMinor = PACKAGE_JSON.version.split('.').slice(0, 2).join('.')
-  assert.equal(api.APP_VERSION, majorMinor)
-  assert.equal(PACKAGE_JSON.version.startsWith(`${api.APP_VERSION}.`), true)
+  assert.equal(PACKAGE_JSON.version, '0.13.4')
+  // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的完整版本（补丁号也要对齐）
+  assert.equal(api.APP_VERSION, PACKAGE_JSON.version)
 })
 
-test('client __test：formatVersionLabel 取 major.minor，缺失/非法回退 APP_VERSION', (t) => {
+test('client __test：formatVersionLabel 取完整版本（含补丁号），缺失/非法回退 APP_VERSION', (t) => {
   const api = getTestApi(loadClient(t).mod)
   assert.equal(typeof api.formatVersionLabel, 'function', '__test.formatVersionLabel 缺失（v0.13）')
-  // 正常版本：取 major.minor，支持 v 前缀、预发布后缀、首尾空白
-  assert.equal(api.formatVersionLabel('0.13.0'), '0.13')
-  assert.equal(api.formatVersionLabel('v0.13.2'), '0.13')
-  assert.equal(api.formatVersionLabel('0.13.0-beta.1'), '0.13')
-  assert.equal(api.formatVersionLabel('  0.13.4  '), '0.13')
-  assert.equal(api.formatVersionLabel('1.2.3'), '1.2')
+  // 正常版本：保留完整 major.minor.patch，支持 v 前缀、预发布后缀、首尾空白
+  assert.equal(api.formatVersionLabel('0.13.0'), '0.13.0')
+  assert.equal(api.formatVersionLabel('v0.13.2'), '0.13.2')
+  assert.equal(api.formatVersionLabel('0.13.4'), '0.13.4')
+  assert.equal(api.formatVersionLabel('0.13.0-beta.1'), '0.13.0')
+  assert.equal(api.formatVersionLabel('  0.13.4  '), '0.13.4')
+  assert.equal(api.formatVersionLabel('1.2.3'), '1.2.3')
+  assert.equal(api.formatVersionLabel('1.2'), '1.2')
   // 缺失 / 空 / 非法 → 回退 APP_VERSION（旧 Host 没下发 version 的情况）
   for (const bad of [undefined, null, '', '   ', 'abc', 'v', 0, 123, true, {}, []]) {
     assert.equal(
@@ -197,6 +210,40 @@ test('client __test：formatVersionLabel 取 major.minor，缺失/非法回退 A
       api.APP_VERSION,
       `formatVersionLabel(${JSON.stringify(bad)}) 应回退 APP_VERSION`,
     )
+  }
+})
+
+test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.4）', () => {
+  for (const name of ['zh', 'en']) {
+    const locale = JSON.parse(
+      readFileSync(fileURLToPath(new URL(`../locale/${name}.json`, import.meta.url)), 'utf8'),
+    )
+    const description = locale?.meta?.description ?? ''
+    assert.ok(
+      description.includes(`Obsidian MEMO ${PACKAGE_JSON.version}`),
+      `locale/${name}.json 的 meta.description 应包含 "Obsidian MEMO ${PACKAGE_JSON.version}"，当前是：${description}`,
+    )
+    assert.doesNotMatch(description, /Obsidian MEMO 0\.12/, `locale/${name}.json 不应残留 0.12 描述`)
+  }
+})
+
+test('版本一致性：README 标题 / CONTRACT 当前版本 / locale 描述都与 package.json 对齐', () => {
+  const version = PACKAGE_JSON.version
+  const escaped = version.replace(/\./g, '\\.')
+  const readme = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8')
+  assert.match(readme, new RegExp(`^# Obsidian MEMO · v${escaped}$`, 'm'), 'README 标题版本应与 package.json 一致')
+  const contract = readFileSync(fileURLToPath(new URL('../docs/CONTRACT.md', import.meta.url)), 'utf8')
+  assert.ok(contract.includes(`当前版本：${version}`), 'CONTRACT 的「当前版本」应与 package.json 一致')
+  assert.ok(contract.includes(`版本 \`${version}\``), 'CONTRACT 的 package.json 版本说明应与 package.json 一致')
+})
+
+test('版本一致性：README/CONTRACT 里所有 by caven vX.Y.Z 示例都与 package.json 对齐', () => {
+  const version = PACKAGE_JSON.version
+  for (const rel of ['../README.md', '../docs/CONTRACT.md']) {
+    const text = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+    const found = [...text.matchAll(/by caven v(\d+\.\d+\.\d+)/g)].map((match) => match[1])
+    assert.ok(found.length > 0, `${rel} 应包含 by caven vX.Y.Z 的版本示例`)
+    for (const item of found) assert.equal(item, version, `${rel} 的 by caven 版本示例应与 package.json 一致`)
   }
 })
 
@@ -449,6 +496,15 @@ test('client __test：图片队列 / 缓存 / jobsSignature 统计安全（§7.8
   assert.equal(typeof api.jobsSignature(jobs), 'string')
   assert.equal(api.jobsSignature(jobs), api.jobsSignature([...jobs]))
   assert.notEqual(api.jobsSignature(jobs), api.jobsSignature([{ id: 'a', status: 'done' }]))
+  // 与 Host jobsFingerprint 对齐：errorCode / truncated 也必须参与签名（预算提示依赖）
+  assert.notEqual(
+    api.jobsSignature([{ id: 'j', status: 'error', error: 'x' }]),
+    api.jobsSignature([{ id: 'j', status: 'error', error: 'x', errorCode: 'llm-token-budget' }]),
+  )
+  assert.notEqual(
+    api.jobsSignature([{ id: 'j', status: 'done' }]),
+    api.jobsSignature([{ id: 'j', status: 'done', truncated: true }]),
+  )
 })
 
 /* ─────────────────── 无变化不重渲染（§7.8，mergeState 快路径） ─────────────────── */
@@ -535,4 +591,424 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
   // 非法 value 安全回退
   assert.equal(api.mergeState(prev, null), prev)
   assert.equal(api.mergeState(prev, undefined), prev)
+})
+
+/* ─────────────────────────── AI 预算（0.13） ─────────────────────────── */
+
+test('client __test：AI 预算预设与 shared.js 保持一致（防漂移）', async (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const shared = await import('../lib/shared.js')
+  assert.deepEqual(api.AI_PRESETS, shared.AI_PRESETS, 'client 与 shared 的预设映射必须一致')
+  assert.deepEqual(api.AI_PRESET_IDS, shared.AI_PRESET_IDS)
+  assert.deepEqual(api.AI_EFFORTS, shared.REASONING_EFFORTS)
+  assert.deepEqual(api.DEFAULT_AI, shared.DEFAULT_AI)
+})
+
+test('client __test：readAiBudget 容错旧值、非自定义档以预设为准、自定义夹紧', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.deepEqual(api.readAiBudget(undefined), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  assert.deepEqual(api.readAiBudget(null), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  assert.deepEqual(api.readAiBudget({ preset: 'bogus' }), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  assert.deepEqual(api.readAiBudget({ preset: 'low' }), { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
+  // 非自定义档：手改的 effort / maxTokens 不生效
+  assert.deepEqual(
+    api.readAiBudget({ preset: 'medium', reasoningEffort: 'max', maxTokens: 1 }),
+    { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 },
+  )
+  // 自定义档：保留并校验
+  assert.deepEqual(
+    api.readAiBudget({ preset: 'custom', reasoningEffort: 'max', maxTokens: 1234 }),
+    { preset: 'custom', reasoningEffort: 'max', maxTokens: 1234 },
+  )
+  assert.equal(api.readAiBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 1 }).maxTokens, 256)
+  assert.equal(api.readAiBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 10 ** 9 }).maxTokens, 65536)
+  assert.equal(api.readAiBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 3000.4 }).maxTokens, 3000)
+  assert.equal(api.readAiBudget({ preset: 'custom', reasoningEffort: 'x', maxTokens: 'x' }).reasoningEffort, 'high')
+  assert.equal(api.readAiBudget({ preset: 'custom', reasoningEffort: 'x', maxTokens: 'x' }).maxTokens, 8192)
+})
+
+test('client __test：patchAiBudget 切预设套用预设值，切自定义保留现值', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.deepEqual(
+    api.patchAiBudget({ preset: 'high' }, { preset: 'custom' }),
+    { preset: 'custom', reasoningEffort: 'high', maxTokens: 8192 },
+  )
+  assert.deepEqual(
+    api.patchAiBudget({ preset: 'custom', reasoningEffort: 'high', maxTokens: 8192 }, { maxTokens: 6000 }),
+    { preset: 'custom', reasoningEffort: 'high', maxTokens: 6000 },
+  )
+  assert.deepEqual(
+    api.patchAiBudget({ preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 }, { preset: 'low' }),
+    { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 },
+  )
+})
+
+test('client 字典：AI 预算与预算提示文案中英文齐全', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const keys = [
+    'settings.aiBudget',
+    'settings.aiPreset.low', 'settings.aiPreset.medium', 'settings.aiPreset.high', 'settings.aiPreset.custom',
+    'settings.aiPresetDetail.low', 'settings.aiPresetDetail.medium', 'settings.aiPresetDetail.high', 'settings.aiPresetDetail.custom',
+    'settings.aiEffort', 'settings.aiEffort.off', 'settings.aiEffort.low', 'settings.aiEffort.high', 'settings.aiEffort.max',
+    'settings.aiMaxTokens', 'settings.aiTokensUnit', 'settings.aiProjectHint',
+    'toast.budgetFailed', 'toast.budgetCommentTruncated', 'toast.budgetProjectTruncated',
+    'toast.budgetAction', 'toast.budgetAck',
+  ]
+  for (const key of keys) {
+    assert.equal(typeof api.dictionaries.zh[key], 'string', `zh 缺少 ${key}`)
+    assert.notEqual(api.dictionaries.zh[key], '', `zh ${key} 不应为空`)
+    assert.equal(typeof api.dictionaries.en[key], 'string', `en 缺少 ${key}`)
+    assert.notEqual(api.dictionaries.en[key], '', `en ${key} 不应为空`)
+  }
+})
+
+test('client ToastStack：预算提示渲染「去设置 / 知道了」两个动作，并兼容旧单 action', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const noop = () => {}
+  const two = api.components.ToastStack({
+    toasts: [{
+      id: 1,
+      kind: 'error',
+      text: '预算不够',
+      actions: [{ label: '去设置', run: noop }, { label: '知道了', run: noop }],
+    }],
+    onDismiss: noop,
+  })
+  const toast = two.children[0][0]
+  // stub 的 createElement 不展平数组子节点，这里手动展开一层。
+  const buttons = toast.children.flat().filter((child) => child && child.type === 'button')
+  assert.equal(buttons.length, 2)
+  assert.equal(buttons[0].children[0], '去设置')
+  assert.equal(buttons[1].children[0], '知道了')
+
+  const single = api.components.ToastStack({
+    toasts: [{ id: 2, kind: 'success', text: '已归档', action: { label: '撤销', run: noop } }],
+    onDismiss: noop,
+  })
+  const singleButtons = single.children[0][0].children.flat().filter((child) => child && child.type === 'button')
+  assert.equal(singleButtons.length, 1)
+  assert.equal(singleButtons[0].children[0], '撤销')
+})
+
+test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件，自定义才露出两个字段', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const collect = (node, out = []) => {
+    if (node == null) return out
+    if (Array.isArray(node)) {
+      for (const item of node) collect(item, out)
+      return out
+    }
+    if (typeof node === 'object') {
+      out.push(node)
+      collect(node.children, out)
+    }
+    return out
+  }
+  const t2 = (key) => key
+  const draft = {
+    vaultPath: '/v',
+    notesDir: '/v/notes',
+    projectDir: '/v/projects',
+    archiveTargets: [],
+    emojis: [
+      { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p' },
+      { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
+    ],
+    projectPrompt: '建档',
+  }
+  const noop = () => {}
+  const tree = api.components.SettingsDrawer({
+    t: t2,
+    draft: draft,
+    picking: null,
+    saving: false,
+    onPatch: noop,
+    onPick: noop,
+    onAddArchive: noop,
+    onRemoveArchive: noop,
+    onPatchEmoji: noop,
+    onRemoveEmoji: noop,
+    onAddEmoji: noop,
+    onSave: noop,
+    onCancel: noop,
+  })
+  // 组件元素（AiBudgetRow）带 ai prop：2 枚 emoji + 1 个开档
+  const budgetRows = collect(tree).filter((node) => node && typeof node.type === 'function' && node.props && Object.prototype.hasOwnProperty.call(node.props, 'ai'))
+  assert.equal(budgetRows.length, 3)
+  // 每行都渲染出「AI 预算」预设下拉
+  const presetValues = budgetRows.map((row) => {
+    const rendered = collect(row.type(row.props))
+    const select = rendered.find((node) => node && node.type === 'select' && node.props && node.props['aria-label'] === 'settings.aiBudget')
+    assert.ok(select, 'AI 预算下拉缺失')
+    return select.props.value
+  })
+  assert.deepEqual(presetValues, ['high', 'custom', 'high'])
+  // 自定义行额外渲染「思考档位 + 输出上限」
+  const customRendered = collect(budgetRows[1].type(budgetRows[1].props))
+  const effort = customRendered.find((node) => node && node.type === 'select' && node.props && node.props['aria-label'] === 'settings.aiEffort')
+  const tokens = customRendered.find((node) => node && node.type === 'input' && node.props && node.props['aria-label'] === 'settings.aiMaxTokens')
+  assert.equal(effort.props.value, 'max')
+  assert.equal(tokens.props.defaultValue, '5000')
+  // 非自定义行不渲染这两个字段
+  const presetRendered = collect(budgetRows[0].type(budgetRows[0].props))
+  assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiEffort'), false)
+  assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiMaxTokens'), false)
+})
+
+/* ─────────────────────── 日期筛选（0.13.4） ─────────────────────── */
+
+const DATE_DAY_MS = 24 * 60 * 60 * 1000;
+const DATE_NOW = new Date(2026, 10, 4, 15, 30, 0, 0).getTime(); // 本地时间 2026-11-04 15:30
+
+function startOfLocalDayForTest(ms) {
+  const date = new Date(ms);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+/** 本地「年月日 ± N 天」的 0 点（跨夏令时也正确）。 */
+function localDayOffsetForTest(ms, deltaDays) {
+  const date = new Date(ms);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + deltaDays).getTime();
+}
+
+function noteIds(list) {
+  return list.map((note) => note.path);
+}
+
+test('client __test：DATE_FILTERS 五档（今天/3 天/本周/本月/全部），默认今天', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.deepEqual(api.DATE_FILTERS.map((item) => item.id), ['today', '3d', 'week', 'month', 'all'])
+  assert.equal(api.DEFAULT_DATE_FILTER, 'today')
+})
+
+test('client __test：dateFilterBounds 默认不勾选（以最新一篇为锚），勾选「真实时间」按每日 00:00 分界', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const anchor = DATE_NOW - 3 * DATE_DAY_MS
+
+  // 默认（不勾选）：以最新一篇为锚滚动 24h/72h/7d/30d
+  const today = api.dateFilterBounds('today', { now: DATE_NOW, anchor })
+  assert.equal(today.start, anchor - DATE_DAY_MS)
+  assert.equal(today.realtime, false)
+  assert.equal(api.dateFilterBounds('3d', { now: DATE_NOW, anchor }).start, anchor - 3 * DATE_DAY_MS)
+  assert.equal(api.dateFilterBounds('week', { now: DATE_NOW, anchor }).start, anchor - 7 * DATE_DAY_MS)
+  assert.equal(api.dateFilterBounds('month', { now: DATE_NOW, anchor }).start, anchor - 30 * DATE_DAY_MS)
+
+  // 没有锚点（空墙/旧数据）时退回当前时间
+  assert.equal(api.dateFilterBounds('today', { now: DATE_NOW }).start, DATE_NOW - DATE_DAY_MS)
+
+  // 勾选「日期截止按真实时间」：自然日/周/月 00:00 分界
+  const midnight = startOfLocalDayForTest(DATE_NOW)
+  assert.equal(api.dateFilterBounds('today', { now: DATE_NOW, realtime: true }).start, midnight)
+  assert.equal(api.dateFilterBounds('3d', { now: DATE_NOW, realtime: true }).start, localDayOffsetForTest(DATE_NOW, -2))
+  const sinceMonday = (new Date(DATE_NOW).getDay() + 6) % 7
+  assert.equal(api.dateFilterBounds('week', { now: DATE_NOW, realtime: true }).start, localDayOffsetForTest(DATE_NOW, -sinceMonday))
+  const date = new Date(DATE_NOW)
+  assert.equal(
+    api.dateFilterBounds('month', { now: DATE_NOW, realtime: true }).start,
+    new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+  )
+
+  // 全部：不设下界
+  const all = api.dateFilterBounds('all', { now: DATE_NOW, realtime: true, anchor })
+  assert.equal(all.start, -Infinity)
+  assert.equal(all.end, Infinity)
+
+  // 非法 id 回退今天（默认锚定模式）
+  assert.equal(api.dateFilterBounds('bogus', { now: DATE_NOW }).start, DATE_NOW - DATE_DAY_MS)
+})
+
+test('client __test：filterNotesByDate 默认按最新一篇锚定；勾选真实时间按自然日；全部返回所有', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const notes = [
+    { path: 'today', created: DATE_NOW - 1000 },
+    { path: 'yesterday', created: localDayOffsetForTest(DATE_NOW, -1) + 1000 },
+    { path: 'two-days', created: localDayOffsetForTest(DATE_NOW, -2) + 1000 },
+    { path: 'three-days', created: localDayOffsetForTest(DATE_NOW, -3) + 1000 },
+  ]
+  const anchor = notes[0].created
+
+  // 不勾选（默认）：以最新一篇为锚
+  assert.deepEqual(noteIds(api.filterNotesByDate(notes, 'today', false, DATE_NOW)), ['today'])
+  assert.deepEqual(noteIds(api.filterNotesByDate(notes, '3d', false, DATE_NOW)), ['today', 'yesterday', 'two-days'])
+
+  // 勾选：按每日 00:00 的自然日分界（结果相同，但语义不同）
+  assert.deepEqual(noteIds(api.filterNotesByDate(notes, 'today', true, DATE_NOW)), ['today'])
+  assert.deepEqual(noteIds(api.filterNotesByDate(notes, '3d', true, DATE_NOW)), ['today', 'yesterday', 'two-days'])
+
+  // 显式锚点：24h / 72h / 7d / 30d 边界
+  const rolling = [
+    { path: 'x', created: anchor - 60 * 60 * 1000 },
+    { path: 'y', created: anchor - 25 * 60 * 60 * 1000 },
+    { path: 'z', created: anchor - 80 * 60 * 60 * 1000 },
+  ]
+  assert.deepEqual(noteIds(api.filterNotesByDate(rolling, 'today', false, DATE_NOW, anchor)), ['x'])
+  assert.deepEqual(noteIds(api.filterNotesByDate(rolling, '3d', false, DATE_NOW, anchor)), ['x', 'y'])
+
+  // 全部：不筛选
+  assert.deepEqual(
+    noteIds(api.filterNotesByDate(notes, 'all', true, DATE_NOW)),
+    ['today', 'yesterday', 'two-days', 'three-days'],
+  )
+
+  // created 缺失（含 0 哨兵）时用 mtime 兜底
+  assert.deepEqual(noteIds(api.filterNotesByDate([{ path: 'mtime', mtime: DATE_NOW }], 'today', false, DATE_NOW)), ['mtime'])
+  assert.deepEqual(noteIds(api.filterNotesByDate([{ path: 'zero', created: 0, mtime: DATE_NOW }], 'today', false, DATE_NOW)), ['zero'])
+  assert.equal(api.dateFilterAnchor(notes), notes[0].created)
+})
+
+test('client __test：日期筛选 localStorage 持久化与容错（真实时间勾选项用新键）', (t) => {
+  const { mod, storage } = loadClient(t)
+  const api = getTestApi(mod)
+
+  // 默认：今天、不勾选「真实时间」（= 以最新一篇为锚）
+  assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateRealtime(), false)
+
+  // 非法存储值回退默认
+  storage.setItem('dsh-sticky-notes.dateFilter.v1', 'bogus')
+  assert.equal(api.readStoredDateFilter(), 'today')
+
+  api.storeDateFilter('all')
+  assert.equal(storage.getItem('dsh-sticky-notes.dateFilter.v1'), 'all')
+  assert.equal(api.readStoredDateFilter(), 'all')
+  api.storeDateFilter('bogus')
+  assert.equal(api.readStoredDateFilter(), 'today')
+
+  api.storeDateRealtime(true)
+  assert.equal(storage.getItem('dsh-sticky-notes.dateRealtime.v1'), '1')
+  assert.equal(api.readStoredDateRealtime(), true)
+  api.storeDateRealtime(false)
+  assert.equal(storage.getItem('dsh-sticky-notes.dateRealtime.v1'), '0')
+  assert.equal(api.readStoredDateRealtime(), false)
+})
+
+test('client __test：localStorage 不可用时日期筛选读写安全回退', (t) => {
+  const { mod } = loadClient(t, { storage: null })
+  const api = getTestApi(mod)
+  assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateRealtime(), false)
+  assert.doesNotThrow(() => api.storeDateFilter('month'))
+  assert.doesNotThrow(() => api.storeDateRealtime(true))
+  assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateRealtime(), false)
+})
+
+test('client 源码 / 字典：日期筛选是顶栏第一个按钮，且有「全部」与「日期截止按真实时间」', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  for (const key of ['date.today', 'date.3d', 'date.week', 'date.month', 'date.all', 'date.realtime', 'date.realtimeHint', 'date.current']) {
+    assert.equal(typeof api.dictionaries.zh[key], 'string', `zh 缺少 ${key}`)
+    assert.equal(typeof api.dictionaries.en[key], 'string', `en 缺少 ${key}`)
+  }
+  assert.equal(api.dictionaries.zh['date.all'], '全部')
+  assert.equal(api.dictionaries.zh['date.realtime'], '日期截止按真实时间')
+  const actionsIndex = CLIENT_SOURCE.indexOf("className: 'SN_headActions'")
+  assert.ok(actionsIndex > 0, '应找到顶栏操作区')
+  const dateIndex = CLIENT_SOURCE.indexOf('日期筛选菜单（顶栏第一个）', actionsIndex)
+  const subIndex = CLIENT_SOURCE.indexOf('子文件夹开关', actionsIndex)
+  assert.ok(dateIndex > actionsIndex, '应找到日期筛选菜单')
+  assert.ok(subIndex > dateIndex, '日期筛选按钮应排在子文件夹开关之前')
+  assert.equal((CLIENT_SOURCE.match(/ref: dateWrapRef/g) || []).length, 1, '日期菜单不应重复渲染')
+  assert.match(CLIENT_SOURCE, /'date\.all': '全部'/, '日期菜单应有「全部」')
+  assert.match(CLIENT_SOURCE, /'date\.realtime': '日期截止按真实时间'/, '勾选项名称应为「日期截止按真实时间」')
+  assert.match(
+    CLIENT_SOURCE,
+    /'date\.realtimeHint': '勾选：按照每日 00:00 作为分界点显示；不勾选：按照最后一篇时间的标准界线'/,
+    '勾选项说明应描述真实时间分界 / 最后一篇时间界线',
+  )
+  assert.doesNotMatch(CLIENT_SOURCE, /date\.rolling/, '旧的 date.rolling 文案应已移除')
+})
+
+test('client __test：replaceNoteAtPath 改名后乐观替换旧 path（保留 pending / 其他字段）', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const notes = [
+    { path: '/v/旧名.md', name: '旧名', created: 1, pending: { emoji: '😈', label: '毒舌' } },
+    { path: '/v/别篇.md', name: '别篇', created: 2 },
+  ]
+  const summary = { path: '/v/新名.md', name: '新名', title: '新名', created: 1, excerpt: '正文' }
+  const next = api.replaceNoteAtPath(notes, '/v/旧名.md', summary)
+  assert.ok(Array.isArray(next))
+  assert.equal(next.length, 2)
+  assert.equal(next[0].path, '/v/新名.md')
+  assert.equal(next[0].name, '新名')
+  assert.equal(next[0].excerpt, '正文')
+  assert.deepEqual(next[0].pending, { emoji: '😈', label: '毒舌' }, 'pending 应保留')
+  assert.equal(next[1], notes[1], '其他便签引用不变')
+
+  // 没命中 / 非法参数 → null（调用方回退 refresh，不能误删或造数据）
+  assert.equal(api.replaceNoteAtPath(notes, '/v/不存在.md', summary), null)
+  for (const bad of [null, undefined, 'x', {}]) assert.equal(api.replaceNoteAtPath(bad, '/v/旧名.md', summary), null)
+  assert.equal(api.replaceNoteAtPath(notes, '', summary), null)
+  assert.equal(api.replaceNoteAtPath(notes, '/v/旧名.md', null), null)
+  assert.equal(api.replaceNoteAtPath(notes, '/v/旧名.md', { name: '缺 path' }), null)
+})
+
+test('client 源码：改名保存走乐观替换，保存中不误关抽屉', () => {
+  assert.match(CLIENT_SOURCE, /replaceRenamedNote\(path, savedNote\)/, 'saveEditing 改名分支应乐观替换 view.notes')
+  assert.match(CLIENT_SOURCE, /if \(savingNoteRef\.current\) return;/, '保存请求在飞时，筛选跟随 effect 应跳过')
+})
+
+/* ─────────────────── 锁定面板记住打开的便签（0.13.4） ─────────────────── */
+
+test('client __test：PINNED_NOTE_KEY 与锁定面板便签路径的存取/清除', (t) => {
+  const { mod, storage } = loadClient(t)
+  const api = getTestApi(mod)
+  assert.equal(api.PINNED_NOTE_KEY, 'dsh-sticky-notes.pinnedNote')
+  assert.equal(api.readStoredPinnedNote(), '')
+
+  api.storePinnedNote('/vault/notes/甲.md')
+  assert.equal(storage.getItem(api.PINNED_NOTE_KEY), '/vault/notes/甲.md')
+  assert.equal(api.readStoredPinnedNote(), '/vault/notes/甲.md')
+
+  // 空路径/非字符串不写入
+  api.storePinnedNote('')
+  api.storePinnedNote(null)
+  assert.equal(api.readStoredPinnedNote(), '/vault/notes/甲.md')
+
+  api.clearStoredPinnedNote()
+  assert.equal(storage.getItem(api.PINNED_NOTE_KEY), null)
+  assert.equal(api.readStoredPinnedNote(), '')
+})
+
+test('client __test：localStorage 不可用时锁定便签路径读写安全回退', (t) => {
+  const { mod } = loadClient(t, { storage: null })
+  const api = getTestApi(mod)
+  assert.equal(api.readStoredPinnedNote(), '')
+  assert.doesNotThrow(() => api.storePinnedNote('/a.md'))
+  assert.doesNotThrow(() => api.clearStoredPinnedNote())
+})
+
+/* ──────────── 卡片菜单出现时统一隐藏图片（0.13.4 简化） ──────────── */
+
+test('client 源码：菜单出现就隐藏图片预览，旧 emoji 蒙版逻辑已移除', () => {
+  // 统一规则：data-menu=true（= 悬停/聚焦卡片或归档菜单打开）时隐藏图片条
+  assert.match(
+    CLIENT_SOURCE,
+    /\.SN_card\[data-menu='true'\] \.SN_cardImages\{[^}]*opacity:0/,
+    '缺少 .SN_card[data-menu=true] .SN_cardImages 的隐藏规则',
+  )
+  // 操作区可见性必须与 data-menu 同源：不能再由 CSS :hover/:focus-within 单独先显示菜单
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card:hover \.SN_cardActions/, '操作区不应再由 CSS :hover 单独显示')
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card:focus-within \.SN_cardActions/, '操作区不应再由 CSS :focus-within 单独显示')
+  assert.match(CLIENT_SOURCE, /\.SN_cardActions\[data-visible='true'\]\{opacity:1/, '操作区应由 data-visible 控制')
+  // data-menu 与 data-visible 必须来自同一个 menuVisible 表达式
+  assert.match(CLIENT_SOURCE, /'data-menu': menuVisible \? 'true' : 'false'/)
+  assert.match(CLIENT_SOURCE, /'data-visible': menuVisible \? 'true' : undefined/)
+  // 旧的「仅 emoji 行 hover 才出现的同色渐变蒙版」已移除
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_cardScrim/, 'SN_cardScrim 应已删除')
+  assert.doesNotMatch(CLIENT_SOURCE, /aiRowActive|onAiRowEnter|onAiRowLeave/, 'emoji 行专属的 hover 逻辑应已简化')
+  // 卡片根节点自己监听 hover/focus
+  assert.match(CLIENT_SOURCE, /onMouseEnter: \(\) => actions\.current\.onCardEnter\(note\)/)
+  assert.match(CLIENT_SOURCE, /onMouseLeave: \(event\) => actions\.current\.onCardLeave\(/)
+  // 抽屉打开时也要记录 hover（否则关闭抽屉后菜单会停在旧卡片上）
+  const enterCardStart = CLIENT_SOURCE.indexOf('function enterCard(')
+  const leaveCardStart = CLIENT_SOURCE.indexOf('function leaveCard(')
+  assert.ok(enterCardStart > 0 && leaveCardStart > enterCardStart, 'enterCard / leaveCard 应存在')
+  assert.doesNotMatch(
+    CLIENT_SOURCE.slice(enterCardStart, leaveCardStart),
+    /noteDrawer/,
+    'enterCard 不应因抽屉打开而忽略 hover（menuVisible 已用 drawerOpen 屏蔽菜单）',
+  )
+  // 触屏兜底规则已删除：菜单可见性统一由 data-visible 决定
+  assert.doesNotMatch(CLIENT_SOURCE, /@media \(hover:none\)/, 'hover:none 的强制显示规则应已删除')
 })

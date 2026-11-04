@@ -64,7 +64,7 @@ test('buildProjectDocument：来源路径/标题里的双引号被转义', () =>
   assert.ok(document.startsWith(`---\nPROJECTS: "${escapedLink}"\nTODO: []\n---\n`))
 })
 
-test('buildCommentRequest：emoji 提示词进 system，便签内容进 prompt', () => {
+test('buildCommentRequest：emoji 提示词进 system，便签内容进 prompt，预算默认高', () => {
   const request = buildCommentRequest(
     { title: '标题', blocks: [{ kind: 'p', text: '一段正文' }], comments: [] },
     { prompt: '你是评论者' },
@@ -73,10 +73,28 @@ test('buildCommentRequest：emoji 提示词进 system，便签内容进 prompt',
   assert.match(request.system, /只输出评论正文本身/)
   assert.match(request.prompt, /标题：标题/)
   assert.match(request.prompt, /一段正文/)
-  assert.equal(request.maxTokens, 500)
+  // 0.13：每枚 emoji 自带 AI 预算；缺省时回退默认高（high / 8192）。
+  assert.equal(request.maxTokens, 8192)
+  assert.equal(request.reasoningEffort, 'high')
 })
 
-test('buildProjectRequest：建档提示词进 system，项目名与便签内容进 prompt', () => {
+test('buildCommentRequest：emoji.ai 的预设/自定义预算进入请求', () => {
+  const note = { title: 'T', blocks: [], comments: [] }
+  const low = buildCommentRequest(note, { prompt: 'p', ai: { preset: 'low' } })
+  assert.equal(low.maxTokens, 2048)
+  assert.equal(low.reasoningEffort, 'off')
+
+  const custom = buildCommentRequest(note, { prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 12345 } })
+  assert.equal(custom.maxTokens, 12345)
+  assert.equal(custom.reasoningEffort, 'max')
+
+  // 非自定义档以预设映射为准，手改的数值不生效。
+  const forced = buildCommentRequest(note, { prompt: 'p', ai: { preset: 'medium', reasoningEffort: 'max', maxTokens: 1 } })
+  assert.equal(forced.maxTokens, 4096)
+  assert.equal(forced.reasoningEffort, 'low')
+})
+
+test('buildProjectRequest：建档提示词进 system，项目名与便签内容进 prompt，预算默认高', () => {
   const request = buildProjectRequest(
     { title: '标题', blocks: [], comments: [] },
     '建档提示词',
@@ -85,7 +103,19 @@ test('buildProjectRequest：建档提示词进 system，项目名与便签内容
   assert.equal(request.system, '建档提示词')
   assert.match(request.prompt, /项目名：新项目/)
   assert.match(request.prompt, /标题：标题/)
-  assert.equal(request.maxTokens, 1800)
+  assert.equal(request.maxTokens, 8192)
+  assert.equal(request.reasoningEffort, 'high')
+})
+
+test('buildProjectRequest：projectAi 预算进入请求', () => {
+  const request = buildProjectRequest(
+    { title: '标题', blocks: [], comments: [] },
+    '建档提示词',
+    '新项目',
+    { preset: 'custom', reasoningEffort: 'low', maxTokens: 3000 },
+  )
+  assert.equal(request.maxTokens, 3000)
+  assert.equal(request.reasoningEffort, 'low')
 })
 
 test('renderNoteForModel：块前缀与最近 3 条评论', () => {
@@ -144,15 +174,18 @@ test('sourceWikilink：去掉 .md 并生成别名', () => {
 
 /* ───────────────────────────── generateText ───────────────────────────── */
 
-/** 造一个 mock ctx，llm 的 stream 由 chunks 决定。 */
+/** 造一个 mock ctx，llm 的 stream 由 chunks 决定；calls 记录每次 stream 的 options。 */
 function mockCtx({ chunks = [], throwAt, selection = { provider: 'mock', model: 'mock' }, withModel = true } = {}) {
+  const calls = []
   const llm = {
-    async *stream() {
+    async *stream(options) {
+      calls.push(options)
       if (throwAt === 'stream') throw new Error('网络断了')
       for (const chunk of chunks) yield chunk
     },
   }
   return {
+    calls,
     get(name) {
       if (name === 'llm') return llm
       if (name === 'agentDefaultModel') {
@@ -172,7 +205,7 @@ function mockCtx({ chunks = [], throwAt, selection = { provider: 'mock', model: 
 const REQUEST = { system: 'sys', prompt: 'user' }
 
 test('generateText：拼接 text-delta，忽略 finish stop', async () => {
-  const text = await generateText(
+  const generated = await generateText(
     mockCtx({
       chunks: [
         { type: 'text-delta', text: '第一段' },
@@ -182,11 +215,12 @@ test('generateText：拼接 text-delta，忽略 finish stop', async () => {
     }),
     REQUEST,
   )
-  assert.equal(text, '第一段第二段')
+  assert.equal(generated.text, '第一段第二段')
+  assert.equal(generated.truncated, false)
 })
 
 test('generateText：block-end 兜底文本', async () => {
-  const text = await generateText(
+  const generated = await generateText(
     mockCtx({
       chunks: [
         { type: 'block-end', block: { type: 'text', text: '整块文本' } },
@@ -195,11 +229,11 @@ test('generateText：block-end 兜底文本', async () => {
     }),
     REQUEST,
   )
-  assert.equal(text, '整块文本')
+  assert.equal(generated.text, '整块文本')
 })
 
 test('generateText：剥掉整段代码围栏', async () => {
-  const text = await generateText(
+  const generated = await generateText(
     mockCtx({
       chunks: [
         { type: 'text-delta', text: '```md\n# 标题\n```' },
@@ -208,7 +242,23 @@ test('generateText：剥掉整段代码围栏', async () => {
     }),
     REQUEST,
   )
-  assert.equal(text, '# 标题')
+  assert.equal(generated.text, '# 标题')
+})
+
+test('generateText：reasoningEffort / maxTokens 原样传给 llm.stream', async () => {
+  const ctx = mockCtx({ chunks: [{ type: 'text-delta', text: 'x' }, { type: 'finish', reason: { kind: 'stop' } }] })
+  await generateText(ctx, { ...REQUEST, reasoningEffort: 'off', maxTokens: 2048 })
+  assert.equal(ctx.calls[0].reasoningEffort, 'off')
+  assert.equal(ctx.calls[0].maxTokens, 2048)
+})
+
+test('generateText：请求没带思考档位时回退默认模型的档位', async () => {
+  const ctx = mockCtx({
+    chunks: [{ type: 'text-delta', text: 'x' }, { type: 'finish', reason: { kind: 'stop' } }],
+    selection: { provider: 'mock', model: 'mock', reasoningEffort: 'max' },
+  })
+  await generateText(ctx, REQUEST)
+  assert.equal(ctx.calls[0].reasoningEffort, 'max')
 })
 
 test('generateText：llm 服务缺失 → llm-unavailable', async () => {
@@ -240,17 +290,22 @@ test('generateText：流抛错 → llm-failed 且带原因', async () => {
   )
 })
 
-test('generateText：finish error / aborted / max-tokens 且无正文 → llm-failed', async () => {
-  for (const reason of [{ kind: 'error', failure: { message: '模型挂了' } }, { kind: 'aborted' }, { kind: 'max-tokens' }]) {
+test('generateText：finish error / aborted → llm-failed；max-tokens 且无正文 → llm-token-budget', async () => {
+  for (const reason of [{ kind: 'error', failure: { message: '模型挂了' } }, { kind: 'aborted' }]) {
     await assert.rejects(
       generateText(mockCtx({ chunks: [{ type: 'finish', reason }] }), REQUEST),
       (error) => error.code === 'llm-failed',
     )
   }
+  // 0.13：思考把预算吃光、正文为空 → 单独错误码，Client 据此弹「去调 AI 预算」提示。
+  await assert.rejects(
+    generateText(mockCtx({ chunks: [{ type: 'finish', reason: { kind: 'max-tokens' } }] }), { ...REQUEST, maxTokens: 500, reasoningEffort: 'high' }),
+    (error) => error.code === 'llm-token-budget' && /思考/.test(error.message),
+  )
 })
 
-test('generateText：max-tokens 但有正文时仍算成功', async () => {
-  const text = await generateText(
+test('generateText：max-tokens 但有正文时算成功并标记 truncated', async () => {
+  const generated = await generateText(
     mockCtx({
       chunks: [
         { type: 'text-delta', text: '已经写出的内容' },
@@ -259,7 +314,8 @@ test('generateText：max-tokens 但有正文时仍算成功', async () => {
     }),
     REQUEST,
   )
-  assert.equal(text, '已经写出的内容')
+  assert.equal(generated.text, '已经写出的内容')
+  assert.equal(generated.truncated, true)
 })
 
 test('generateText：模型返回空内容 → llm-failed', async () => {
