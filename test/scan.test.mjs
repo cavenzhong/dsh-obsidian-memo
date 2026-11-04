@@ -104,7 +104,7 @@ test('scan：遍历顶层 / 子目录，跳过隐藏目录、.git、非 md', asy
   assert.deepEqual([...byName.keys()].sort(), ['顶层', '子目录', '更深'].sort())
 
   assert.equal(byName.get('顶层').tag, null)
-  assert.equal(byName.get('顶层').color, '#FCF7EC')
+  assert.equal(byName.get('顶层').color, '#FDFAF4')
   assert.equal(byName.get('顶层').darkColor, '#2C2721')
   assert.equal(byName.get('顶层').relPath, '进行时/顶层.md')
   assert.equal(byName.get('顶层').path, join(notesDir, '顶层.md'))

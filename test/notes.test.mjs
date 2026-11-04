@@ -405,25 +405,27 @@ test('appendComment：中文与多行评论都能被 parseNote 读回', () => {
 test('colorForTag：无 tag 用纸白', () => {
   assert.equal(colorForTag(null), CARD_PALETTE[0].color)
   assert.equal(colorForTag(''), CARD_PALETTE[0].color)
-  assert.equal(colorForTag(undefined), '#FCF7EC')
+  assert.equal(colorForTag(undefined), '#FDFAF4')
 })
 
-test('CARD_PALETTE：0.12 色板与契约 §3.5 完全一致（日间纸色提亮一档）', () => {
+test('CARD_PALETTE：0.12 修正轮色板与契约 §3.5 完全一致（日间纸色再往白里调）', () => {
   assert.deepEqual(
     CARD_PALETTE.map((item) => [item.name, item.color, item.dark]),
     [
-      ['纸白', '#FCF7EC', '#2C2721'],
-      ['苔绿', '#F1F6EF', '#232B24'],
-      ['杏', '#FBF3EE', '#2E2622'],
-      ['雾蓝', '#F0F5FB', '#222A33'],
-      ['藕荷', '#F8F1F8', '#2A242C'],
-      ['米', '#F8F5EC', '#2B2822'],
-      ['胭脂', '#FBF1F2', '#2E2426'],
-      ['青瓷', '#F1F7F4', '#222C29'],
+      ['纸白', '#FDFAF4', '#2C2721'],
+      ['苔绿', '#F5F9F4', '#232B24'],
+      ['杏', '#FDF7F3', '#2E2622'],
+      ['雾蓝', '#F4F8FC', '#222A33'],
+      ['藕荷', '#FAF5FA', '#2A242C'],
+      ['米', '#FAF8F2', '#2B2822'],
+      ['胭脂', '#FDF5F6', '#2E2426'],
+      ['青瓷', '#F5F9F7', '#222C29'],
     ],
   )
-  // 浅色纸都比 0.11 的纸色更淡（不能回退到旧色值）
-  assert.equal(CARD_PALETTE.some((item) => item.color === '#FBF3DF'), false)
+  // 旧的 0.11 / 首版 0.12 纸色都不应再出现
+  for (const stale of ['#FBF3DF', '#FCF7EC']) {
+    assert.equal(CARD_PALETTE.some((item) => item.color === stale), false, `旧色 ${stale} 不应留在色板里`)
+  }
 })
 
 test('colorForTag：同一 tag 恒定、都在色板内', () => {
@@ -453,7 +455,7 @@ test('colorForTag / darkColorForTag：同 tag 稳定、color/darkColor 来自同
     assert.equal(darkColorForTag(tag), dark)
   }
   // 无 tag = 纸白 + 纸白暗色
-  assert.equal(colorForTag(null), '#FCF7EC')
+  assert.equal(colorForTag(null), '#FDFAF4')
   assert.equal(darkColorForTag(null), '#2C2721')
   // 同一 tag 的两个便签必然同色（hex 成对）
   assert.deepEqual([colorForTag('设计'), darkColorForTag('设计')], [colorForTag('设计'), darkColorForTag('设计')])

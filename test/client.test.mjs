@@ -176,6 +176,22 @@ test('client __test：APP_VERSION 与 package.json 的 0.12 对齐', (t) => {
   assert.equal(PACKAGE_JSON.version.startsWith(`${api.APP_VERSION}.`), true)
 })
 
+test('client 源码：byline 为 by caven v0.12 且只在顶栏（宽松静态检查）', () => {
+  // 契约 §6.3（修正轮）：署名只在面板顶栏大标题后，文案小写 v，版本来自 APP_VERSION。
+  assert.match(CLIENT_SOURCE, /by caven v/, 'byline 文案应为小写 v 的 by caven v0.12')
+  assert.doesNotMatch(CLIENT_SOURCE, /by caven V/, '旧文案 by caven V0.12 不应保留')
+  // 允许两种实现：常量字符串拼接，或模板串；也允许直接写死 by caven v0.12
+  assert.match(
+    CLIENT_SOURCE,
+    /'by caven v'\s*\+\s*APP_VERSION|`by caven v\$\{APP_VERSION\}`|by caven v0\.12/,
+    'byline 应由 APP_VERSION 派生或与 0.12 对齐',
+  )
+  // 卡片与抽屉不再各渲染一处：旧实现是「声明 + 卡片 + 抽屉」共 3 处 BYLINE 引用，
+  // 修正后应只剩「声明 + 顶栏一处」≤ 2 处。不绑定具体类名/组件名，避免脆测试。
+  const bylineRefs = (CLIENT_SOURCE.match(/\bBYLINE\b/g) ?? []).length
+  assert.ok(bylineRefs <= 2, `BYLINE 引用次数应 <= 2（声明 + 顶栏一处），实际 ${bylineRefs}`)
+})
+
 /* ─────────────────────────── 面板锁（§7.3） ─────────────────────────── */
 
 test('client __test：PINNED_KEY 为契约约定的 localStorage 键', (t) => {

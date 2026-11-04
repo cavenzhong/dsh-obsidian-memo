@@ -139,18 +139,18 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 
 按 `tag` 稳定分配（同一 tag 恒同色），无 tag 用纸白。Host 在 `NoteSummary.color` 里给十六进制色。
 
-0.12 把日间纸色整体提亮一档（用户反馈"日间卡片颜色更淡一些"）：
+0.12 把日间纸色整体往白里调两档（用户反馈"卡片颜色更偏白、更淡一些"）：
 
 | 名字 | 浅色 card.color | 深色 card.darkColor |
 |---|---|---|
-| 纸白（无 tag） | `#FCF7EC` | `#2C2721` |
-| 苔绿 | `#F1F6EF` | `#232B24` |
-| 杏 | `#FBF3EE` | `#2E2622` |
-| 雾蓝 | `#F0F5FB` | `#222A33` |
-| 藕荷 | `#F8F1F8` | `#2A242C` |
-| 米 | `#F8F5EC` | `#2B2822` |
-| 胭脂 | `#FBF1F2` | `#2E2426` |
-| 青瓷 | `#F1F7F4` | `#222C29` |
+| 纸白（无 tag） | `#FDFAF4` | `#2C2721` |
+| 苔绿 | `#F5F9F4` | `#232B24` |
+| 杏 | `#FDF7F3` | `#2E2622` |
+| 雾蓝 | `#F4F8FC` | `#222A33` |
+| 藕荷 | `#FAF5FA` | `#2A242C` |
+| 米 | `#FAF8F2` | `#2B2822` |
+| 胭脂 | `#FDF5F6` | `#2E2426` |
+| 青瓷 | `#F5F9F7` | `#222C29` |
 
 浅色模式墨色（0.12：正文墨色统一压到 80% 不透明度，标题 100%）：
 标题 `#2b2620`、正文 `rgba(87,81,74,.8)`、评论 `rgba(107,100,92,.78)`、弱化 `rgba(138,129,119,.72)`。
@@ -269,11 +269,11 @@ function apply(ctx) {
 - 面板背景/边框/主文字用 token：`--dsw-alias-bg-base`、`--dsw-alias-bg-layer-1`、`--dsw-alias-border-l1`、`--dsw-alias-label-primary/secondary`、`--dsw-alias-brand-primary`、`--dsw-alias-state-error-primary`。不要写死面板色。
 - 卡片颜色用 `NoteSummary.color`（淡色纸），卡上文字用固定墨色（见 3.5），浅色卡片在深浅主题下都好看。
 - 字体：
-  - 标题（0.12 起优先猴尊宋体）：`"猴尊宋体", "HouZunSongTi", "Songti SC", "STSong", "Songti TC", "SimSun", "宋体", "Noto Serif CJK SC", "Noto Serif SC", serif`
+  - 标题（保持 0.11 的宋体加粗，0.12 曾试过猴尊宋体但效果不好已撤回）：`"Songti SC", "STSong", "Songti TC", "SimSun", "宋体", "Noto Serif CJK SC", "Noto Serif SC", serif`
   - 正文/控件：`"PingFang SC", "Heiti SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`
 - 尺寸对比要明显：标题 19–21px / 600；正文 12.5–13px / 400、行高 1.55–1.65；评论 11.5–12px；tag 10.5px、字距 .04em。
 - 0.12 正文透明度：卡片摘要与抽屉正文文字统一 80% 不透明度（见 3.5）；标题保持 100%。
-- 0.12 署名：卡片标题后跟一枚小字 `by caven V0.12`（约 10px、非常淡，透明度约 45%）；抽屉标题后同样一枚（编辑态隐藏）。版本号由 Client 常量 `APP_VERSION = '0.12'` 提供，与 `package.json` 的 `0.12.0` 对齐。
+- 0.12 署名：**只在面板顶栏大标题「Obsidian MEMO」之后**跟一枚小字 `by caven v0.12`（约 11px、非常淡、透明度约 45%、baseline 对齐、不换行）；**卡片与抽屉标题不再带 byline**。版本号由 Client 常量 `APP_VERSION = '0.12'` 提供，与 `package.json` 的 `0.12.0` 对齐。
 - 整体简约、留白足；圆角 10–12px；卡片阴影很轻（`0 1px 2px rgba(0,0,0,.04)`）。
 
 ## 7. UX 规格
@@ -281,24 +281,23 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px + 计数（`123 张便签` 次要色）；右侧从左到右：**子文件夹开关（0.12 新增）**、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.12`（约 11px、透明度 .45）+ 计数（`123 张便签` 次要色）；右侧从左到右：**子文件夹开关（0.12 新增）**、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.12）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用品牌色/淡底标识。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.12 明确：卡片有图片时也不加高。**
 - 默认排序 = 文件创建时间降序（新 → 旧）；排序依据 host 下发的 `note.created`，前端可切换。
 
 ### 7.2 卡片（0.12 版）
 
-- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体，clamp 3 行，标题后内联 byline）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行**）→ 图片条（有图时）→ 评论条（最多 2 条；有图时最多 1 条且不显示「＋N」）→ hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距略收紧（`padding:12px 15px; gap:4px`），保证 208px 内不溢出。
-- **byline**：标题后内联一枚小字 `by caven V0.12`（约 10px、透明度约 45%、不换行）；标题文字本身仍 clamp 3 行。
-- **图片条**：把 `note.images` 前 3 张渲染为正方形缩略图（52×52、圆角 7px、间隙 6px、`object-fit:cover`）；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
+- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行**）→ 评论条（最多 2 条；有图时最多 1 条且不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距略收紧（`padding:12px 15px; gap:4px`），保证 208px 内不溢出。
+- **图片条（0.12 修正）**：`note.images` 前 3 张正方形缩略图（52×52、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
   - 懒加载：卡片接近视口（IntersectionObserver，root 为便签墙，提前约 200px）才请求 `readImage { path, source, wiki, maxBytes: 1500000 }`；失败/超限/非图渲染同色系淡占位，不出错误文案、不打断卡片。
   - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，LRU 上限 160 条，面板卸载清空），切走再回来不重复请求。
   - **有图时标题不压缩**：只吃掉摘要/评论的行数，卡片高度保持 208px。
-- **hover 操作区（0.12 重设计）**：hover / focus-within / 菜单激活时浮出：
-  1. 一行：**单枚 AI emoji 按钮**（`✨`，`aria-label`「AI 评论」）——鼠标悬停（或点击 / 键盘 focus）时在按钮**上方**弹出预设菜单：列出 `settings.emojis` 每条的 `emoji + label`（最多 4 条可见、超出滚动），点击某一项 = 对该便签发 `comment`。移出按钮与菜单后收起；`Esc` 也收起。
+- **hover 操作区（0.12 修正版）**：hover / focus-within 时浮出：
+  1. 一行：**所有 AI emoji 预设平铺**（`settings.emojis` 每枚一个 27×27 方形 icon 按钮，只画 emoji 字形，`flex-wrap` 支持最多 12 枚）。**鼠标悬停（或键盘 focus）某一枚时，在该按钮上方浮出一枚小标签显示该预设的 `label`**（如「毒舌」「另一面」「落地」「真心话」）——不是折叠菜单、不需要点击展开。点击某枚 = 对该便签发 `comment`（同 emoji 已有评论时先确认，见 7.7）。
   2. **分割线**。
   3. 一行：`归档`（弹现有归档目标菜单）/ `开档`（现有对话框）。
-  - **同色渐变蒙版**：AI 预设菜单或归档目标菜单打开时，卡片内容之上覆盖一层 `.SN_cardScrim`（`background: linear-gradient(to top, var(--sn-card-bg) 52%, transparent)`，位于菜单之下、内容之上），让背后的便签文字退到朦胧里。
+  - **同色渐变蒙版**：emoji 行被悬停 / 键盘 focus，或归档目标菜单打开时，卡片内容之上覆盖一层 `.SN_cardScrim`（`background: linear-gradient(to top, var(--sn-card-bg) 52%, transparent)`，位于操作区之下、内容之上），让上方标签和按钮清楚可读。
   - 抽屉打开时整个操作区不出现（保持现有行为）。
 - 卡片有 `pending` 时：操作区位置显示 `✍️ 正在写评论…`。
 - **单击卡片打开右侧抽屉**（没有选中态、没有输入栏）；键盘 Enter 也可打开。
@@ -314,7 +313,7 @@ function apply(ctx) {
   - 锁定 = **内联双栏**：`.SN_body` 改为 `display:flex; flex-direction:row`，便签墙 `flex:1; min-width:0`，抽屉作为普通 flex 子项（无阴影、无绝对定位），左右并排、互不遮挡；抽屉打开/切换卡片时保持锁定。
   - 状态持久化 `localStorage['dsh-sticky-notes.panelLocked'] = '1'`（默认 '0'）。锁定态点空白墙 / 同一张卡片**不关闭**，只切换内容；关闭按钮 / `Esc` 仍关闭；编辑态在墙上按下仍只退出编辑。
   - 拖宽两种模式都可用；锁定态上限 = `max(320, min(960, 面板宽 - 260))`（给墙留至少 260px）；双击把手恢复默认宽度。
-- **查看态**：顶部标题（**双击标题进入编辑态**；标题后 byline）+ tag + 锁定 / 关闭按钮；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
+- **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
 - **评论固定区（0.12）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、`max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
 - **双击正文区进入编辑态**（双击按钮/空白边缘不算）：正文变成 textarea，显示 `note.body` 原始 Markdown（不渲染），工具栏出现 `保存` / `取消`；`Cmd/Ctrl+S` 保存，`Esc`/取消退出编辑态（丢弃未保存修改，若有修改 toast「已取消编辑」）。
 - **保存**：`saveNote { path, body, name }`；成功后同步抽屉路径、退出编辑态，再取 `note` 并刷新 state；失败保留草稿并 toast `error.message`。
@@ -388,11 +387,12 @@ function apply(ctx) {
 ## 9. 验收清单（Client）
 
 - [ ] 侧栏出现便签图标，点击切到面板，选中态正确
-- [ ] 便签墙渲染 title（猴尊宋体优先）/byline/excerpt/comments/tag/color，meta 不出现
-- [ ] 正文与卡片摘要是浅一档的 80% 墨色；日间卡片色比 0.11 更淡
-- [ ] 有图卡片显示 3 张方图（大图不出卡片）+ 淡色 `＋N`；有图时标题不压缩、只压摘要行数
-- [ ] 卡片 hover 出现「✨」AI 按钮：悬停其上方弹出 4 个预设标题；分割线下是归档/开档；菜单打开时有同色渐变蒙版
-- [ ] 已有同类评论时点击预设 → 弹「再生成一条？」确认；确认后才生成
+- [ ] 顶栏「Obsidian MEMO」是宋体加粗，后面跟小字 by caven v0.12；卡片/抽屉标题没有 byline
+- [ ] 便签墙渲染 title/excerpt/comments/tag/color，meta 不出现；日间卡片色很淡（#FDFAF4 系）
+- [ ] 正文与卡片摘要是 80% 墨色
+- [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px
+- [ ] 卡片 hover：所有 AI emoji 平铺一行，悬停某枚时上方浮出文字标题；分割线下是归档/开档；emoji 行 hover 时同色渐变蒙版
+- [ ] 已有同类评论时点击 emoji → 弹「再生成一条？」确认；确认后才生成
 - [ ] 单击卡片推出抽屉；点左侧卡片区关闭；编辑态点左侧只退出编辑
 - [ ] 抽屉内双击标题或正文进入编辑，原始 Markdown textarea；保存只替换正文、frontmatter 不动
 - [ ] 抽屉阅读态评论固定在下方面板内，正文滚动不影响评论
