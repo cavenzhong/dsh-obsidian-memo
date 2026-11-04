@@ -1,9 +1,9 @@
 {
   "name": "dsh-sticky-notes",
-  "version": "0.13.4",
+  "version": "0.13.8",
   "private": true,
   "type": "module",
-  "description": "Obsidian MEMO：把 Obsidian 进行时文件夹以淡色便签形式放进 DSH，支持阅读/编辑、AI 评论、归档与开档。",
+  "description": "Obsidian MEMO：把 Obsidian 进行时文件夹以淡色便签形式放进 DSH，支持阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

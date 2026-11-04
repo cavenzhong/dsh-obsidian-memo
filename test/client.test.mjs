@@ -164,6 +164,8 @@ function getTestApi(mod) {
     'cardImages',
     'drawerWidthBounds',
     'nextPollDelay',
+    'WALL_PAGE_SIZE',
+    'nextVisibleCount',
     'formatVersionLabel',
   ]) {
     assert.notEqual(api[key], undefined, `__test.${key} 缺失（契约 §6.1）`)
@@ -185,9 +187,9 @@ test('client bundle：__ModuleLoader__ 注册 id / factory / inject / __test', (
   getTestApi(mod)
 })
 
-test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.4）', (t) => {
+test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.8）', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  assert.equal(PACKAGE_JSON.version, '0.13.4')
+  assert.equal(PACKAGE_JSON.version, '0.13.8')
   // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的完整版本（补丁号也要对齐）
   assert.equal(api.APP_VERSION, PACKAGE_JSON.version)
 })
@@ -213,7 +215,7 @@ test('client __test：formatVersionLabel 取完整版本（含补丁号），缺
   }
 })
 
-test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.4）', () => {
+test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.8）', () => {
   for (const name of ['zh', 'en']) {
     const locale = JSON.parse(
       readFileSync(fileURLToPath(new URL(`../locale/${name}.json`, import.meta.url)), 'utf8'),
@@ -387,6 +389,66 @@ test('client __test：drawerWidthBounds 锁定态上限 = max(320, min(960, 面�
 
   // 锁定态比 overlay 态更早触顶（给便签墙让出 260px）
   assert.ok(api.drawerWidthBounds(1200, true).upper < api.drawerWidthBounds(1200, false).upper)
+})
+
+/* ─────────────── 动态加载（0.13.8，§7.1） ─────────────── */
+
+test('client __test：便签墙首屏 50 张，触底每次再补 50 张（不超过总数）', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.equal(api.WALL_PAGE_SIZE, 50, '首屏/每批应为 50 张')
+  assert.equal(api.nextVisibleCount(50, 120), 100)
+  assert.equal(api.nextVisibleCount(100, 120), 120)
+  // 已经到头 / 总数更少：不再增加
+  assert.equal(api.nextVisibleCount(120, 120), 120)
+  assert.equal(api.nextVisibleCount(50, 12), 12)
+  assert.equal(api.nextVisibleCount(0, 120), 50)
+  // 非法输入不抛错，按 0 / 50 处理
+  assert.equal(api.nextVisibleCount(undefined, 120), 50)
+  assert.equal(api.nextVisibleCount(50, undefined), 50)
+  assert.equal(api.nextVisibleCount(50, 120, 10), 60)
+})
+
+test('client 字典：0.13.8 新文案（在 Obsidian 打开 / 加载中 / callout 样式）中英文齐全', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  for (const key of ['card.obsidian', 'panel.loadingMore', 'settings.callout', 'settings.calloutValue']) {
+    assert.equal(typeof api.dictionaries.zh[key], 'string', `zh 缺少 ${key}`)
+    assert.notEqual(api.dictionaries.zh[key], '', `zh ${key} 不应为空`)
+    assert.equal(typeof api.dictionaries.en[key], 'string', `en 缺少 ${key}`)
+    assert.notEqual(api.dictionaries.en[key], '', `en ${key} 不应为空`)
+  }
+  assert.equal(api.dictionaries.zh['card.obsidian'], '在 Obsidian 打开')
+  assert.match(api.dictionaries.zh['settings.calloutValue'], /\{style\}/, 'callout 样式文案应包含 {style} 插值')
+  assert.match(api.dictionaries.en['settings.calloutValue'], /\{style\}/)
+})
+
+test('client StyleSelect：按钮显示「callout样式-xx」，点开菜单 13 项并给当前项打勾', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const t2 = (key, params) => {
+    if (params && params.style) return 'callout样式-' + params.style
+    const callout = /^callout\.(.+)$/.exec(key)
+    if (callout) return ({ quote: '引用', note: '笔记' })[callout[1]] || callout[1]
+    return key
+  }
+  const collect = (node, out = []) => {
+    if (node == null) return out
+    if (Array.isArray(node)) {
+      for (const item of node) collect(item, out)
+      return out
+    }
+    if (typeof node === 'object') {
+      out.push(node)
+      collect(node.children, out)
+    }
+    return out
+  }
+  const tree = api.components.StyleSelect({ t: t2, value: 'quote', disabled: false, onChange: () => {} })
+  const nodes = collect(tree)
+  const button = nodes.find((node) => node && node.type === 'button' && node.props && node.props['aria-haspopup'] === 'menu')
+  assert.ok(button, '样式按钮缺失')
+  assert.equal(button.props.title, 'callout样式-引用')
+  assert.equal(button.children[0].children[0], 'callout样式-引用')
+  // 未点开时没有菜单；菜单项由 CALLOUT_IDS 驱动（13 项），打开后当前项带 ✓。
+  assert.equal(nodes.some((node) => node && node.props && node.props.role === 'menuitemradio'), false)
 })
 
 /* ─────────────────── 轮询退避（§7.9 性能） ─────────────────── */

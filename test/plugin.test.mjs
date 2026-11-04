@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 
 import { writeSettingsFile } from '../lib/settings.js'
 import { CARD_PALETTE, LEGACY_EMOJIS, LIMITS, colorForTag } from '../lib/shared.js'
+import { setOpenExternalUrlForTests } from '../lib/obsidian.js'
 
 const ROOT = await mkdtemp(join(tmpdir(), 'sticky-plugin-'))
 const SETTINGS_FILE = join(ROOT, 'settings.json')
@@ -1612,4 +1613,49 @@ test('RPC 路由：非法 JSON / 读取 body 失败 / body 过大', async () => 
   assert.equal(tooLarge.statusCode, 400)
   assert.equal(tooLarge.body, 'unreadable body')
   assert.equal(tooLarge.envelope, null)
+})
+
+/* ─────────────────── 0.13.8 在 Obsidian 打开 ─────────────────── */
+
+test('openInObsidian：仓库内文件交给系统打开 obsidian:// URI；越界/不存在拒绝', async () => {
+  const c = await makeCase({ notes: { '甲.md': '# 甲\n' } })
+  const seen = []
+  setOpenExternalUrlForTests(async (url) => {
+    seen.push(url)
+    return { ok: true }
+  })
+  try {
+    const opened = await c.call('openInObsidian', { path: c.seeded['甲.md'] })
+    assert.equal(opened.ok, true, JSON.stringify(opened))
+    assert.equal(seen.length, 1, '应调用一次系统打开器')
+    assert.equal(seen[0], `obsidian://open?path=${encodeURIComponent(c.seeded['甲.md'])}`)
+    assert.equal(opened.value.url, seen[0])
+
+    // 仓库外路径：拒绝，且不调用系统打开器
+    const outside = await c.call('openInObsidian', { path: join(c.dir, 'outside.md') })
+    assert.equal(outside.ok, false)
+    assert.equal(outside.error.code, 'bad-request')
+    assert.equal(seen.length, 1)
+
+    // 仓库内但不存在的文件：not-found
+    const missing = await c.call('openInObsidian', { path: join(c.notesDir, '不存在.md') })
+    assert.equal(missing.ok, false)
+    assert.equal(missing.error.code, 'not-found')
+    assert.equal(seen.length, 1)
+
+    // 缺 path：bad-request
+    const noPath = await c.call('openInObsidian', {})
+    assert.equal(noPath.ok, false)
+    assert.equal(noPath.error.code, 'bad-request')
+
+    // 系统打开失败（没装 Obsidian / 没有打开器）：open-failed，Client 用它 toast
+    setOpenExternalUrlForTests(async () => ({ ok: false, message: 'spawn open ENOENT' }))
+    const failed = await c.call('openInObsidian', { path: c.seeded['甲.md'] })
+    assert.equal(failed.ok, false)
+    assert.equal(failed.error.code, 'open-failed')
+    assert.match(failed.error.message, /ENOENT/)
+  } finally {
+    setOpenExternalUrlForTests(null)
+    await c.disposeAll()
+  }
 })
