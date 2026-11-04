@@ -5,9 +5,9 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import {
   DEFAULT_SETTINGS,
@@ -17,16 +17,19 @@ import {
   settingsEqual,
   writeSettingsFile,
 } from '../lib/settings.js'
-import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT } from '../lib/shared.js'
+import {
+  CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS, isLegacyDefaultEmojis,
+} from '../lib/shared.js'
 
 /* ─────────────────────────────── 默认值 ─────────────────────────────── */
 
-test('DEFAULT_SETTINGS：形状与默认值', () => {
+test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', () => {
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
   assert.equal(DEFAULT_SETTINGS.notesDir, '')
   assert.equal(DEFAULT_SETTINGS.projectDir, '')
   assert.deepEqual(DEFAULT_SETTINGS.archiveTargets, [])
   assert.equal(DEFAULT_SETTINGS.projectPrompt, DEFAULT_PROJECT_PROMPT)
+  assert.equal(DEFAULT_SETTINGS.includeSubfolders, true)
   assert.equal(DEFAULT_SETTINGS.emojis.length, 4)
   assert.deepEqual(
     DEFAULT_SETTINGS.emojis.map((item) => item.id),
@@ -35,11 +38,38 @@ test('DEFAULT_SETTINGS：形状与默认值', () => {
   assert.equal(DEFAULT_PROJECT_PROMPT.includes('## 诉求'), true)
 })
 
+test('DEFAULT_SETTINGS / DEFAULT_EMOJIS：0.12 四枚评论人格（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）', () => {
+  assert.deepEqual(
+    DEFAULT_EMOJIS.map((item) => item.id),
+    ['devil', 'another', 'grounded', 'truth'],
+  )
+  assert.deepEqual(
+    DEFAULT_EMOJIS.map((item) => item.emoji),
+    ['😈', '✨', '🧭', '😇'],
+  )
+  assert.deepEqual(
+    DEFAULT_EMOJIS.map((item) => item.label),
+    ['毒舌', '另一面', '落地', '真心话'],
+  )
+  // 每条预设都有可用的 callout 与提示词
+  for (const emoji of DEFAULT_EMOJIS) {
+    assert.ok(CALLOUT_TYPES.includes(emoji.callout), `${emoji.id} callout 非法`)
+    assert.equal(typeof emoji.prompt, 'string')
+    assert.ok(emoji.prompt.length > 20, `${emoji.id} 提示词过短`)
+  }
+  // normalizeSettings 缺省 emojis 时同样给出 0.12 预设
+  assert.deepEqual(
+    normalizeSettings({}).emojis.map((item) => item.emoji),
+    ['😈', '✨', '🧭', '😇'],
+  )
+})
+
 test('normalizeSettings：空对象得到完整默认设置', () => {
   const settings = normalizeSettings({})
   assert.equal(settings.vaultPath, '')
   assert.equal(settings.notesDir, '')
   assert.equal(settings.projectDir, '')
+  assert.equal(settings.includeSubfolders, true)
   assert.deepEqual(settings.archiveTargets, [])
   assert.equal(settings.emojis.length, DEFAULT_EMOJIS.length)
   assert.equal(settings.projectPrompt, DEFAULT_PROJECT_PROMPT)
@@ -50,7 +80,29 @@ test('normalizeSettings：非对象输入安全回退', () => {
     const settings = normalizeSettings(raw)
     assert.equal(settings.vaultPath, '')
     assert.equal(settings.emojis.length, 4)
+    assert.equal(settings.includeSubfolders, true)
   }
+})
+
+/* ─────────────────────────── includeSubfolders（0.12） ─────────────────────────── */
+
+test('normalizeSettings：includeSubfolders 只有显式 false 才关闭', () => {
+  assert.equal(normalizeSettings({}).includeSubfolders, true, '缺省应为 true')
+  assert.equal(normalizeSettings({ includeSubfolders: true }).includeSubfolders, true)
+  assert.equal(normalizeSettings({ includeSubfolders: false }).includeSubfolders, false)
+  // 契约：缺省 / 非 false 一律 true
+  for (const value of [undefined, null, 0, 1, '', 'false', 'no', [], {}]) {
+    assert.equal(
+      normalizeSettings({ includeSubfolders: value }).includeSubfolders,
+      true,
+      `includeSubfolders=${JSON.stringify(value)} 应回退 true`,
+    )
+  }
+})
+
+test('normalizeSettings：includeSubfolders 参与 settingsEqual 比较', () => {
+  assert.equal(settingsEqual({ includeSubfolders: true }, {}), true)
+  assert.equal(settingsEqual({ includeSubfolders: false }, {}), false)
 })
 
 test('locale / package meta：已改名为 Obsidian MEMO（包名/安装 id 不变）', async () => {
@@ -257,9 +309,14 @@ test('readSettingsFile：文件不存在返回 fallback 的规范化结果', asy
   const settings = await readSettingsFile(file)
   assert.equal(settings.vaultPath, '')
   assert.equal(settings.emojis.length, 4)
+  assert.equal(settings.includeSubfolders, true)
 
   const custom = await readSettingsFile(file, { ...DEFAULT_SETTINGS, vaultPath: '/vault' })
   assert.equal(custom.vaultPath, '/vault')
+
+  // fallback 里的 includeSubfolders:false 也保留
+  const flatFallback = await readSettingsFile(file, { ...DEFAULT_SETTINGS, includeSubfolders: false })
+  assert.equal(flatFallback.includeSubfolders, false)
 })
 
 test('readSettingsFile：JSON 损坏时回退', async (t) => {
@@ -291,6 +348,129 @@ test('writeSettingsFile / readSettingsFile：规范化后原子落盘并读回',
 
   const read = await readSettingsFile(file)
   assert.deepEqual(read, written)
+})
+
+test('writeSettingsFile / readSettingsFile：includeSubfolders 落盘并读回', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+
+  const written = await writeSettingsFile(file, { vaultPath: '/vault', includeSubfolders: false })
+  assert.equal(written.includeSubfolders, false)
+  const onDisk = JSON.parse(await readFile(file, 'utf8'))
+  assert.equal(onDisk.includeSubfolders, false)
+  assert.equal((await readSettingsFile(file)).includeSubfolders, false)
+})
+
+/* ─────────────────────── 旧默认预设迁移（0.12） ─────────────────────── */
+
+/** 写一个 settings.json（原始 JSON，不经过 normalizeSettings）。 */
+async function writeRawSettings(file, value) {
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, JSON.stringify(value, null, 2), 'utf8')
+}
+
+function legacyEmojis() {
+  return LEGACY_EMOJIS.map((item) => ({ ...item }))
+}
+
+test('readSettingsFile：旧版默认四枚（LEGACY_EMOJIS）自动迁移为 0.12 预设', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+  await writeRawSettings(file, {
+    vaultPath: '/vault',
+    notesDir: '/vault/进行时',
+    emojis: legacyEmojis(),
+  })
+
+  const settings = await readSettingsFile(file)
+  assert.deepEqual(
+    settings.emojis.map((item) => item.id),
+    ['devil', 'another', 'grounded', 'truth'],
+  )
+  assert.deepEqual(
+    settings.emojis.map((item) => item.emoji),
+    ['😈', '✨', '🧭', '😇'],
+  )
+  assert.deepEqual(
+    settings.emojis.map((item) => item.label),
+    ['毒舌', '另一面', '落地', '真心话'],
+  )
+  // 迁移只在读盘时发生在内存：原文件字节不动
+  const onDisk = JSON.parse(await readFile(file, 'utf8'))
+  assert.deepEqual(
+    onDisk.emojis.map((item) => item.id),
+    LEGACY_EMOJIS.map((item) => item.id),
+  )
+  // 下次保存（saveSettings 落盘）才写入新预设
+  await writeSettingsFile(file, settings)
+  assert.deepEqual(
+    JSON.parse(await readFile(file, 'utf8')).emojis.map((item) => item.id),
+    ['devil', 'another', 'grounded', 'truth'],
+  )
+})
+
+test('readSettingsFile：用户改过任何一项的旧预设原样保留（不迁移）', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+
+  // 只改第一项的 label
+  const labelEdited = legacyEmojis()
+  labelEdited[0] = { ...labelEdited[0], label: '我的洞察' }
+  await writeRawSettings(file, { emojis: labelEdited })
+  const first = await readSettingsFile(file)
+  assert.deepEqual(first.emojis.map((item) => item.id), LEGACY_EMOJIS.map((item) => item.id))
+  assert.equal(first.emojis[0].label, '我的洞察')
+
+  // 只改第三项的 prompt
+  const promptEdited = legacyEmojis()
+  promptEdited[2] = { ...promptEdited[2], prompt: '自定义风险提示词' }
+  await writeRawSettings(file, { emojis: promptEdited })
+  const second = await readSettingsFile(file)
+  assert.deepEqual(second.emojis.map((item) => item.id), LEGACY_EMOJIS.map((item) => item.id))
+  assert.equal(second.emojis[2].prompt, '自定义风险提示词')
+
+  // 顺序被调整过也不算"原样默认"，保留原数组
+  const reversed = legacyEmojis().reverse()
+  await writeRawSettings(file, { emojis: reversed })
+  const third = await readSettingsFile(file)
+  assert.deepEqual(
+    third.emojis.map((item) => item.id),
+    reversed.map((item) => item.id),
+  )
+})
+
+test('readSettingsFile：自定义预设原样保留', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+  await writeRawSettings(file, {
+    emojis: [
+      { id: 'brain', emoji: '🧠', label: '脑暴', callout: 'tip', prompt: '给我灵感' },
+      { ...LEGACY_EMOJIS[0], id: 'legacy' },
+    ],
+  })
+
+  const settings = await readSettingsFile(file)
+  assert.deepEqual(settings.emojis.map((item) => item.id), ['brain', 'legacy'])
+  assert.equal(settings.emojis[0].emoji, '🧠')
+  assert.equal(settings.emojis[0].callout, 'tip')
+})
+
+test('isLegacyDefaultEmojis：逐字段严格匹配（顺序、id、emoji、label、callout、prompt）', () => {
+  assert.equal(isLegacyDefaultEmojis(legacyEmojis()), true)
+  assert.equal(isLegacyDefaultEmojis([...legacyEmojis()].reverse()), false)
+  assert.equal(isLegacyDefaultEmojis(legacyEmojis().slice(0, 3)), false)
+  assert.equal(isLegacyDefaultEmojis(null), false)
+  assert.equal(isLegacyDefaultEmojis([]), false)
+  const edited = legacyEmojis()
+  edited[1] = { ...edited[1], emoji: '🌟' }
+  assert.equal(isLegacyDefaultEmojis(edited), false)
+  const editedCallout = legacyEmojis()
+  editedCallout[1] = { ...editedCallout[1], callout: 'note' }
+  assert.equal(isLegacyDefaultEmojis(editedCallout), false)
 })
 
 test('settingsEqual：规范化后比较', () => {

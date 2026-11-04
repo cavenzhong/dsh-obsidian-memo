@@ -11,6 +11,7 @@ import {
   appendComment,
   buildCommentCallout,
   clip,
+  commentKindsFrom,
   getBody,
   normalizeText,
   parseNote,
@@ -18,6 +19,7 @@ import {
   setProjectsLink,
   splitFrontmatter,
   stripInline,
+  summarizeImages,
   tagForRelativePath,
 } from '../lib/notes.js'
 import { CARD_PALETTE, colorForTag, darkColorForTag } from '../lib/shared.js'
@@ -403,7 +405,25 @@ test('appendComment：中文与多行评论都能被 parseNote 读回', () => {
 test('colorForTag：无 tag 用纸白', () => {
   assert.equal(colorForTag(null), CARD_PALETTE[0].color)
   assert.equal(colorForTag(''), CARD_PALETTE[0].color)
-  assert.equal(colorForTag(undefined), '#FBF3DF')
+  assert.equal(colorForTag(undefined), '#FCF7EC')
+})
+
+test('CARD_PALETTE：0.12 色板与契约 §3.5 完全一致（日间纸色提亮一档）', () => {
+  assert.deepEqual(
+    CARD_PALETTE.map((item) => [item.name, item.color, item.dark]),
+    [
+      ['纸白', '#FCF7EC', '#2C2721'],
+      ['苔绿', '#F1F6EF', '#232B24'],
+      ['杏', '#FBF3EE', '#2E2622'],
+      ['雾蓝', '#F0F5FB', '#222A33'],
+      ['藕荷', '#F8F1F8', '#2A242C'],
+      ['米', '#F8F5EC', '#2B2822'],
+      ['胭脂', '#FBF1F2', '#2E2426'],
+      ['青瓷', '#F1F7F4', '#222C29'],
+    ],
+  )
+  // 浅色纸都比 0.11 的纸色更淡（不能回退到旧色值）
+  assert.equal(CARD_PALETTE.some((item) => item.color === '#FBF3DF'), false)
 })
 
 test('colorForTag：同一 tag 恒定、都在色板内', () => {
@@ -433,7 +453,7 @@ test('colorForTag / darkColorForTag：同 tag 稳定、color/darkColor 来自同
     assert.equal(darkColorForTag(tag), dark)
   }
   // 无 tag = 纸白 + 纸白暗色
-  assert.equal(colorForTag(null), '#FBF3DF')
+  assert.equal(colorForTag(null), '#FCF7EC')
   assert.equal(darkColorForTag(null), '#2C2721')
   // 同一 tag 的两个便签必然同色（hex 成对）
   assert.deepEqual([colorForTag('设计'), darkColorForTag('设计')], [colorForTag('设计'), darkColorForTag('设计')])
@@ -444,6 +464,67 @@ test('tagForRelativePath：顶层 null、第一层子目录为 tag', () => {
   assert.equal(tagForRelativePath('WORKING_NOW/b.md'), 'WORKING_NOW')
   assert.equal(tagForRelativePath('WORKING_NOW/深层/c.md'), 'WORKING_NOW')
   assert.equal(tagForRelativePath(''), null)
+})
+
+/* ─────────────────────────── 图片 / 评论种类（0.12） ─────────────────────────── */
+
+test('summarizeImages：只取图片块、前 3 张、给出总数；非图片块忽略', () => {
+  const blocks = [
+    { kind: 'p', text: '前文' },
+    { kind: 'image', text: '', source: 'a.png', alt: 'A', wiki: false },
+    { kind: 'image', text: '', source: 'b.png', alt: '', wiki: true },
+    { kind: 'image', text: '', source: 'c.png', alt: 'C', wiki: false },
+    { kind: 'image', text: '', source: 'd.png', alt: 'D', wiki: false },
+    { kind: 'li', text: '列表' },
+  ]
+  const result = summarizeImages(blocks)
+  assert.deepEqual(result.images.map((item) => item.source), ['a.png', 'b.png', 'c.png'])
+  assert.deepEqual(result.images[1], { source: 'b.png', alt: '', wiki: true })
+  assert.equal(result.imageCount, 4)
+
+  // limit 可调；空/异常输入安全
+  assert.equal(summarizeImages(blocks, 1).images.length, 1)
+  assert.deepEqual(summarizeImages(null), { images: [], imageCount: 0 })
+  assert.deepEqual(summarizeImages([]), { images: [], imageCount: 0 })
+  // 缺 source 的图片块不计入
+  assert.equal(summarizeImages([{ kind: 'image', source: '  ' }]).imageCount, 0)
+})
+
+test('commentKindsFrom：评论 emoji 去重、按出现顺序、空 emoji 不计', () => {
+  assert.deepEqual(
+    commentKindsFrom([
+      { emoji: '😈' },
+      { emoji: '' },
+      { emoji: '🔍' },
+      { emoji: '😈' },
+      {},
+      { emoji: '⚠️' },
+    ]),
+    ['😈', '🔍', '⚠️'],
+  )
+  assert.deepEqual(commentKindsFrom(null), [])
+  assert.deepEqual(commentKindsFrom([]), [])
+})
+
+test('parseNote：正文图片块 + 评论 callout 里的图分开（blocks 只含正文图）', () => {
+  const parsed = parseNote(
+    [
+      '第一段 ![截图](img/a.png) 结束。',
+      '',
+      '![[附件/b.png]]',
+      '',
+      '> [!quote] 😈 毒舌 · 2026-11-03 22:10',
+      '> 评论里 ![不算](img/c.png)',
+      '',
+    ].join('\n'),
+  )
+  const images = parsed.blocks.filter((block) => block.kind === 'image')
+  assert.deepEqual(images.map((block) => block.source), ['img/a.png', '附件/b.png'])
+  assert.deepEqual(summarizeImages(parsed.blocks).images, [
+    { source: 'img/a.png', alt: '截图', wiki: false },
+    { source: '附件/b.png', alt: '', wiki: true },
+  ])
+  assert.equal(summarizeImages(parsed.blocks).imageCount, 2)
 })
 
 /* ───────────────────────────── 其他纯函数 ───────────────────────────── */

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { NotesScanner } from '../lib/scan.js'
-import { CARD_PALETTE, colorForTag, darkColorForTag } from '../lib/shared.js'
+import { CARD_PALETTE, LIMITS, colorForTag, darkColorForTag } from '../lib/shared.js'
 
 /** 建一个临时仓库根目录，测试结束清理。 */
 async function makeRoot(t) {
@@ -104,7 +104,7 @@ test('scan：遍历顶层 / 子目录，跳过隐藏目录、.git、非 md', asy
   assert.deepEqual([...byName.keys()].sort(), ['顶层', '子目录', '更深'].sort())
 
   assert.equal(byName.get('顶层').tag, null)
-  assert.equal(byName.get('顶层').color, '#FBF3DF')
+  assert.equal(byName.get('顶层').color, '#FCF7EC')
   assert.equal(byName.get('顶层').darkColor, '#2C2721')
   assert.equal(byName.get('顶层').relPath, '进行时/顶层.md')
   assert.equal(byName.get('顶层').path, join(notesDir, '顶层.md'))
@@ -138,6 +138,125 @@ test('scan：遍历顶层 / 子目录，跳过隐藏目录、.git、非 md', asy
   assert.equal(sameTag.length, 2)
   assert.equal(new Set(sameTag.map((note) => note.color)).size, 1)
   assert.equal(new Set(sameTag.map((note) => note.darkColor)).size, 1)
+})
+
+test('scan：includeSubfolders=false 只扫顶层（tag 全 null），true 时递归', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, '进行时')
+  await mkdir(notesDir, { recursive: true })
+
+  await writeNote(join(notesDir, '顶层.md'), '# 顶层\n\n顶层正文\n')
+  await writeNote(join(notesDir, '子', '子目录.md'), '# 子目录\n')
+  await writeNote(join(notesDir, '子', '深层', '更深.md'), '# 更深\n')
+  await setMtime(join(notesDir, '顶层.md'), 300)
+  await setMtime(join(notesDir, '子', '子目录.md'), 200)
+  await setMtime(join(notesDir, '子', '深层', '更深.md'), 100)
+
+  const scanner = new NotesScanner()
+  const recursive = await scanner.scan({ vaultPath: vault, notesDir })
+  assert.equal(recursive.configured, true)
+  assert.deepEqual(recursive.notes.map((note) => note.name).sort(), ['更深', '子目录', '顶层'].sort())
+  // true（缺省）时子文件夹便签带第一层文件夹 tag
+  const recursiveByName = new Map(recursive.notes.map((note) => [note.name, note]))
+  assert.equal(recursiveByName.get('顶层').tag, null)
+  assert.equal(recursiveByName.get('子目录').tag, '子')
+  assert.equal(recursiveByName.get('更深').tag, '子')
+
+  const flat = await scanner.scan({ vaultPath: vault, notesDir, includeSubfolders: false })
+  assert.equal(flat.configured, true)
+  assert.deepEqual(flat.notes.map((note) => note.name), ['顶层'])
+  assert.equal(flat.notes[0].tag, null)
+  assert.equal(flat.notes[0].color, colorForTag(null))
+  assert.equal(flat.notes[0].darkColor, darkColorForTag(null))
+  // 设置变化进入 revision（扫描集合变小）
+  assert.notEqual(flat.revision, recursive.revision)
+
+  // 同一个 scanner 来回切换也一致（缓存不能把递归/非递归结果串在一起）
+  const back = await scanner.scan({ vaultPath: vault, notesDir })
+  assert.equal(back.revision, recursive.revision)
+  assert.deepEqual(back.notes.map((note) => note.name).sort(), recursive.notes.map((note) => note.name).sort())
+  const flatAgain = await scanner.scan({ vaultPath: vault, notesDir, includeSubfolders: false })
+  assert.equal(flatAgain.revision, flat.revision)
+  assert.deepEqual(flatAgain.notes.map((note) => note.name), ['顶层'])
+})
+
+test('scan：images 只取正文前 3 张、imageCount 为正文图片总数（评论里的图不算）', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, '进行时')
+  await mkdir(notesDir, { recursive: true })
+  const file = join(notesDir, '相册.md')
+  await writeNote(
+    file,
+    [
+      '# 相册',
+      '',
+      '第一段 ![截图](./img/one.png) 结尾。',
+      '',
+      '![[附件/图 片.png]]',
+      '',
+      '![第二张](img/two.jpg)',
+      '',
+      '![第三张](<img/three (1).png>)',
+      '',
+      '![第四张](img/four.webp)',
+      '',
+      '> [!quote] 😈 毒舌 · 2026-11-03 22:10',
+      '> 评论里的 ![不该出现](img/comment.png)',
+      '',
+    ].join('\n'),
+  )
+  await setMtime(file, 10)
+
+  const scanner = new NotesScanner()
+  const scan = await scanner.scan({ vaultPath: vault, notesDir })
+  const note = scan.notes[0]
+  assert.equal(note.imageCount, 5, 'imageCount 应统计正文全部图片')
+  assert.equal(note.images.length, LIMITS.cardImages)
+  assert.deepEqual(note.images, [
+    { source: './img/one.png', alt: '截图', wiki: false },
+    { source: '附件/图 片.png', alt: '', wiki: true },
+    { source: 'img/two.jpg', alt: '第二张', wiki: false },
+  ])
+  // 评论 callout 里的图不计入
+  assert.equal(note.imageCount, note.images.length + 2)
+  assert.equal(note.commentCount, 1)
+
+  // NoteFull 继承 NoteSummary 的图片字段
+  const full = await scanner.readFull(file)
+  assert.equal(full.imageCount, 5)
+  assert.deepEqual(full.images, note.images)
+})
+
+test('scan：commentKinds 为全部评论 emoji 去重（按出现顺序，不受摘要 6 条限制）', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, '进行时')
+  await mkdir(notesDir, { recursive: true })
+  const file = join(notesDir, '评论.md')
+  const comments = [
+    ['quote', '😈 毒舌 · 2026-11-03 22:10', '一'],
+    ['note', '没有 emoji 的标题', '二'],
+    ['abstract', '🔍 洞察 · 2026-11-03 22:11', '三'],
+    ['quote', '😈 毒舌 · 2026-11-03 22:12', '四'],
+    ['warning', '⚠️ 风险', '五'],
+    ['success', '✅ 下一步', '六'],
+    ['tip', '💡 延伸', '七'],
+  ]
+  const lines = ['# 评论', '', '正文', '']
+  for (const [type, title, text] of comments) {
+    lines.push(`> [!${type}] ${title}`, `> ${text}`, '')
+  }
+  await writeNote(file, lines.join('\n'))
+  await setMtime(file, 10)
+
+  const scanner = new NotesScanner()
+  const scan = await scanner.scan({ vaultPath: vault, notesDir })
+  const note = scan.notes[0]
+  assert.equal(note.commentCount, comments.length)
+  assert.equal(note.comments.length, LIMITS.summaryComments)
+  assert.deepEqual(note.commentKinds, ['😈', '🔍', '⚠️', '✅', '💡'])
 })
 
 test('scan：notes 默认按 created 升序，非递减', async (t) => {

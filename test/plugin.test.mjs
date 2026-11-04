@@ -13,13 +13,13 @@
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { writeSettingsFile } from '../lib/settings.js'
-import { CARD_PALETTE, colorForTag } from '../lib/shared.js'
+import { CARD_PALETTE, LEGACY_EMOJIS, LIMITS, colorForTag } from '../lib/shared.js'
 
 const ROOT = await mkdtemp(join(tmpdir(), 'sticky-plugin-'))
 const SETTINGS_FILE = join(ROOT, 'settings.json')
@@ -328,6 +328,8 @@ test('state：返回 configured / notes / settings，knownRevision 相同时 unc
   assert.equal(first.value.settings.vaultPath, c.vault)
   assert.equal(first.value.settings.notesDir, c.notesDir)
   assert.equal(first.value.settings.emojis.length, 4)
+  assert.deepEqual(first.value.settings.emojis.map((item) => item.emoji), ['😈', '✨', '🧭', '😇'])
+  assert.equal(first.value.settings.includeSubfolders, true)
   assert.deepEqual(first.value.jobs, [])
   assert.equal(first.value.unchanged, undefined)
 
@@ -367,6 +369,53 @@ test('state：返回 configured / notes / settings，knownRevision 相同时 unc
   assert.equal(same.value.unchanged, true)
   assert.equal(same.value.notes, undefined)
   assert.equal(same.value.revision, first.value.revision)
+})
+
+test('state：NoteSummary 带 images / imageCount / commentKinds（0.12）', async () => {
+  const c = await makeCase({
+    notes: {
+      '相册.md': [
+        '# 相册',
+        '',
+        '第一段 ![截图](./img/one.png) 结束。',
+        '',
+        '![[附件/图 片.png]]',
+        '',
+        '![第二张](img/two.jpg)',
+        '',
+        '![第三张](img/three.jpg)',
+        '',
+        '![第四张](img/four.webp)',
+        '',
+        '> [!quote] 😈 毒舌 · 2026-11-03 22:10',
+        '> 评论里的 ![不该出现](img/comment.png)',
+        '',
+        '> [!abstract] ✨ 另一面 · 2026-11-03 22:11',
+        '> 第二条评论',
+        '',
+      ].join('\n'),
+    },
+  })
+
+  const state = await c.call('state')
+  const note = state.value.notes.find((item) => item.name === '相册')
+  assert.notEqual(note, undefined)
+  assert.equal(note.imageCount, 5, 'imageCount 应是正文图片总数（不含评论 callout 里的图）')
+  assert.equal(note.images.length, LIMITS.cardImages)
+  assert.deepEqual(note.images, [
+    { source: './img/one.png', alt: '截图', wiki: false },
+    { source: '附件/图 片.png', alt: '', wiki: true },
+    { source: 'img/two.jpg', alt: '第二张', wiki: false },
+  ])
+  assert.equal(note.commentCount, 2)
+  assert.deepEqual(note.commentKinds, ['😈', '✨'])
+
+  // NoteFull 继承同样的图片 / 评论种类字段
+  const full = await c.call('note', { path: c.seeded['相册.md'] })
+  assert.equal(full.ok, true)
+  assert.equal(full.value.imageCount, 5)
+  assert.deepEqual(full.value.images, note.images)
+  assert.deepEqual(full.value.commentKinds, ['😈', '✨'])
 })
 
 /* ─────────────────────────────── saveNote ─────────────────────────────── */
@@ -479,6 +528,58 @@ test('saveNote：保留原有长文件名与大写扩展名；重名失败不写
   assert.equal(await readFile(join(c.notesDir, 'existing.md'), 'utf8'), '保留\n')
 })
 
+/** 当前文件系统是否大小写不敏感（macOS 默认 APFS 是）。 */
+async function caseInsensitiveFilesystem() {
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-case-'))
+  try {
+    await writeFile(join(dir, 'probe.txt'), 'x', 'utf8')
+    try {
+      await stat(join(dir, 'PROBE.TXT'))
+      return true
+    } catch {
+      return false
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+test('saveNote：仅大小写改名应允许（大小写不敏感文件系统）', async (t) => {
+  if (!(await caseInsensitiveFilesystem())) {
+    t.skip('当前文件系统大小写敏感，跳过仅大小写改名用例')
+    return
+  }
+  const c = await makeCase({ notes: { 'Case.md': '---\nkeep: true\n---\n\n原正文\n' } })
+  const originalPath = c.seeded['Case.md']
+  const before = await c.call('state')
+  assert.equal(before.value.notes.length, 1)
+  assert.equal(before.value.notes[0].name, 'Case')
+
+  // 目标文件在大小写不敏感文件系统上会命中自己：realpath 相同则应允许，而不是误报 exists
+  const result = await c.call('saveNote', { path: originalPath, name: 'CASE', body: '新正文' })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.note.path, join(c.notesDir, 'CASE.md'))
+  assert.equal(result.value.note.name, 'CASE')
+
+  // 目录项确实改名（大小写保留），且没有留下第二份文件
+  const entries = await readdir(c.notesDir)
+  assert.equal(entries.filter((name) => name.toLowerCase() === 'case.md').length, 1, entries.join(','))
+  assert.ok(entries.includes('CASE.md'), `目录项应为 CASE.md：${entries.join(',')}`)
+  assert.equal(
+    await readFile(join(c.notesDir, 'CASE.md'), 'utf8'),
+    '---\nkeep: true\n---\n\n新正文\n',
+  )
+
+  // 改名后 state / note 均指向新路径
+  const after = await c.call('state')
+  assert.equal(after.value.notes.length, 1)
+  assert.equal(after.value.notes[0].path, join(c.notesDir, 'CASE.md'))
+  assert.equal(after.value.notes[0].name, 'CASE')
+  const full = await c.call('note', { path: join(c.notesDir, 'CASE.md') })
+  assert.equal(full.ok, true)
+  assert.equal(full.value.body, '新正文\n')
+})
+
 test('note：打开全文时刷新缓存中的外部修改', async () => {
   const c = await makeCase({ notes: { '外部.md': '旧内容\n' } })
   const path = c.seeded['外部.md']
@@ -579,11 +680,15 @@ test('readImage：拒绝越界、符号链接、非图片、超限和同名歧�
   await writeFile(outside, 'private')
   await symlink(outside, join(c.notesDir, 'linked.png'))
   await writeFile(join(c.notesDir, 'large.png'), Buffer.alloc(8 * 1024 * 1024 + 1))
-  for (const source of ['../../outside.png', 'linked.png', '图片.md', 'large.png', 'https://example.com/x.png', 'file:///tmp/a.png']) {
+  for (const source of ['../../outside.png', 'linked.png', '图片.md', 'https://example.com/x.png', 'file:///tmp/a.png']) {
     const result = await c.call('readImage', { path, source })
     assert.equal(result.ok, false, source)
     assert.equal(result.error.code, 'bad-request', source)
   }
+  // 0.12：超过 8MB 默认上限报 too-large（不再是泛化的 bad-request）
+  const oversized = await c.call('readImage', { path, source: 'large.png' })
+  assert.equal(oversized.ok, false)
+  assert.equal(oversized.error.code, 'too-large')
   for (const dir of ['a', 'b']) {
     await mkdir(join(c.vault, dir))
     await writeFile(join(c.vault, dir, 'same.png'), 'image')
@@ -591,6 +696,55 @@ test('readImage：拒绝越界、符号链接、非图片、超限和同名歧�
   const ambiguous = await c.call('readImage', { path, source: 'same.png', wiki: true })
   assert.equal(ambiguous.ok, false)
   assert.match(ambiguous.error.message, /多个同名/)
+})
+
+test('readImage：传 maxBytes 时超限返回 too-large，未传仍 8MB，正常图仍返回 dataUrl', async () => {
+  const c = await makeCase({ notes: { '图.md': '![[大图.png]]\n' } })
+  const notePath = c.seeded['图.md']
+  const pixel = Buffer.from('89504e470d0a1a0a', 'hex')
+  // 2 MB：低于默认 8MB，但高于卡片缩略图上限 LIMITS.cardImageMaxBytes
+  const big = Buffer.alloc(2 * 1024 * 1024, 1)
+  await writeFile(join(c.notesDir, '小图.png'), pixel)
+  await writeFile(join(c.notesDir, '大图.png'), big)
+
+  // 正常图：未传 maxBytes 仍返回 dataUrl
+  const normal = await c.call('readImage', { path: notePath, source: '小图.png', wiki: true })
+  assert.equal(normal.ok, true)
+  assert.equal(normal.value.dataUrl, `data:image/png;base64,${pixel.toString('base64')}`)
+
+  // 未传 maxBytes：2MB 图仍可读（默认上限 8MB）
+  const defaultLimit = await c.call('readImage', { path: notePath, source: '大图.png', wiki: true })
+  assert.equal(defaultLimit.ok, true)
+  assert.equal(defaultLimit.value.dataUrl, `data:image/png;base64,${big.toString('base64')}`)
+
+  // 传卡片缩略图上限：超过即 too-large，且不返回 dataUrl
+  const tooLarge = await c.call('readImage', {
+    path: notePath,
+    source: '大图.png',
+    wiki: true,
+    maxBytes: LIMITS.cardImageMaxBytes,
+  })
+  assert.equal(tooLarge.ok, false)
+  assert.equal(tooLarge.error.code, 'too-large')
+  assert.equal(tooLarge.value, undefined)
+
+  // 刚好等于 maxBytes 不算「超过」，仍然成功
+  const boundary = await c.call('readImage', {
+    path: notePath,
+    source: '大图.png',
+    wiki: true,
+    maxBytes: big.length,
+  })
+  assert.equal(boundary.ok, true)
+
+  // 小图传 maxBytes 照常成功
+  const smallWithLimit = await c.call('readImage', {
+    path: notePath,
+    source: '小图.png',
+    wiki: true,
+    maxBytes: LIMITS.cardImageMaxBytes,
+  })
+  assert.equal(smallWithLimit.ok, true)
 })
 
 test('browseDirectory：列目录、目录优先排序、隐藏项跳过、parent/crumbs/shortcuts', async () => {
@@ -777,7 +931,7 @@ test('comment：异步生成后写入 callout，轮询到 done', async () => {
   const c = await makeCase({ notes: { '评论.md': '# 评论标题\n\n评论正文。\n' } })
   const notePath = c.seeded['评论.md']
 
-  const started = await c.call('comment', { path: notePath, emojiId: 'insight' })
+  const started = await c.call('comment', { path: notePath, emojiId: 'devil' })
   assert.equal(started.ok, true)
   assert.equal(typeof started.value.jobId, 'string')
 
@@ -787,16 +941,18 @@ test('comment：异步生成后写入 callout，轮询到 done', async () => {
   assert.equal(job.path, notePath)
 
   const content = await readFile(notePath, 'utf8')
-  assert.match(content, /> \[!quote\] 🔍 洞察 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
+  assert.match(content, /> \[!quote\] 😈 毒舌 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
   assert.match(content, /模拟内容/)
   assert.match(content, /评论正文。/)
 
   const state = await c.call('state')
   const note = state.value.notes.find((item) => item.path === notePath)
   assert.equal(note.commentCount, 1)
-  assert.equal(note.comments[0].label, '洞察')
-  assert.equal(note.comments[0].emoji, '🔍')
+  assert.equal(note.comments[0].label, '毒舌')
+  assert.equal(note.comments[0].emoji, '😈')
   assert.equal(note.pending, null)
+  // 0.12：新评论的 emoji 立刻进入 commentKinds
+  assert.deepEqual(note.commentKinds, ['😈'])
 })
 
 test('comment：emojiId 未知时 bad-request', async () => {
@@ -814,7 +970,7 @@ test('comment：llm 不可用时 job.status 为 error 且文件不变', async ()
   const notePath = c.seeded['甲.md']
   const before = await readFile(notePath, 'utf8')
 
-  const started = await c.call('comment', { path: notePath, emojiId: 'insight' })
+  const started = await c.call('comment', { path: notePath, emojiId: 'devil' })
   assert.equal(started.ok, true)
   const job = await waitForJob(c.call, started.value.jobId)
   assert.equal(job.status, 'error')
@@ -1037,6 +1193,79 @@ test('saveSettings：越界路径 / 不存在的便签目录 / 非法 payload �
   // 失败后原设置仍在生效
   const state = await c.call('state')
   assert.equal(state.value.settings.notesDir, c.notesDir)
+})
+
+test('saveSettings：includeSubfolders=false 只扫顶层，切回 true 恢复子文件夹便签', async () => {
+  const c = await makeCase({
+    notes: {
+      '顶层.md': '# 顶层\n\n正文\n',
+      'WORKING_NOW/子.md': '# 子\n\n正文\n',
+    },
+  })
+  const first = await c.call('state')
+  assert.equal(first.value.notes.length, 2)
+  assert.deepEqual(first.value.notes.map((note) => note.name).sort(), ['子', '顶层'].sort())
+
+  const saved = await c.call('saveSettings', {
+    settings: { ...first.value.settings, includeSubfolders: false },
+  })
+  assert.equal(saved.ok, true)
+  assert.equal(saved.value.settings.includeSubfolders, false)
+  assert.equal(JSON.parse(await readFile(SETTINGS_FILE, 'utf8')).includeSubfolders, false)
+
+  const flat = await c.call('state')
+  assert.deepEqual(flat.value.notes.map((note) => note.name), ['顶层'])
+  assert.equal(flat.value.notes[0].tag, null)
+  assert.equal(flat.value.settings.includeSubfolders, false)
+  assert.notEqual(flat.value.revision, first.value.revision)
+
+  const restored = await c.call('saveSettings', {
+    settings: { ...saved.value.settings, includeSubfolders: true },
+  })
+  assert.equal(restored.ok, true)
+  assert.equal(restored.value.settings.includeSubfolders, true)
+
+  const full = await c.call('state')
+  assert.deepEqual(full.value.notes.map((note) => note.name).sort(), ['子', '顶层'].sort())
+  assert.equal(full.value.notes.find((note) => note.name === '子').tag, 'WORKING_NOW')
+})
+
+test('state：旧版默认预设（LEGACY_EMOJIS）读盘时迁移为 0.12 预设', async () => {
+  const c = await makeCase({
+    notes: { '甲.md': '# 甲\n\n正文\n' },
+    settings: { emojis: LEGACY_EMOJIS },
+  })
+
+  const state = await c.call('state')
+  assert.deepEqual(
+    state.value.settings.emojis.map((item) => item.id),
+    ['devil', 'another', 'grounded', 'truth'],
+  )
+  assert.deepEqual(
+    state.value.settings.emojis.map((item) => item.emoji),
+    ['😈', '✨', '🧭', '😇'],
+  )
+
+  // 迁移只发生在内存；磁盘上仍是旧预设，直到下一次 saveSettings 落盘
+  const onDisk = JSON.parse(await readFile(SETTINGS_FILE, 'utf8'))
+  assert.deepEqual(onDisk.emojis.map((item) => item.id), LEGACY_EMOJIS.map((item) => item.id))
+  const saved = await c.call('saveSettings', { settings: state.value.settings })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(
+    JSON.parse(await readFile(SETTINGS_FILE, 'utf8')).emojis.map((item) => item.id),
+    ['devil', 'another', 'grounded', 'truth'],
+  )
+
+  // 旧 id 已不可用，新 id 可正常生成评论
+  const unknown = await c.call('comment', { path: c.seeded['甲.md'], emojiId: 'insight' })
+  assert.equal(unknown.ok, false)
+  assert.equal(unknown.error.code, 'bad-request')
+
+  const started = await c.call('comment', { path: c.seeded['甲.md'], emojiId: 'devil' })
+  assert.equal(started.ok, true)
+  const job = await waitForJob(c.call, started.value.jobId)
+  assert.equal(job.status, 'done')
+  assert.match(await readFile(c.seeded['甲.md'], 'utf8'), /😈 毒舌/)
 })
 
 /* ─────────────────────────── 错误处理 / 路径校验 ─────────────────────────── */
