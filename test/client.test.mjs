@@ -153,8 +153,12 @@ function getTestApi(mod) {
     'clearStoredPinnedNote',
     'DATE_FILTERS',
     'DEFAULT_DATE_FILTER',
+    'DEFAULT_DATE_FILTER_ENABLED',
+    'DATE_FILTER_ENABLED_KEY',
     'readStoredDateFilter',
     'storeDateFilter',
+    'readStoredDateEnabled',
+    'storeDateEnabled',
     'readStoredDateRealtime',
     'storeDateRealtime',
     'dateFilterBounds',
@@ -163,6 +167,8 @@ function getTestApi(mod) {
     'replaceNoteAtPath',
     'cardImages',
     'drawerWidthBounds',
+    'DRAWER_ACTIONS_NARROW_WIDTH',
+    'drawerActionsNarrow',
     'nextPollDelay',
     'WALL_PAGE_SIZE',
     'nextVisibleCount',
@@ -187,9 +193,9 @@ test('client bundle：__ModuleLoader__ 注册 id / factory / inject / __test', (
   getTestApi(mod)
 })
 
-test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.8）', (t) => {
+test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.9）', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  assert.equal(PACKAGE_JSON.version, '0.13.8')
+  assert.equal(PACKAGE_JSON.version, '0.13.9')
   // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的完整版本（补丁号也要对齐）
   assert.equal(api.APP_VERSION, PACKAGE_JSON.version)
 })
@@ -215,7 +221,7 @@ test('client __test：formatVersionLabel 取完整版本（含补丁号），缺
   }
 })
 
-test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.8）', () => {
+test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.9）', () => {
   for (const name of ['zh', 'en']) {
     const locale = JSON.parse(
       readFileSync(fileURLToPath(new URL(`../locale/${name}.json`, import.meta.url)), 'utf8'),
@@ -838,10 +844,13 @@ function noteIds(list) {
   return list.map((note) => note.path);
 }
 
-test('client __test：DATE_FILTERS 五档（今天/3 天/本周/本月/全部），默认今天', (t) => {
+test('client __test：DATE_FILTERS 四档（今天/3 天/本周/本月），默认今天且开关默认点亮', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  assert.deepEqual(api.DATE_FILTERS.map((item) => item.id), ['today', '3d', 'week', 'month', 'all'])
+  // 0.13.9：「全部」从菜单里去掉——开关熄灭就是显示全部。
+  assert.deepEqual(api.DATE_FILTERS.map((item) => item.id), ['today', '3d', 'week', 'month'])
   assert.equal(api.DEFAULT_DATE_FILTER, 'today')
+  assert.equal(api.DEFAULT_DATE_FILTER_ENABLED, true)
+  assert.equal(api.DATE_FILTER_ENABLED_KEY, 'dsh-sticky-notes.dateFilterEnabled.v1')
 })
 
 test('client __test：dateFilterBounds 默认不勾选（以最新一篇为锚），勾选「真实时间」按每日 00:00 分界', (t) => {
@@ -871,7 +880,7 @@ test('client __test：dateFilterBounds 默认不勾选（以最新一篇为锚�
     new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
   )
 
-  // 全部：不设下界
+  // 旧存储兼容：`all` 仍然表示不设下界（0.13.9 起正常入口改用开关熄灭）。
   const all = api.dateFilterBounds('all', { now: DATE_NOW, realtime: true, anchor })
   assert.equal(all.start, -Infinity)
   assert.equal(all.end, Infinity)
@@ -907,10 +916,20 @@ test('client __test：filterNotesByDate 默认按最新一篇锚定；勾选真�
   assert.deepEqual(noteIds(api.filterNotesByDate(rolling, 'today', false, DATE_NOW, anchor)), ['x'])
   assert.deepEqual(noteIds(api.filterNotesByDate(rolling, '3d', false, DATE_NOW, anchor)), ['x', 'y'])
 
-  // 全部：不筛选
+  // 旧存储兼容：`all` 仍然不筛选
   assert.deepEqual(
     noteIds(api.filterNotesByDate(notes, 'all', true, DATE_NOW)),
     ['today', 'yesterday', 'two-days', 'three-days'],
+  )
+
+  // 0.13.9 开关：enabled=false 直接返回全部（与档位无关）；缺省 true 保持旧行为
+  assert.deepEqual(
+    noteIds(api.filterNotesByDate(notes, 'today', false, DATE_NOW, undefined, false)),
+    ['today', 'yesterday', 'two-days', 'three-days'],
+  )
+  assert.deepEqual(
+    noteIds(api.filterNotesByDate(notes, 'today', false, DATE_NOW, undefined, true)),
+    ['today'],
   )
 
   // created 缺失（含 0 哨兵）时用 mtime 兜底
@@ -919,23 +938,32 @@ test('client __test：filterNotesByDate 默认按最新一篇锚定；勾选真�
   assert.equal(api.dateFilterAnchor(notes), notes[0].created)
 })
 
-test('client __test：日期筛选 localStorage 持久化与容错（真实时间勾选项用新键）', (t) => {
+test('client __test：日期筛选 localStorage 持久化与容错（开关 + 档位 + 真实时间勾选）', (t) => {
   const { mod, storage } = loadClient(t)
   const api = getTestApi(mod)
 
-  // 默认：今天、不勾选「真实时间」（= 以最新一篇为锚）
+  // 默认：今天、开关点亮、不勾选「真实时间」（= 以最新一篇为锚）
   assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateEnabled(), true)
   assert.equal(api.readStoredDateRealtime(), false)
 
   // 非法存储值回退默认
   storage.setItem('dsh-sticky-notes.dateFilter.v1', 'bogus')
   assert.equal(api.readStoredDateFilter(), 'today')
 
-  api.storeDateFilter('all')
-  assert.equal(storage.getItem('dsh-sticky-notes.dateFilter.v1'), 'all')
-  assert.equal(api.readStoredDateFilter(), 'all')
+  api.storeDateFilter('month')
+  assert.equal(storage.getItem('dsh-sticky-notes.dateFilter.v1'), 'month')
+  assert.equal(api.readStoredDateFilter(), 'month')
   api.storeDateFilter('bogus')
   assert.equal(api.readStoredDateFilter(), 'today')
+
+  // 0.13.9 开关状态：'1' / '0'
+  api.storeDateEnabled(false)
+  assert.equal(storage.getItem('dsh-sticky-notes.dateFilterEnabled.v1'), '0')
+  assert.equal(api.readStoredDateEnabled(), false)
+  api.storeDateEnabled(true)
+  assert.equal(storage.getItem('dsh-sticky-notes.dateFilterEnabled.v1'), '1')
+  assert.equal(api.readStoredDateEnabled(), true)
 
   api.storeDateRealtime(true)
   assert.equal(storage.getItem('dsh-sticky-notes.dateRealtime.v1'), '1')
@@ -945,33 +973,56 @@ test('client __test：日期筛选 localStorage 持久化与容错（真实时�
   assert.equal(api.readStoredDateRealtime(), false)
 })
 
+test('client __test：旧版 dateFilter=all 迁移为「开关熄灭」，新开关键优先', (t) => {
+  const fresh = loadClient(t)
+  fresh.storage.setItem('dsh-sticky-notes.dateFilter.v1', 'all')
+  assert.equal(fresh.mod.__test.readStoredDateFilter(), 'today', '旧 all 读成默认档位')
+  assert.equal(fresh.mod.__test.readStoredDateEnabled(), false, '旧 all 应迁移成开关熄灭（显示全部）')
+
+  // 有独立开关键时以它为准：即使旧档位是 all，只要新键说开就是开。
+  const explicit = loadClient(t)
+  explicit.storage.setItem('dsh-sticky-notes.dateFilter.v1', 'all')
+  explicit.storage.setItem('dsh-sticky-notes.dateFilterEnabled.v1', '1')
+  assert.equal(explicit.mod.__test.readStoredDateEnabled(), true)
+})
+
 test('client __test：localStorage 不可用时日期筛选读写安全回退', (t) => {
   const { mod } = loadClient(t, { storage: null })
   const api = getTestApi(mod)
   assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateEnabled(), true)
   assert.equal(api.readStoredDateRealtime(), false)
   assert.doesNotThrow(() => api.storeDateFilter('month'))
+  assert.doesNotThrow(() => api.storeDateEnabled(false))
   assert.doesNotThrow(() => api.storeDateRealtime(true))
   assert.equal(api.readStoredDateFilter(), 'today')
+  assert.equal(api.readStoredDateEnabled(), true)
   assert.equal(api.readStoredDateRealtime(), false)
 })
 
-test('client 源码 / 字典：日期筛选是顶栏第一个按钮，且有「全部」与「日期截止按真实时间」', (t) => {
+test('client 源码 / 字典：日期筛选是顶栏第一个「开关 + 档位菜单」，且没有「全部」项', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  for (const key of ['date.today', 'date.3d', 'date.week', 'date.month', 'date.all', 'date.realtime', 'date.realtimeHint', 'date.current']) {
+  for (const key of ['date.today', 'date.3d', 'date.week', 'date.month', 'date.realtime', 'date.realtimeHint', 'date.menu', 'date.toggleOn', 'date.toggleOff']) {
     assert.equal(typeof api.dictionaries.zh[key], 'string', `zh 缺少 ${key}`)
     assert.equal(typeof api.dictionaries.en[key], 'string', `en 缺少 ${key}`)
   }
-  assert.equal(api.dictionaries.zh['date.all'], '全部')
   assert.equal(api.dictionaries.zh['date.realtime'], '日期截止按真实时间')
+  assert.equal(api.dictionaries.zh['date.menu'], '选择日期范围')
+  // 0.13.9：菜单里不再有「全部」。
+  assert.equal(api.dictionaries.zh['date.all'], undefined, '「全部」文案应移除（开关熄灭即全部）')
   const actionsIndex = CLIENT_SOURCE.indexOf("className: 'SN_headActions'")
   assert.ok(actionsIndex > 0, '应找到顶栏操作区')
-  const dateIndex = CLIENT_SOURCE.indexOf('日期筛选菜单（顶栏第一个）', actionsIndex)
+  const dateIndex = CLIENT_SOURCE.indexOf('日期筛选（顶栏第一个）', actionsIndex)
   const subIndex = CLIENT_SOURCE.indexOf('子文件夹开关', actionsIndex)
-  assert.ok(dateIndex > actionsIndex, '应找到日期筛选菜单')
+  assert.ok(dateIndex > actionsIndex, '应找到日期筛选开关')
   assert.ok(subIndex > dateIndex, '日期筛选按钮应排在子文件夹开关之前')
   assert.equal((CLIENT_SOURCE.match(/ref: dateWrapRef/g) || []).length, 1, '日期菜单不应重复渲染')
-  assert.match(CLIENT_SOURCE, /'date\.all': '全部'/, '日期菜单应有「全部」')
+  // 主按钮 = 开关（aria-pressed / 点亮态 = dateEnabled），小三角 = 档位菜单。
+  assert.match(CLIENT_SOURCE, /className: 'SN_iconBtn SN_dateToggle'/)
+  assert.match(CLIENT_SOURCE, /'aria-pressed': dateEnabled \? 'true' : 'false'/)
+  assert.match(CLIENT_SOURCE, /className: 'SN_iconBtn SN_dateCaret'/)
+  assert.match(CLIENT_SOURCE, /onClick: toggleDateEnabled/)
+  assert.doesNotMatch(CLIENT_SOURCE, /'date\.all': '全部'/, '菜单不应再有「全部」')
   assert.match(CLIENT_SOURCE, /'date\.realtime': '日期截止按真实时间'/, '勾选项名称应为「日期截止按真实时间」')
   assert.match(
     CLIENT_SOURCE,
@@ -979,6 +1030,110 @@ test('client 源码 / 字典：日期筛选是顶栏第一个按钮，且有「�
     '勾选项说明应描述真实时间分界 / 最后一篇时间界线',
   )
   assert.doesNotMatch(CLIENT_SOURCE, /date\.rolling/, '旧的 date.rolling 文案应已移除')
+})
+
+/* ─────────────────── 0.13.9 细节（卡片/按钮/图钉/拖拽） ─────────────────── */
+
+test('client 源码 / 0.13.9：卡片没有正文时不渲染「暂无正文」占位', () => {
+  assert.doesNotMatch(CLIENT_SOURCE, /card\.noExcerpt/, 'card.noExcerpt 文案应移除')
+  assert.doesNotMatch(CLIENT_SOURCE, /暂无正文/, '不应再出现「暂无正文」')
+  assert.match(CLIENT_SOURCE, /excerpt \? h\('p', \{/, '摘要有内容才渲染 <p>')
+})
+
+test('client 组件 / 0.13.9：NoteCard 无正文时不渲染摘要行，有正文时照常渲染', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const actions = {
+    current: {
+      t: (key) => key,
+      onOpen: () => {},
+      onPreset: () => {},
+      onCardEnter: () => {},
+      onCardLeave: () => {},
+      onToggleArchive: () => {},
+      onArchive: () => {},
+      onProject: () => {},
+      onOpenObsidian: () => {},
+    },
+  }
+  const render = (excerpt) => {
+    const card = api.components.NoteCard({
+      note: { path: 'a.md', title: '标题', excerpt: excerpt, comments: [], commentCount: 0, images: [] },
+      emojis: [],
+      pending: null,
+      hoverActive: false,
+      archiveMenuOpen: false,
+      targets: [],
+      menuRef: { current: null },
+      drawerOpen: false,
+      actions: actions,
+    })
+    const classes = []
+    const texts = []
+    const walk = (node) => {
+      if (node == null) return
+      if (Array.isArray(node)) { node.forEach(walk); return }
+      if (typeof node === 'object') {
+        if (node.props && node.props.className) classes.push(String(node.props.className))
+        walk(node.children)
+      } else {
+        texts.push(String(node))
+      }
+    }
+    walk(card)
+    return { classes: classes, texts: texts }
+  }
+
+  const empty = render('')
+  assert.equal(empty.classes.includes('SN_cardExcerpt'), false, '没有正文时不应渲染摘要 <p>')
+  assert.equal(empty.texts.some((text) => text.includes('暂无正文')), false, '没有正文时不应出现占位文案')
+
+  const filled = render('一段正文')
+  assert.equal(filled.classes.includes('SN_cardExcerpt'), true, '有正文时应渲染摘要 <p>')
+  assert.ok(filled.texts.includes('一段正文'))
+})
+
+test('client 源码 / 0.13.9：「在 Obsidian 打开」是紫色高亮，右侧抽屉操作条可换行（归档/开档在上、它在下）', () => {
+  // 紫色：文字与 hover 都使用统一的 --sn-accent（暗色主题自动换成 #A78BFA）。
+  assert.match(CLIENT_SOURCE, /\.SN_obsidianBtn\{[^}]*color:var\(--sn-accent\)/, '按钮文字应为紫色高亮')
+  assert.match(
+    CLIENT_SOURCE,
+    /\.SN_obsidianBtn:hover:not\(:disabled\)\{[^}]*color:var\(--sn-accent\)/,
+    'hover 也应保持紫色',
+  )
+  // 空间不足时允许换行：右组 flex-wrap + 右对齐，Obsidian 按钮自然落到下一行。
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\{[^}]*flex-wrap:wrap/, '右侧操作组应允许换行')
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\{[^}]*justify-content:flex-end/, '换行后仍靠右')
+  // 抽屉窄时右侧组改竖排：归档/开档一组在上，Obsidian 按钮在下一行、靠右。
+  assert.match(CLIENT_SOURCE, /'data-narrow': actionsNarrow \? 'true' : 'false'/, '右侧组应带窄布局标记')
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\[data-narrow='true'\]\{[^}]*flex-direction:column/, '窄布局应竖排')
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\[data-narrow='true'\] \.SN_drawerActionPair\{[^}]*justify-content:flex-end/, '归档/开档组靠右')
+  assert.match(CLIENT_SOURCE, /actionsNarrow: drawerActionsNarrowFlag/, '面板应把窄布局标记传给抽屉')
+})
+
+test('client __test：0.13.9 抽屉操作条窄布局阈值（「在 Obsidian 打开」换行）', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.equal(api.DRAWER_ACTIONS_NARROW_WIDTH, 430)
+  assert.equal(api.drawerActionsNarrow(320), true, '320px 窄面板应换行')
+  assert.equal(api.drawerActionsNarrow(429), true)
+  assert.equal(api.drawerActionsNarrow(430), false, '达到阈值按宽布局')
+  assert.equal(api.drawerActionsNarrow(620), false)
+  // 宽度未知 / 非法 → 不换行（首帧 panelWidth=0 时不闪）
+  for (const bad of [0, -1, undefined, null, NaN, Infinity, '400']) {
+    assert.equal(api.drawerActionsNarrow(bad), false, `drawerActionsNarrow(${String(bad)}) 应为 false`)
+  }
+})
+
+test('client 源码 / 0.13.9：锁定按钮改成图钉图标', () => {
+  assert.match(CLIENT_SOURCE, /function PinIcon\(props\)/, '应新增 PinIcon')
+  assert.doesNotMatch(CLIENT_SOURCE, /function LockIcon/, '旧的 LockIcon 应删除')
+  assert.match(CLIENT_SOURCE, /h\(PinIcon, \{ pinned: pinned \}\)/, '抽屉头部应渲染图钉')
+  assert.match(CLIENT_SOURCE, /d: 'M9\.3 3\.6h5\.4l-/, '图钉应使用 pin 形状的 path')
+})
+
+test('client 源码 / 0.13.9：顶栏标题区可拖拽 DSH 窗口，按钮区保持可点击', () => {
+  assert.match(CLIENT_SOURCE, /\.SN_head\{[^}]*-webkit-app-region:drag/, '顶栏应是窗口拖拽区')
+  assert.match(CLIENT_SOURCE, /\.SN_headActions,\.SN_headActions \*\{-webkit-app-region:no-drag/, '按钮/菜单恢复 no-drag')
+  assert.match(CLIENT_SOURCE, /className: 'SN_head'/, '顶栏结构不变')
 })
 
 test('client __test：replaceNoteAtPath 改名后乐观替换旧 path（保留 pending / 其他字段）', (t) => {

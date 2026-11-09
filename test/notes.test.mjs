@@ -18,6 +18,7 @@ import {
   readProjects,
   setProjectsLink,
   splitFrontmatter,
+  stripBlockIds,
   stripInline,
   summarizeImages,
   tagForRelativePath,
@@ -537,6 +538,43 @@ test('stripInline：常见 markdown 记号清理', () => {
   assert.equal(stripInline('![图](a.png) ![[嵌入]] [文字](https://x)'), '文字')
   assert.equal(stripInline('%%注释%% 正文 <span>标签</span>'), '正文 标签')
   assert.equal(stripInline('正文 ^block-id'), '正文')
+})
+
+test('stripInline / parseNote：0.13.9 隐藏行尾 block id 只去掉锚点，不吞掉它后面的文字', () => {
+  // Obsidian block id 只出现在行尾：行尾锚点被删掉，锚点后面的下一行文字完整保留。
+  assert.equal(stripInline('前文 ^qa-daily-preview-1e5t8lm'), '前文')
+  assert.equal(stripInline('前文 ^qa-daily-preview-1e5t8lm\n后面的文字'), '前文\n后面的文字')
+  assert.equal(stripInline('^qa-daily-preview-1e5t8lm'), '')
+  assert.equal(stripBlockIds('第一行 ^id\n第二行 ^id-2\n第三行'), '第一行\n第二行\n第三行')
+  assert.equal(stripBlockIds('连写锚点 ^id-1 ^id-2'), '连写锚点')
+
+  // 行中/行首的 `^token` 不是 Obsidian 锚点，不能误删（否则会吞掉行内代码或上标）。
+  assert.equal(stripInline('前文 ^id-1 中间 ^id-2 结尾'), '前文 ^id-1 中间 ^id-2 结尾')
+  assert.equal(stripInline('说明里用 `^abc` 表示锚点'), '说明里用 ^abc 表示锚点')
+  assert.equal(stripInline('代码 `x ^2` 与 `^block-id` 保留'), '代码 x ^2 与 ^block-id 保留')
+  assert.equal(stripInline('求和公式 x ^2 加 y'), '求和公式 x ^2 加 y')
+  assert.equal(stripInline('上标在行尾 x^2'), '上标在行尾 x^2')
+  assert.equal(stripInline('^This 是行首'), '^This 是行首')
+  assert.equal(stripInline('前文 ^qa-daily-preview-1e5t8lm。'), '前文 ^qa-daily-preview-1e5t8lm。')
+
+  const parsed = parseNote([
+    '# 标题 ^qa-daily-preview-1e5t8lm',
+    '',
+    '第一行 ^qa-daily-preview-1e5t8lm',
+    '第二行继续',
+    '',
+    '- 列表项 ^qa-daily-preview-9x',
+    '- 下一条',
+    '',
+    '> [!note] 评论',
+    '> 评论正文 ^qa-daily-preview-1e5t8lm',
+  ].join('\n'))
+  assert.equal(parsed.title, '标题')
+  assert.deepEqual(parsed.blocks.map((block) => block.text), ['标题', '第一行 第二行继续', '列表项', '下一条'])
+  assert.match(parsed.excerpt, /第一行 第二行继续/)
+  assert.doesNotMatch(parsed.excerpt, /qa-daily-preview/)
+  assert.equal(parsed.comments.length, 1)
+  assert.equal(parsed.comments[0].text, '评论正文')
 })
 
 test('clip：短文本原样，长文本截断加省略号', () => {

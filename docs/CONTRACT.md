@@ -6,12 +6,12 @@
 
 Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中央全宽便签墙。只读写 md 文件本身，不碰 Obsidian。
 
-**当前版本：0.13.8**。0.13 的目标是「更轻的日间视觉 + 更实用的阅读/编辑 + 更有性格的 AI 评论」；0.13.4 追加日期筛选、锁定面板恢复、卡片菜单/图片的统一处理与版本号对齐；0.13.8 追加便签墙动态加载、在 Obsidian 打开、设置里 emoji/名称/callout 样式同排，具体 UX 见 §7。
+**当前版本：0.13.9**。0.13 的目标是「更轻的日间视觉 + 更实用的阅读/编辑 + 更有性格的 AI 评论」；0.13.4 追加日期筛选、锁定面板恢复、卡片菜单/图片的统一处理与版本号对齐；0.13.8 追加便签墙动态加载、在 Obsidian 打开、设置里 emoji/名称/callout 样式同排；0.13.9 把日期筛选改成开关、修正 Obsidian block id 隐藏、把锁定改图钉、打开按钮紫色高亮并允许换行、顶栏标题区可拖动桌面窗口，具体 UX 见 §7。
 
 ## 1. 包结构与运行方式
 
 - 包目录：`/Users/cavenzhong/Documents/个人项目/memobisidian/dsh-sticky-notes`
-- 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 版本 `0.13.8`。
+- 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 版本 `0.13.9`。
 - Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）；`lib/obsidian.js`（在 Obsidian 打开：URI 构造 + 系统打开器）。
 - Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-sticky-notes', factory(require) { ... } })`）。
 - 设置：`data/settings.json`（插件目录内，运行时生成，HMR 已忽略 `data`）。绝不写 Obsidian 仓库里的配置文件。
@@ -236,6 +236,7 @@ interface StateValue {
 - **标题 = md 文件名**（去掉 `.md`）：卡片和阅读视图都用文件名，不再取第一段；第一段属于正文。
 - **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。0.13 起，仅大小写不同的改名（macOS/Windows 大小写不敏感文件系统上 `fileExists` 会命中自己）如果 `realpath` 指向同一文件则允许，不再误报 `exists`。
 - **不渲染 meta**：frontmatter 不进卡片内容。
+- **Obsidian block id（0.13.9）**：`^qa-daily-preview-1e5t8lm` 这类 block id 只出现在**行尾**，由 `lib/notes.js` 的 `stripBlockIds()` / `stripInline()` 去掉：先在原始行上按「行尾锚点」删除，再把段落拼成一行，因此**只删锚点本身、保留锚点后面的文字**（下一行内容不受影响）；同时不会误删行中/行内代码里的 `^`（行中的上标 `x ^2`、行内代码 `` `^abc` `` 原样保留）。0.13.8 之前只匹配字符串末尾，段落拼接后中间的 block id 会漏出来。
 - **文件监听**：Client 轮询 `state`（默认 4 秒，页面隐藏时暂停）；Obsidian 编辑会在数秒内反映。
 
 ## 6. Client 半技术要求
@@ -259,7 +260,7 @@ window.__ModuleLoader__.load({
 - 不用 JSX（手写 `h(...)`），不用 TypeScript。
 - 不读写别人的 DOM；不向 `document.body` 挂节点（自己的浮层都挂在面板容器内）。
 - 样式用 `ctx.effect` 注入一个 `<style data-plugin="sticky-notes">`，卸载时移除。
-- 0.13 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`（旧 Host 兜底，**0.13.4 起必须等于 `package.json` 的完整版本**，0.13.8 起为 `0.13.8`）、`formatVersionLabel(version)`（**0.13.4 起返回完整版本（含补丁号）**；支持 `v` 前缀/预发布后缀/首尾空白，缺失/非法回退 APP_VERSION）、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`PINNED_NOTE_KEY` / `readStoredPinnedNote` / `storePinnedNote` / `clearStoredPinnedNote`（0.13.4）、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`、`nextPollDelay(prevDelay, unchanged)`（见 §7.8）；日期筛选常量与纯函数 `DATE_FILTERS` / `DEFAULT_DATE_FILTER` / `readStoredDateFilter` / `storeDateFilter` / `readStoredDateRealtime` / `storeDateRealtime` / `dateFilterBounds(filterId, { now, realtime, anchor })` / `dateFilterAnchor(notes)` / `filterNotesByDate(notes, filterId, realtime, now, anchor)`（0.13.4，见 §7.3.1b）；AI 预算相关常量与纯函数 `AI_PRESETS` / `AI_PRESET_IDS` / `AI_EFFORTS` / `DEFAULT_AI` / `readAiBudget(ai)` / `patchAiBudget(ai, patch)`（必须与 `lib/shared.js` 同值，client 单测会做漂移检查）；**0.13.8** 动态加载常量与纯函数 `WALL_PAGE_SIZE`（= 50）/ `nextVisibleCount(current, total, pageSize?)`（= `min(total, current + pageSize)`，总数未知时不扩张）；图片队列/缓存若有额外统计函数（如 `imageCacheBytes()`）也一并导出。`components` 里额外导出 `StyleSelect`（callout 样式按钮，供单测渲染）。
+- 0.13 新增的纯函数必须挂到 `module.exports.__test`，供 verifier 单测：`APP_VERSION`（旧 Host 兜底，**0.13.4 起必须等于 `package.json` 的完整版本**，0.13.9 起为 `0.13.9`）、`formatVersionLabel(version)`（**0.13.4 起返回完整版本（含补丁号）**；支持 `v` 前缀/预发布后缀/首尾空白，缺失/非法回退 APP_VERSION）、`PINNED_KEY` / `readStoredPinned` / `storePinned`、`PINNED_NOTE_KEY` / `readStoredPinnedNote` / `storePinnedNote` / `clearStoredPinnedNote`（0.13.4）、`cardImages(note)`（返回 `{ items, more }`）、`drawerWidthBounds(panelWidth, pinned)`、`DRAWER_ACTIONS_NARROW_WIDTH`（= 430）/ `drawerActionsNarrow(width)`（0.13.9，抽屉操作条窄布局阈值）、`nextPollDelay(prevDelay, unchanged)`（见 §7.8）；日期筛选常量与纯函数 `DATE_FILTERS`（0.13.9 起四档，无 `all`）/ `DEFAULT_DATE_FILTER` / `DEFAULT_DATE_FILTER_ENABLED` / `DATE_FILTER_ENABLED_KEY` / `readStoredDateFilter` / `storeDateFilter` / `readStoredDateEnabled` / `storeDateEnabled` / `readStoredDateRealtime` / `storeDateRealtime` / `dateFilterBounds(filterId, { now, realtime, anchor })` / `dateFilterAnchor(notes)` / `filterNotesByDate(notes, filterId, realtime, now, anchor, enabled)`（0.13.4 / 0.13.9，见 §7.3.1b；`enabled === false` 时返回全部；`filterId === "all"` 保留为旧值兼容）；AI 预算相关常量与纯函数 `AI_PRESETS` / `AI_PRESET_IDS` / `AI_EFFORTS` / `DEFAULT_AI` / `readAiBudget(ai)` / `patchAiBudget(ai, patch)`（必须与 `lib/shared.js` 同值，client 单测会做漂移检查）；**0.13.8** 动态加载常量与纯函数 `WALL_PAGE_SIZE`（= 50）/ `nextVisibleCount(current, total, pageSize?)`（= `min(total, current + pageSize)`，总数未知时不扩张）；图片队列/缓存若有额外统计函数（如 `imageCacheBytes()`）也一并导出。`components` 里额外导出 `StyleSelect`（callout 样式按钮，供单测渲染）。
 
 ### 6.2 注册
 
@@ -291,7 +292,7 @@ function apply(ctx) {
   - 正文/控件：`"PingFang SC", "Heiti SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`
 - 尺寸对比要明显：标题 19–21px / 600；正文 12.5–13px / 400、行高 1.55–1.65；评论 11.5–12px；tag 10.5px、字距 .04em。
 - 0.13 正文透明度：卡片摘要与抽屉正文文字统一 80% 不透明度（见 3.5）；标题保持 100%。
-- 0.13.4 署名（自动对齐版本）：**只在面板顶栏大标题「Obsidian MEMO」之后**跟一枚小字 `by caven v0.13.8`（约 11px、非常淡、透明度约 45%、baseline 对齐、不换行）；**卡片与抽屉标题不再带 byline**。版本号**不写死**：Host 从 `package.json` 读实际版本并在 `state.version` 下发（如 `0.13.8`），Client 用 `formatVersionLabel()` 取**完整版本（含补丁号）**渲染；只有旧 Host 没下发 `version` 时才回退 Client 常量 `APP_VERSION = '0.13.8'`。因此标题旁的数字自动跟着变；`locale/*.json` 的插件描述、Client 的 `APP_VERSION` 兜底常量与本文档 / README 里的版本示例仍需一起同步（单测会校验这几处一致）。
+- 0.13.4 署名（自动对齐版本）：**只在面板顶栏大标题「Obsidian MEMO」之后**跟一枚小字 `by caven v0.13.9`（约 11px、非常淡、透明度约 45%、baseline 对齐、不换行）；**卡片与抽屉标题不再带 byline**。版本号**不写死**：Host 从 `package.json` 读实际版本并在 `state.version` 下发（如 `0.13.9`），Client 用 `formatVersionLabel()` 取**完整版本（含补丁号）**渲染；只有旧 Host 没下发 `version` 时才回退 Client 常量 `APP_VERSION = '0.13.9'`。因此标题旁的数字自动跟着变；`locale/*.json` 的插件描述、Client 的 `APP_VERSION` 兜底常量与本文档 / README 里的版本示例仍需一起同步（单测会校验这几处一致）。
 - 整体简约、留白足；圆角 10–12px；卡片阴影很轻（`0 1px 2px rgba(0,0,0,.04)`）。
 
 ## 7. UX 规格
@@ -299,15 +300,15 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.13.8`（**0.13.4 起显示完整版本（含补丁号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选按钮（0.13.4，操作区第一个；点击弹日期菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.13.9`（**0.13.4 起显示完整版本（含补丁号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.13.9，操作区第一个；主按钮是开关、右侧小三角弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
-- **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
+- **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
 - 默认排序 = 文件创建时间降序（新 → 旧）；排序依据 host 下发的 `note.created`，前端可切换。
 
 ### 7.2 卡片（0.13 版）
 
-- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
+- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**；0.13.9 起**没有正文就不渲染摘要行**，不再显示「（暂无正文）」）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
 - **图片条（第 3 轮修正）**：`note.images` 前 3 张正方形缩略图（**64×64**、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
   - 懒加载：卡片接近视口（IntersectionObserver，root 为便签墙，提前约 200px）才请求 `readImage { path, source, wiki, maxBytes: 1500000 }`；失败/超限/非图渲染同色系淡占位，不出错误文案、不打断卡片。
   - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，**按字节预算 ~24MB 的 LRU**，条目上限兜底，面板卸载清空），切走再回来不重复请求。
@@ -316,7 +317,7 @@ function apply(ctx) {
 - **hover 操作区（0.13 修正版）**：hover / focus-within 时浮出：
   1. 一行：**所有 AI emoji 预设平铺**（`settings.emojis` 每枚一个 27×27 方形 icon 按钮，只画 emoji 字形，`flex-wrap` 支持最多 12 枚）。**鼠标悬停（或键盘 focus）某一枚时，在该按钮上方浮出一枚小标签显示该预设的 `label`**（如「毒舌」「另一面」「落地」「真心话」）——不是折叠菜单、不需要点击展开。点击某枚 = 对该便签发 `comment`（同 emoji 已有评论时先确认，见 7.7）。
   2. **分割线**。
-  3. 一行：`归档`（弹现有归档目标菜单）/ `开档`（现有对话框）/ **`在 Obsidian 打开`（0.13.8，行内最右、`margin-left:auto`；转发 icon + 粗体文字）**。点它发 `openInObsidian { path }`，由 Host 打开 `obsidian://open?path=…`；失败只 toast，不影响其他操作。
+  3. 一行：`归档`（弹现有归档目标菜单）/ `开档`（现有对话框）/ **`在 Obsidian 打开`（0.13.8，行内最右、`margin-left:auto`；转发 icon + 紫色高亮粗体文字，0.13.9）**。点它发 `openInObsidian { path }`，由 Host 打开 `obsidian://open?path=…`；失败只 toast，不影响其他操作。
   - **图片预览与菜单的统一规则（0.13.4）**：**只要卡片操作菜单出现（= 悬停/键盘聚焦整张卡片，或归档目标菜单打开）且这张卡有图片预览，就统一隐藏图片条**（`.SN_card[data-menu='true'] .SN_cardImages{opacity:0; pointer-events:none}`），移出卡片后恢复。不再区分「鼠标是否停在某一枚 emoji 上」，旧的 `.SN_cardScrim` 同色渐变蒙版及其 emoji 行专属 hover 状态已**删除**（0.13.4 简化）。
   - 抽屉打开时整个操作区不出现（保持现有行为）。
 - 卡片有 `pending` 时：操作区位置显示 `✍️ 正在写评论…`。
@@ -328,7 +329,7 @@ function apply(ctx) {
 
 - **overlay 态（未锁定）**：从面板右侧推出，宽度约面板 1/3（`width: 34%; min-width: 340px; max-width: 620px`），占满面板高度，左侧卡片区仍可见、不加遮罩。滑入动画 160–200ms。
 - **可拖宽**：默认 `width: 34%`，抽屉左边缘 8px 拖拽把手（`cursor: col-resize`），未锁定范围 `[320px, min(960px, 面板宽 × 0.8)]`；宽度写入 `localStorage['dsh-sticky-notes.drawerWidth']`，双击把手恢复 34%。
-- **锁定（0.13 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（锁/解锁图标，`aria-pressed`）。**锁定态不显示关闭按钮**（只留锁定/解锁按钮）；解锁态才显示关闭。两种模式都可用 `Esc` 关闭（锁定态的键盘退路）。
+- **锁定（0.13 新增）**：抽屉头部右上、关闭按钮左侧有锁定按钮（0.13.9 起为**图钉图标**：钉住 = 实心，未钉住 = 空心；`aria-pressed`）。**锁定态不显示关闭按钮**（只留锁定/解锁按钮）；解锁态才显示关闭。两种模式都可用 `Esc` 关闭（锁定态的键盘退路）。
   - 未锁定 = 上述 overlay：覆盖在便签墙之上；点空白墙 / 同一张卡片关闭。
   - 锁定 = **内联双栏**：`.SN_body` 改为 `display:flex; flex-direction:row`，便签墙 `flex:1; min-width:0`，抽屉作为普通 flex 子项（无阴影、无绝对定位），左右并排、互不遮挡；抽屉打开/切换卡片时保持锁定。
   - 状态持久化 `localStorage['dsh-sticky-notes.panelLocked'] = '1'`（默认 '0'）。锁定态点空白墙 / 同一张卡片**不关闭**，只切换内容；`Esc` 仍关闭（没有关闭按钮）；编辑态在墙上按下仍只退出编辑。
@@ -350,9 +351,9 @@ function apply(ctx) {
 ### 7.3.2 抽屉操作条（第 3 轮新增）
 
 - 阅读态抽屉在 header 分割线正下方渲染一行 `.SN_drawerActions`，**锁定与否都显示**；编辑态隐藏整条。
-- 一行两段，不换行：
+- 一行两段；空间不足时允许换行（0.13.9：右侧第三枚按钮可落到下一行）：
   - **左侧**：所有 AI emoji 评论按钮（与卡片同款 27×27 `.SN_aiBtn`，hover/focus 时按钮上方浮出 label 小标签）。点击 = 对当前打开的便签生成评论（同 emoji 已有评论先确认，见 §7.7）；pending 时左侧替换为 `✍️ 正在写评论…`。
-  - **右侧**：`归档`（点击弹出归档目标下拉，选目标后执行归档，成功后关闭抽屉）与 `开档`（打开开档对话框），**最右是「在 Obsidian 打开」**（0.13.8，同款 forwarding icon + 粗体文字，调 `openInObsidian`）。为容纳第三个按钮，`.SN_drawerActions` 允许换行（`row-gap:6px`），`.SN_drawerActionRight` 用 `margin-left:auto` 保持右对齐。
+  - **右侧**：`归档`（点击弹出归档目标下拉，选目标后执行归档，成功后关闭抽屉）与 `开档`（打开开档对话框），**最右是「在 Obsidian 打开」**（0.13.8，同款 forwarding icon + 紫色高亮粗体文字，调 `openInObsidian`）。为容纳第三个按钮，`.SN_drawerActions` 允许换行（`row-gap:6px`）；0.13.9 起 `.SN_drawerActionRight` 也允许换行（`flex-wrap:wrap; justify-content:flex-end`），空间不足时「归档 / 开档」留在上一行、「在 Obsidian 打开」落到下一行并靠右，不再强制挤成一行。窄布局由抽屉实际宽度判定：`drawerActionsNarrow(width)` = 宽度已知且 `< 430px`（`DRAWER_ACTIONS_NARROW_WIDTH`）；右侧组结构 = `.SN_drawerActionPair`（归档 / 开档）+ Obsidian 按钮，窄布局时右侧组 `flex-direction:column`、Obsidian 按钮落到下一行并靠右（`data-narrow="true"`）。
 - 归档目标下拉锚定在操作条下方、右对齐；点外部 / `Esc` 关闭。不要复用卡片内的 `.SN_menu` 定位。
 - 抽屉打开时卡片 hover 操作区仍不出现（避免重复入口）。
 
@@ -365,16 +366,20 @@ function apply(ctx) {
   - `文件名 · A→Z`
 - 当前选项打勾；选择后立即重排并记住（`localStorage` 键 `dsh-sticky-notes.sort.v2`，读不到时用默认）。
 
-### 7.3.1b 日期筛选菜单（0.13.4）
+### 7.3.1b 日期筛选开关 + 档位菜单（0.13.9，源自 0.13.4）
 
-- 顶栏操作区**第一个**是日期筛选 icon 按钮（自绘日历，`aria-label`/`title` 显示当前档位），点击弹出与排序菜单同款小菜单（绝对定位在按钮下方、点外部 / `Esc` 关闭）。
-- 菜单**五档**单选，默认今天：`今天` / `3 天` / `本周` / `本月` / `全部`；当前档打勾。选择后立即过滤并记住（`localStorage['dsh-sticky-notes.dateFilter.v1']`，非法值回退 `today`）。`全部` = 不设时间下界。
+- 顶栏操作区**第一个**是日期筛选控件，结构 = **主按钮（自绘日历，开关） + 小三角（档位菜单）**：
+  - **主按钮 = 开关**：`aria-pressed` + `data-active` 反映开关状态，点亮（统一紫色样式）时按当前档位过滤；熄灭时**显示全部便签**。点击立即切换并记住（`localStorage['dsh-sticky-notes.dateFilterEnabled.v1'] = '1'/'0'`，**默认 '1'**）。`aria-label` / `title` 说明当前状态与点击后果（`date.toggleOn` / `date.toggleOff` 文案，带当前档位名）。
+  - **小三角**：`aria-haspopup="menu"` + `aria-expanded`，点击打开档位菜单（与排序菜单同款小菜单，绝对定位在按钮下方、点外部 / `Esc` 关闭）。
+  - 这套「主按钮开关 + 小三角菜单」与子文件夹开关的「点亮 = 开启」语义统一；以后文件夹若也要选择显示哪个目录，可复用同一结构。
+- 菜单**四档**单选，默认今天：`今天` / `3 天` / `本周` / `本月`。点选 = 更新档位 + **自动点亮开关**（开关熄灭时菜单项不显示勾选）。`全部` 已从菜单移除（熄灭开关就是全部）；旧版 `dateFilter.v1 === 'all'` 迁移为「档位 today + 开关熄灭」。档位持久化 `localStorage['dsh-sticky-notes.dateFilter.v1']`，非法值回退 `today`。
 - 菜单底部用分割线隔开一个**勾选项**：`日期截止按真实时间`（`role="menuitemcheckbox"`，状态写入 `localStorage['dsh-sticky-notes.dateRealtime.v1'] = '1'/'0'`，**默认不勾**）。
   - **勾选**：按每日 00:00 作为分界点（真实日期）——今天 = 本地 0 点；3 天 = 含今天的最近 3 个自然日；本周 = 本周一 0 点；本月 = 本月 1 号 0 点。
   - **不勾（默认）**：以**最新一篇便签（全部便签里 created 最大者）的时间**为标准界线往前滚动——今天 = 锚点前 24h；3 天 = 72h；本周 = 7×24h；本月 = 30×24h。没有便签时退回当前时间作锚。
 - 时间口径：一律按**文件创建时间**（`note.created`；缺失或为 0 时回退 `mtime`）。
-- 过滤只发生在前端（Host 仍返回全部便签）；计数显示过滤后的数量；有便签但当前范围为空时，中央空态提示「这个时间范围里没有便签」+ `换日期范围` 按钮（点击打开日期菜单）。
+- 过滤只发生在前端（Host 仍返回全部便签）；计数显示过滤后的数量（开关熄灭 = 全部数量）；有便签但开关点亮且当前范围为空时，中央空态提示「这个时间范围里没有便签」+ `换日期范围` 按钮（点击打开档位菜单，选择后自动点亮开关）。
 - 边界在每轮渲染按当前时间计算；面板每分钟刷新一次参考时间，跨午夜无需重开面板。
+- 纯函数 `filterNotesByDate(notes, filterId, realtime, now, anchor, enabled)`：`enabled === false` 时直接返回全部（浅拷贝）；`filterId === 'all'` 保留为旧值兼容（不设下界）。
 
 ### 7.4 设置抽屉
 
@@ -406,6 +411,7 @@ function apply(ctx) {
 - 卡片可键盘聚焦（`tabIndex=0`），Enter 选中。
 - 不要拦截全局快捷键（Esc 仅在右侧抽屉/设置抽屉/菜单打开时处理）。
 - 文本禁止选中拖拽问题：卡片正文 `user-select: text` 便于复制。
+- **窗口拖拽（0.13.9）**：`.SN_head` 设 `-webkit-app-region: drag`（同时写 `app-region:drag`），在 **DSH 桌面版**（Electron frameless 窗口）里按住「Obsidian MEMO」标题 / 目录小字 / 顶栏空白即可拖动整个窗口；`.SN_headActions` 及其所有后代显式 `no-drag`，保证按钮、菜单照常点击。Web GUI 浏览器会忽略该属性，行为不变。
 
 ### 7.7 同类评论确认（0.13）
 
@@ -418,7 +424,7 @@ function apply(ctx) {
 
 ### 7.8 统一 icon 选中样式 + 性能与轮询（第 3 轮）
 
-- **统一 icon 选中样式**：`--sn-accent:#8B5CF6`（暗色主题 `#A78BFA`）。所有 30×30 `.SN_iconBtn` 在选中/激活态用 `data-active="true"`：**浅紫半透明底 + 紫色图标**（`color-mix(in srgb, var(--sn-accent) 10%, transparent)`，前置 rgba 兜底；hover 14%），不要品牌蓝深色块。至少覆盖：子文件夹开关（开）、锁定按钮（已锁定）、排序按钮（排序菜单打开）、设置齿轮（设置抽屉打开）。
+- **统一 icon 选中样式**：`--sn-accent:#8B5CF6`（暗色主题 `#A78BFA`）。所有 30×30 `.SN_iconBtn` 在选中/激活态用 `data-active="true"`：**浅紫半透明底 + 紫色图标**（`color-mix(in srgb, var(--sn-accent) 10%, transparent)`，前置 rgba 兜底；hover 14%），不要品牌蓝深色块。至少覆盖：日期筛选开关（点亮）、子文件夹开关（开）、锁定/图钉按钮（已锁定）、排序按钮（排序菜单打开）、设置齿轮（设置抽屉打开）。
 - **轮询自适应退避**：base 4s；一次响应 `unchanged` 时下一次 delay = `min(30000, round(prev * 1.5))`；有变化或用户主动操作（刷新/rescan/保存/评论等）重置回 4s。纯函数 `nextPollDelay(prevDelay, unchanged)` 导出到 `__test`。
 - **不可见时暂停**：面板不可见（`panelRef.current.getClientRects().length === 0` 或 `document.hidden`）时不发 `state` RPC，按约 15s 继续调度；`visibilitychange` 变可见立即跑一次并重置 delay。
 - **无变化不重渲染**：`mergeState` 在 `unchanged` 且 configured/error/revision、settings 签名、jobs 签名、notes 引用都相同时**返回 prev 对象**（不新建 view）。
@@ -442,15 +448,15 @@ function apply(ctx) {
 ## 9. 验收清单（Client）
 
 - [ ] 侧栏出现便签图标，点击切到面板，选中态正确
-- [ ] 顶栏「Obsidian MEMO」是宋体加粗，后面跟小字 by caven v0.13.8（**完整版本号自动跟随 package.json**，改 package.json 后无需改代码；旧 Host 才回退 APP_VERSION）；卡片/抽屉标题没有 byline
+- [ ] 顶栏「Obsidian MEMO」是宋体加粗，后面跟小字 by caven v0.13.9（**完整版本号自动跟随 package.json**，改 package.json 后无需改代码；旧 Host 才回退 APP_VERSION）；卡片/抽屉标题没有 byline
 - [ ] 便签墙渲染 title/excerpt/comments/tag/color，meta 不出现；日间卡片色很淡（#FDFAF4 系）
 - [ ] 正文与卡片摘要是 80% 墨色
 - [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px
 - [ ] 卡片 hover：所有 AI emoji 平铺一行，悬停某枚时上方浮出文字标题；分割线下是归档/开档；**hover/聚焦整张卡（菜单出现）且有图预览时统一隐藏图片条**，移出恢复
 - [ ] 卡片图片 64×64，贴在卡片左下角；有图卡片 208px 不溢出
 - [ ] 抽屉 header 分割线下有操作条：左 emoji 评论、右 归档/开档；锁定/未锁定都在
-- [ ] 锁定态没有关闭按钮，只能解锁后关闭或 Esc；解锁恢复关闭按钮
-- [ ] 子文件夹/锁定/排序/设置四个 icon 激活态统一为紫色高亮（浅紫底+紫图标）
+- [ ] 锁定态没有关闭按钮，只能解锁后关闭或 Esc；解锁恢复关闭按钮；锁定按钮是图钉（钉住实心 / 未钉住空心）
+- [ ] 日期筛选/子文件夹/锁定/排序/设置五个 icon 激活态统一为紫色高亮（浅紫底+紫图标）
 - [ ] 空闲轮询会退避（4s→最长 30s），面板不可见时不请求；无变化时不整墙重渲染
 - [ ] 已有同类评论时点击 emoji → 弹「再生成一条？」确认；确认后才生成
 - [ ] 单击卡片推出抽屉；点左侧卡片区关闭；编辑态点左侧只退出编辑
@@ -460,13 +466,16 @@ function apply(ctx) {
 - [ ] 抽屉锁定 → 变成右侧内联双栏、不遮挡；解锁恢复 overlay；刷新后锁定状态记住
 - [ ] 顶栏子文件夹 icon 切换：关闭后墙只剩顶层便签，刷新后状态记住；激活态是紫色高亮
 - [ ] 排序按钮与菜单（默认创建时间新→旧），刷新后记住
-- [ ] 日期筛选按钮是顶栏操作区第一个；菜单五档（今天/3 天/本周/本月/全部，默认今天）；勾选项「日期截止按真实时间」（勾选=每日 00:00 分界，不勾=以最后一篇为界），刷新后记住；计数随筛选变化
+- [ ] 日期筛选是顶栏操作区第一个，且是「开关 + 档位菜单」：主按钮点亮=按今天/3 天/本周/本月筛选，熄灭=显示全部；小三角菜单四档（无「全部」，默认今天）并自动点亮开关；勾选项「日期截止按真实时间」（勾选=每日 00:00 分界，不勾=以最后一篇为界）；刷新后开关/档位/勾选都记住；计数随筛选变化
 - [ ] 锁定面板重进不隐藏：恢复上次打开的便签；它不在当前筛选里时自动打开筛选排序后的第一篇
 - [ ] 菜单出现时图片预览统一隐藏（不再只在 emoji 上才隐藏）
-- [ ] 卡片 hover 操作行第三项是「在 Obsidian 打开」（转发 icon + 粗体文字、行内靠右）；点它系统打开 Obsidian 对应笔记，失败 toast
+- [ ] 卡片 hover 操作行第三项是「在 Obsidian 打开」（转发 icon + 紫色高亮粗体文字、行内靠右）；右侧抽屉操作条窄到放不下时归档/开档在上、它换到下一行并靠右；点它系统打开 Obsidian 对应笔记，失败 toast
+- [ ] 没有正文的卡片不显示「（暂无正文）」占位
+- [ ] 正文/摘要里的 `^qa-daily-preview-…` block id 不显示，且不影响锚点后面的文字
+- [ ] 桌面版 DSH 里按住顶栏「Obsidian MEMO」标题区可以拖动整个窗口，右侧按钮/菜单仍可点击（Web GUI 不受影响）
 - [ ] 便签墙首屏 50 张；滚到底自动补 50 张；补批时墙底出现三点加载动画 + 「加载中…」；排序/日期筛选变化回到 50 张
 - [ ] 设置里每枚 emoji 一行：emoji + 名称 + callout 样式按钮 + 删除；样式按钮显示「callout样式-xx」，点开 13 项菜单、当前项打勾
-- [ ] 顶栏 byline 与插件描述版本均对齐 `package.json`（0.13.8）
+- [ ] 顶栏 byline 与插件描述版本均对齐 `package.json`（0.13.9）
 - [ ] 设置里目录字段走系统选择器，能直接选 iCloud 里的 Obsidian 库（也可手动输入 `~` 路径）
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
 - [ ] 归档 → toast + 撤销 → 文件移动/恢复
