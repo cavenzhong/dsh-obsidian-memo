@@ -81,6 +81,15 @@ test('快速记录：先验证所有图片、正文和文件名，再写入文�
   assert.deepEqual(await readdir(paths.notes), [])
 })
 
+test('快速记录：自定义图片文件夹不能是仓库内隐藏目录', async (t) => {
+  const { create, paths } = await fixture(t)
+  for (const attachmentDir of [join(paths.vault, '.obsidian'), join(paths.vault, '.trash'), join(paths.vault, '进行时', '.hidden')]) {
+    paths.attachmentDir = attachmentDir
+    await assert.rejects(create({ images: [{ dataUrl: pixel }] }), { code: 'bad-request' })
+  }
+  assert.deepEqual(await readdir(paths.notes), [])
+})
+
 test('快速记录：附件目录与便签目录的外部符号链接都拒绝', async (t) => {
   const { create, paths, root } = await fixture(t)
   const outside = join(root, 'outside')
@@ -164,5 +173,24 @@ test('快速记录模板：就近文件夹优先，遵守忽略目录和禁用�
   await writeFile(join(root, 'outside.md'), '---\nsecret: x\n---')
   await symlink(join(root, 'outside.md'), join(paths.vault, 'escape.md'))
   await templateConfig(paths, { defaultTemplate: 'escape.md' })
-  await assert.rejects(create({ title: '越界模板' }), { code: 'bad-request' })
+  assert.equal(await readFile(await create({ title: '越界模板' }), 'utf8'), '', '越界模板按无模板处理，不阻塞新建')
+})
+
+test('快速记录：模板配置损坏、模板不是 md、悬空模板都按空白 md 继续', async (t) => {
+  const { create, paths, root } = await fixture(t)
+  const dataFile = join(paths.vault, '.obsidian/plugins/default-template/data.json')
+  await templateConfig(paths, { defaultTemplate: 'template.md' })
+  await writeFile(join(paths.vault, 'template.md'), '---\nkeep: 1\n---')
+  assert.match(await readFile(await create({ title: '正常' }), 'utf8'), /keep: 1/)
+
+  await writeFile(dataFile, '{ 坏掉的 JSON')
+  assert.equal(await readFile(await create({ title: '坏配置' }), 'utf8'), '')
+
+  await templateConfig(paths, { defaultTemplate: 'template.txt' })
+  await writeFile(join(paths.vault, 'template.txt'), '---\nkeep: 2\n---')
+  assert.equal(await readFile(await create({ title: '非md' }), 'utf8'), '')
+
+  await symlink(join(root, 'missing.md'), join(paths.vault, 'dangling.md'))
+  await templateConfig(paths, { defaultTemplate: 'dangling.md' })
+  assert.equal(await readFile(await create({ title: '悬空模板' }), 'utf8'), '')
 })

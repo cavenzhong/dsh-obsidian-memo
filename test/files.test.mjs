@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assertPathWithin } from '../lib/files.js'
+import { assertPathWithin, isHiddenVaultPath } from '../lib/files.js'
 import { NotesScanner } from '../lib/scan.js'
 
 test('真实路径边界：允许库内未创建的多级目录，拒绝逃逸与悬空链接', async (t) => {
@@ -24,4 +24,13 @@ test('真实路径边界：允许库内未创建的多级目录，拒绝逃逸�
   const scan = await new NotesScanner().scan({ vaultPath: vault, notesDir: link })
   assert.equal(scan.configured, false)
   assert.deepEqual(scan.notes, [])
+})
+
+test('隐藏路径判定：仓库内的 .obsidian/.trash/嵌套隐藏目录为隐藏，普通路径与库外路径不算', () => {
+  assert.equal(isHiddenVaultPath('/vault', '/vault/.obsidian'), true)
+  assert.equal(isHiddenVaultPath('/vault', '/vault/.trash/附件'), true)
+  assert.equal(isHiddenVaultPath('/vault', '/vault/进行时/.附件'), true)
+  assert.equal(isHiddenVaultPath('/vault', '/vault/附件'), false)
+  assert.equal(isHiddenVaultPath('/vault', '/vault'), false)
+  assert.equal(isHiddenVaultPath('/vault', '/outside/.hidden'), false)
 })

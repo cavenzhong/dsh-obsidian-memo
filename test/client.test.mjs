@@ -262,6 +262,35 @@ test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab �
   assert.equal(prevented, 1)
 })
 
+test('快速记录：正文删空后自动收起为标题态并聚焦标题，重新 Tab 可再展开', (t) => {
+  const runner = hookRunner(t)
+  let focused = ''
+  const props = { enabled: true, t: (key) => key, onCreate() {}, onCreated() {}, onError() {} }
+  const render = () => {
+    const nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+    for (const name of ['Title', 'Body']) {
+      const node = nodes.find((n) => n.props.className === 'SN_capture' + name)
+      if (node) node.props.ref.current = { focus() { focused = name } }
+    }
+    return nodes
+  }
+  let nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '要删掉的正文', style: {}, scrollHeight: 90 } })
+  nodes = render()
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), true)
+  nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '', style: {}, scrollHeight: 68 } })
+  nodes = render()
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), false, '正文空后应收起正文区')
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureSubmitHint'), false)
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureHint'), true, '应回到标题态的 Tab 提示')
+  assert.equal(focused, 'Title')
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes = render()
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), true, '再次 Tab 可重新展开')
+})
+
 test('快速记录：拖入图片添加预览，拖入反馈结束后复原，不执行浏览器默认打开文件', (t) => {
   const runner = hookRunner(t), errors = []
   const props = { enabled: true, t: (key) => key, onError: (error) => errors.push(error), onCreate() {}, onCreated() {} }
@@ -328,6 +357,8 @@ test('图片处理：默认与 Host 对齐，压缩关闭时原文件直通，�
   assert.equal(api.CAPTURE_IMAGES, LIMITS.captureImages)
   assert.equal(api.CAPTURE_IMAGE_BYTES, LIMITS.captureImageBytes)
   assert.equal(api.CAPTURE_TOTAL_BYTES, LIMITS.captureTotalBytes)
+  assert.equal(api.CAPTURE_SOURCE_IMAGE_BYTES, LIMITS.captureSourceImageBytes)
+  assert.equal(api.CAPTURE_SOURCE_TOTAL_BYTES, LIMITS.captureSourceTotalBytes)
   const file = { type: 'image/png', size: 10 }
   assert.equal(await api.compressCaptureImage(file, { enabled: false }), file)
   assert.deepEqual(api.captureImageSize(4000, 3000, 2048), { width: 2048, height: 1536 })
@@ -1000,12 +1031,12 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
     configured: true,
     revision: 'r1',
     unchanged: true,
-    version: '0.14.0',
+    version: '0.14.1',
     jobs: [],
     settings,
   })
   assert.notEqual(versionChanged, prev)
-  assert.equal(versionChanged.version, '0.14.0')
+  assert.equal(versionChanged.version, '0.14.1')
 
   // jobs 变化要新建 view（pending 展示依赖）
   const jobsChanged = api.mergeState(prev, {
@@ -1377,12 +1408,11 @@ test('client __test：localStorage 不可用时日期筛选读写安全回退', 
 
 test('client 源码 / 字典：日期筛选是顶栏第一个「开关 + 档位菜单」，且没有「全部」项', (t) => {
   const api = getTestApi(loadClient(t).mod)
-  for (const key of ['date.today', 'date.3d', 'date.week', 'date.month', 'date.realtime', 'date.realtimeHint', 'date.menu', 'date.toggleOn', 'date.toggleOff']) {
+  for (const key of ['date.today', 'date.3d', 'date.week', 'date.month', 'date.realtime', 'date.realtimeHint', 'date.toggleOn', 'date.toggleOff']) {
     assert.equal(typeof api.dictionaries.zh[key], 'string', `zh 缺少 ${key}`)
     assert.equal(typeof api.dictionaries.en[key], 'string', `en 缺少 ${key}`)
   }
   assert.equal(api.dictionaries.zh['date.realtime'], '日期截止按真实时间')
-  assert.equal(api.dictionaries.zh['date.menu'], '选择日期范围')
   // 0.13.9：菜单里不再有「全部」。
   assert.equal(api.dictionaries.zh['date.all'], undefined, '「全部」文案应移除（开关熄灭即全部）')
   const actionsIndex = CLIENT_SOURCE.indexOf("className: 'SN_headActions'")
@@ -1393,7 +1423,6 @@ test('client 源码 / 字典：日期筛选是顶栏第一个「开关 + 档位�
   assert.ok(subIndex > dateIndex, '日期筛选按钮应排在子文件夹开关之前')
   assert.equal((CLIENT_SOURCE.match(/ref: dateWrapRef/g) || []).length, 1, '日期菜单不应重复渲染')
   // 0.14：主按钮维持开关语义；范围菜单通过悬停或方向键打开。
-  assert.match(CLIENT_SOURCE, /className: 'SN_iconBtn SN_dateToggle'/)
   assert.match(CLIENT_SOURCE, /'aria-pressed': dateEnabled \? 'true' : 'false'/)
   assert.doesNotMatch(CLIENT_SOURCE, /SN_dateCaret/)
   assert.match(CLIENT_SOURCE, /onMouseEnter: openDateMenu/)

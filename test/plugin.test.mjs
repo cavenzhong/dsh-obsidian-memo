@@ -366,7 +366,8 @@ test('图片文件夹设置：拒绝越界、符号链接越界和已有文件�
   await symlink(outside, linked)
   const file = join(c.vault, 'file.png')
   await writeFile(file, 'existing file')
-  for (const attachmentDir of [outside, join(linked, 'nested'), file]) {
+  const hidden = [join(c.vault, '.obsidian'), join(c.vault, '.trash'), join(c.vault, '附件/.hidden')]
+  for (const attachmentDir of [outside, join(linked, 'nested'), file, ...hidden]) {
     const result = await c.call('saveSettings', { settings: { ...settings, attachmentDir } })
     assert.equal(result.ok, false)
     assert.equal(result.error.code, 'bad-request')
