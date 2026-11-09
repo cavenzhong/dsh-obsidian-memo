@@ -1,10 +1,9 @@
 /**
- * lib/client.js 的纯函数单测（不渲染 React 组件）。
+ * lib/client.js 的纯函数、组件结构和 hook 行为测试。
  *
  * client.js 是单文件浏览器 bundle：顶层只做一次
  * `window.__ModuleLoader__.load({ id, factory })`。这里用一个假的 window 捕获
- * factory，注入最小 React / localStorage stub 后实例化模块，只调用
- * `module.exports.__test` 暴露的纯函数（契约 §6.1）。
+ * factory，注入 React / localStorage 测试运行器，执行纯函数和 hook 的状态、effect 与异步行为。
  *
  * 不依赖 jsdom / 真实 DOM；window 作为参数注入模块作用域，并在测试期间同步到
  * globalThis.window，测试结束恢复原值。
@@ -105,7 +104,7 @@ function makeRequire(react) {
  * 加载 client.js，返回 { mod, registration, storage }。
  * t.after 恢复 globalThis.window。
  */
-function loadClient(t, { storage = makeStorage() } = {}) {
+function loadClient(t, { storage = makeStorage(), react = createReactStub() } = {}) {
   let registration = null
   const fakeWindow = {
     __ModuleLoader__: {
@@ -133,9 +132,230 @@ function loadClient(t, { storage = makeStorage() } = {}) {
   assert.equal(registration.id, 'dsh-sticky-notes')
   assert.equal(typeof registration.factory, 'function')
 
-  const mod = registration.factory(makeRequire(createReactStub()))
+  const mod = registration.factory(makeRequire(react))
   return { mod, registration, storage }
 }
+
+/** 执行实际 hook 与 effect；显式 render 模拟提交，避免源码字符串充当行为测试。 */
+function hookRunner(t) {
+  const react = createReactStub(), cells = []
+  let cursor = 0, effects = []
+  react.useState = (initial) => {
+    const index = cursor++
+    if (!(index in cells)) cells[index] = { value: typeof initial === 'function' ? initial() : initial }
+    return [cells[index].value, (value) => { cells[index].value = typeof value === 'function' ? value(cells[index].value) : value }]
+  }
+  react.useRef = (initial) => {
+    const index = cursor++
+    if (!(index in cells)) cells[index] = { current: initial }
+    return cells[index]
+  }
+  react.useEffect = (effect, deps) => {
+    const index = cursor++, old = cells[index]
+    if (!old || !deps || deps.some((value, i) => value !== old.deps?.[i])) {
+      effects.push(() => {
+        old?.cleanup?.()
+        cells[index] = { deps, cleanup: effect() }
+      })
+    }
+  }
+  react.useLayoutEffect = react.useEffect
+  const mod = loadClient(t, { react }).mod
+  const api = mod.__test
+  t.after(() => { for (const cell of cells) cell?.cleanup?.() })
+  return {
+    api,
+    apply: mod.apply,
+    connect(call) {
+      mod.apply({
+        connection: { rpc: { call } },
+        locale: { register() {}, bind: () => (key) => key }, slots: { inject() {} },
+        effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose },
+      })
+    },
+    render(fn, options) {
+      cursor = 0
+      effects = []
+      const result = fn(options)
+      for (const effect of effects) effect()
+      return result
+    },
+  }
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve))
+function deferred() {
+  let resolve, reject
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
+test('state 请求顺序：较新的响应先到时，迟到的旧响应不能覆盖', async (t) => {
+  const api = loadClient(t).mod.__test
+  const requests = [], applied = []
+  const reader = api.createStateReader({
+    call(payload, signal) { const pending = deferred(); requests.push({ ...pending, payload, signal }); return pending.promise },
+    getRevision: () => 'known',
+    onValue: (value) => applied.push(value),
+  })
+  const first = reader.read(false), second = reader.read(true)
+  assert.equal(requests[0].signal.aborted, true)
+  assert.equal(requests[1].payload.knownRevision, null)
+  requests[1].resolve({ revision: 'new' })
+  await second
+  requests[0].resolve({ revision: 'old' })
+  assert.equal(await first, null)
+  assert.deepEqual(applied, [{ revision: 'new' }])
+  const pending = reader.read(false)
+  reader.invalidate()
+  requests[2].reject(new Error('迟到的网络错误'))
+  assert.equal(await pending, null)
+})
+
+test('mergeState：任务变化保留未变化卡片和设置对象', (t) => {
+  const api = loadClient(t).mod.__test
+  const state = { configured: true, revision: 'first', notes: [{ path: '/A.md', title: '甲', pending: null }], settings: { emojis: [] }, jobs: [] }
+  const first = api.mergeState(null, state)
+  const next = api.mergeState(first, JSON.parse(JSON.stringify({ ...state, revision: 'job-changed', jobs: [{ id: 'job', status: 'done' }] })))
+  assert.equal(next.notes[0], first.notes[0])
+  assert.equal(next.settings, first.settings)
+})
+
+test('编辑 hook：冲突后保留草稿和编辑态，保存携带打开时版本', async (t) => {
+  const runner = hookRunner(t), calls = [], errors = []
+  const full = { path: '/A.md', name: '甲', body: '原文', contentRevision: 'opened-version' }
+  const options = {
+    tRef: { current: (key) => key }, aliveRef: { current: true }, controllersRef: { current: new Set() },
+    request(endpoint, payload) { calls.push({ endpoint, payload }); return Promise.reject(Object.assign(new Error('内容冲突'), { code: 'conflict' })) },
+    refreshNow: async () => {}, replaceNote() {}, replaceRenamedNote() {}, pushToast() {},
+    pushErrorToast: (error) => errors.push(error), onOpen() {}, onClose() {},
+  }
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  // 用真实读取路径加载全文。
+  const ctx = { connection: { rpc: { call: async () => ({ ok: true, value: full }) } }, locale: { register() {}, bind: () => (key) => key }, slots: { inject() {} }, effect(fn) { return fn() } }
+  // apply 给 callRpc 注入测试连接，仍执行实际 hook 异步行为。
+  // hook 属于 runner 的模块；运行时通过其 apply 注入。
+  runner.apply(ctx)
+  editor.openNoteDrawer(full)
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor.handleBodyChange('我的草稿')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.saveEditing()
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(calls[0].payload.expectedRevision, 'opened-version')
+  assert.equal(editor.bodyDraft, '我的草稿')
+  assert.equal(editor.editing, true)
+  assert.equal(editor.savingNote, false)
+  assert.equal(errors[0].code, 'conflict')
+})
+
+test('编辑 hook：切换便签后迟到的读取不能覆盖当前抽屉', async (t) => {
+  const runner = hookRunner(t), reads = []
+  runner.connect((channel, endpoint, payload) => {
+    const pending = deferred(); reads.push({ ...pending, payload }); return pending.promise
+  })
+  const options = editorOptions()
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/A.md' })
+  editor.openNoteDrawer({ path: '/B.md' })
+  reads[1].resolve({ ok: true, value: { path: '/B.md', name: '乙', body: '乙正文', contentRevision: 'B' } })
+  await flush()
+  reads[0].resolve({ ok: true, value: { path: '/A.md', body: '迟到的甲正文' } })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.noteDrawer.path, '/B.md')
+  assert.equal(editor.noteDrawer.full.body, '乙正文')
+  assert.equal(editor.noteDrawer.loading, false)
+})
+
+function editorOptions(overrides = {}) {
+  return {
+    tRef: { current: (key) => key }, aliveRef: { current: true }, controllersRef: { current: new Set() },
+    request: async () => ({}), refreshNow: async () => {}, replaceNote() {}, replaceRenamedNote() {},
+    pushToast() {}, pushErrorToast() {}, onOpen() {}, onClose() {}, ...overrides,
+  }
+}
+
+test('编辑 hook：保存期间关闭并重开同一篇，旧保存回调不清除新草稿', async (t) => {
+  const runner = hookRunner(t), saving = deferred()
+  const full = { path: '/A.md', name: '甲', body: '原文', contentRevision: 'initial' }
+  runner.connect(async () => ({ ok: true, value: full }))
+  const options = editorOptions({ request: () => saving.promise })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer(full)
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor.handleBodyChange('旧草稿')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.saveEditing()
+  editor.closeNoteDrawer()
+  editor.openNoteDrawer(full)
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor.handleBodyChange('新草稿')
+  saving.resolve({ note: { path: '/A.md', name: '甲' } })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.editing, true)
+  assert.equal(editor.bodyDraft, '新草稿')
+})
+
+test('编辑 hook：同时保存标题正文后抽屉跟随新路径并结束编辑', async (t) => {
+  const runner = hookRunner(t), renamed = []
+  runner.connect(async (channel, endpoint, payload) => ({
+    ok: true, value: { path: payload.path, name: payload.path === '/A.md' ? '甲' : '乙', body: '原文', contentRevision: 'version' },
+  }))
+  const options = editorOptions({
+    request: async () => ({ note: { path: '/B.md', name: '乙' } }),
+    replaceRenamedNote: (oldPath, note) => renamed.push([oldPath, note.path]),
+  })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/A.md' })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor.handleBodyChange('新正文')
+  editor.setTitleDraft('乙')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.saveEditing()
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.deepEqual(renamed, [['/A.md', '/B.md']])
+  assert.equal(editor.noteDrawer.path, '/B.md')
+  assert.equal(editor.editing, false)
+  assert.equal(editor.savingNote, false)
+})
+
+test('设置 hook：实时设置刷新不覆盖正在编辑的草稿', (t) => {
+  const runner = hookRunner(t), viewRef = { current: { settings: { vaultPath: '/old', emojis: [] } } }
+  const options = {
+    t: (key) => key, tRef: { current: (key) => key }, viewRef, updateView() {},
+    request: async () => ({}), refreshNow: async () => {}, aliveRef: { current: true },
+    panelRef: { current: null }, pushToast() {}, pushErrorToast() {}, onOpen() {},
+  }
+  let settings = runner.render(runner.api.hooks.useSettingsDraft, options)
+  settings.openSettings()
+  settings.patchDraft({ vaultPath: '/my-draft' })
+  viewRef.current = { settings: { vaultPath: '/external', emojis: [] } }
+  settings = runner.render(runner.api.hooks.useSettingsDraft, options)
+  assert.equal(settings.settingsDraft.vaultPath, '/my-draft')
+  settings.closeSettings()
+  settings = runner.render(runner.api.hooks.useSettingsDraft, options)
+  settings.openSettings()
+  settings = runner.render(runner.api.hooks.useSettingsDraft, options)
+  assert.equal(settings.settingsDraft.vaultPath, '/external')
+})
+
+test('面板 hook：组合数据、抽屉与设置职责后可以挂载和卸载', (t) => {
+  const runner = hookRunner(t)
+  const panel = runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
+  assert.equal(panel.props.className, 'SN_panel')
+})
 
 /** 取 __test 并断言契约 §6.1 要求的全部纯函数都暴露了。 */
 function getTestApi(mod) {
@@ -143,7 +363,6 @@ function getTestApi(mod) {
   assert.notEqual(mod.__test, undefined, '模块应导出 __test（契约 §6.1）')
   const api = mod.__test
   for (const key of [
-    'APP_VERSION',
     'PINNED_KEY',
     'PINNED_NOTE_KEY',
     'readStoredPinned',
@@ -193,14 +412,7 @@ test('client bundle：__ModuleLoader__ 注册 id / factory / inject / __test', (
   getTestApi(mod)
 })
 
-test('client __test：APP_VERSION 与 package.json 的完整版本对齐（0.13.9）', (t) => {
-  const api = getTestApi(loadClient(t).mod)
-  assert.equal(PACKAGE_JSON.version, '0.13.9')
-  // APP_VERSION 只是旧 Host 兜底：必须是 package.json 的完整版本（补丁号也要对齐）
-  assert.equal(api.APP_VERSION, PACKAGE_JSON.version)
-})
-
-test('client __test：formatVersionLabel 取完整版本（含补丁号），缺失/非法回退 APP_VERSION', (t) => {
+test('client __test：formatVersionLabel 取完整版本（含补丁号），缺失/非法不显示版本', (t) => {
   const api = getTestApi(loadClient(t).mod)
   assert.equal(typeof api.formatVersionLabel, 'function', '__test.formatVersionLabel 缺失（v0.13）')
   // 正常版本：保留完整 major.minor.patch，支持 v 前缀、预发布后缀、首尾空白
@@ -209,49 +421,29 @@ test('client __test：formatVersionLabel 取完整版本（含补丁号），缺
   assert.equal(api.formatVersionLabel('0.13.4'), '0.13.4')
   assert.equal(api.formatVersionLabel('0.13.0-beta.1'), '0.13.0')
   assert.equal(api.formatVersionLabel('  0.13.4  '), '0.13.4')
+  // 0.13.9.2 起支持四段发布号（package.json 版本即四段时也要完整显示）
+  assert.equal(api.formatVersionLabel('0.13.9.2'), '0.13.9.2')
+  assert.equal(api.formatVersionLabel('v0.13.9.2'), '0.13.9.2')
+  assert.equal(api.formatVersionLabel('0.13.9.2-beta.1'), '0.13.9.2')
   assert.equal(api.formatVersionLabel('1.2.3'), '1.2.3')
   assert.equal(api.formatVersionLabel('1.2'), '1.2')
   // 缺失 / 空 / 非法 → 回退 APP_VERSION（旧 Host 没下发 version 的情况）
   for (const bad of [undefined, null, '', '   ', 'abc', 'v', 0, 123, true, {}, []]) {
     assert.equal(
       api.formatVersionLabel(bad),
-      api.APP_VERSION,
-      `formatVersionLabel(${JSON.stringify(bad)}) 应回退 APP_VERSION`,
+      '',
+      `formatVersionLabel(${JSON.stringify(bad)}) 应返回空串`,
     )
   }
 })
 
-test('版本一致性：locale 插件描述包含 package.json 的完整版本（0.13.9）', () => {
+test('版本仅从 Host 下发，locale 与浏览器代码无需手动同步版本', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.equal(api.formatVersionLabel(PACKAGE_JSON.version), PACKAGE_JSON.version)
   for (const name of ['zh', 'en']) {
-    const locale = JSON.parse(
-      readFileSync(fileURLToPath(new URL(`../locale/${name}.json`, import.meta.url)), 'utf8'),
-    )
-    const description = locale?.meta?.description ?? ''
-    assert.ok(
-      description.includes(`Obsidian MEMO ${PACKAGE_JSON.version}`),
-      `locale/${name}.json 的 meta.description 应包含 "Obsidian MEMO ${PACKAGE_JSON.version}"，当前是：${description}`,
-    )
-    assert.doesNotMatch(description, /Obsidian MEMO 0\.12/, `locale/${name}.json 不应残留 0.12 描述`)
-  }
-})
-
-test('版本一致性：README 标题 / CONTRACT 当前版本 / locale 描述都与 package.json 对齐', () => {
-  const version = PACKAGE_JSON.version
-  const escaped = version.replace(/\./g, '\\.')
-  const readme = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8')
-  assert.match(readme, new RegExp(`^# Obsidian MEMO · v${escaped}$`, 'm'), 'README 标题版本应与 package.json 一致')
-  const contract = readFileSync(fileURLToPath(new URL('../docs/CONTRACT.md', import.meta.url)), 'utf8')
-  assert.ok(contract.includes(`当前版本：${version}`), 'CONTRACT 的「当前版本」应与 package.json 一致')
-  assert.ok(contract.includes(`版本 \`${version}\``), 'CONTRACT 的 package.json 版本说明应与 package.json 一致')
-})
-
-test('版本一致性：README/CONTRACT 里所有 by caven vX.Y.Z 示例都与 package.json 对齐', () => {
-  const version = PACKAGE_JSON.version
-  for (const rel of ['../README.md', '../docs/CONTRACT.md']) {
-    const text = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
-    const found = [...text.matchAll(/by caven v(\d+\.\d+\.\d+)/g)].map((match) => match[1])
-    assert.ok(found.length > 0, `${rel} 应包含 by caven vX.Y.Z 的版本示例`)
-    for (const item of found) assert.equal(item, version, `${rel} 的 by caven 版本示例应与 package.json 一致`)
+    const locale = JSON.parse(readFileSync(new URL('../locale/' + name + '.json', import.meta.url), 'utf8'))
+    assert.match(locale.meta.description, /Obsidian MEMO/)
+    assert.doesNotMatch(locale.meta.description, /Obsidian MEMO \d/)
   }
 })
 

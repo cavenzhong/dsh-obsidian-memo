@@ -13,9 +13,9 @@
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
-import { homedir, tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { writeSettingsFile } from '../lib/settings.js'
@@ -299,6 +299,57 @@ async function makeCase(options = {}) {
   }
 }
 
+/** 有效编辑先读取版本；冲突用例直接调用原始 RPC。 */
+async function saveNote(c, payload) {
+  const result = await c.call('note', { path: payload.path })
+  return c.call('saveNote', { ...payload, expectedRevision: result.ok ? result.value.contentRevision : undefined })
+}
+
+test('saveNote：旧编辑版本不能覆盖后追加的 AI 评论，失败时文件不变', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文\n' } })
+  const path = c.seeded['甲.md']
+  const opened = (await c.call('note', { path })).value
+  const settings = (await c.call('state')).value.settings
+  const started = await c.call('comment', { path, emojiId: settings.emojis[0].id })
+  assert.equal((await waitForJob(c.call, started.value.jobId)).status, 'done')
+  const before = await readFile(path, 'utf8')
+  const saved = await c.call('saveNote', { path, body: opened.body + '新草稿', expectedRevision: opened.contentRevision })
+  assert.equal(saved.error.code, 'conflict')
+  assert.equal(await readFile(path, 'utf8'), before)
+})
+
+test('saveNote：同一版本并发保存只接受一次，缺版本拒绝写入', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文\n' } })
+  const path = c.seeded['甲.md']
+  const opened = (await c.call('note', { path })).value
+  const missing = await c.call('saveNote', { path, body: '没有版本的草稿' })
+  assert.equal(missing.error.code, 'conflict')
+  const results = await Promise.all(['甲草稿', '乙草稿'].map((body) => c.call('saveNote', { path, body, expectedRevision: opened.contentRevision })))
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.filter((result) => result.error?.code === 'conflict').length, 1)
+})
+
+test('路径边界：设置、归档、开档与打开不能经目录符号链接越过仓库', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文\n' } })
+  const outside = join(c.dir, 'outside')
+  await mkdir(outside)
+  await symlink(outside, c.archiveDir, 'dir')
+  await symlink(outside, c.projectDir, 'dir')
+  const path = c.seeded['甲.md']
+  const archive = await c.call('archive', { path, targetId: 'arch' })
+  assert.equal(archive.error.code, 'bad-request')
+  const project = await c.call('openProject', { path, name: '项目' })
+  assert.equal(project.error.code, 'bad-request')
+  const current = (await c.call('state')).value.settings
+  const saved = await c.call('saveSettings', { settings: current })
+  assert.equal(saved.error.code, 'bad-request')
+  await writeFile(join(outside, '外部.md'), '外部内容')
+  const opened = await c.call('openInObsidian', { path: join(c.archiveDir, '外部.md') })
+  assert.equal(opened.error.code, 'bad-request')
+  assert.equal(await readFile(path, 'utf8'), '原文\n')
+  assert.deepEqual(await readdir(outside), ['外部.md'])
+})
+
 /* ─────────────────────────────── state ─────────────────────────────── */
 
 test('state：未配置时 configured:false，写操作返回 not-configured', async () => {
@@ -310,9 +361,9 @@ test('state：未配置时 configured:false，写操作返回 not-configured', a
   assert.deepEqual(state.value.jobs, [])
   assert.match(state.value.revision, /^[0-9a-f]{16}$/)
 
-  const saveNote = await c.call('saveNote', { path: join(c.vault, 'x.md'), body: '一' })
-  assert.equal(saveNote.ok, false)
-  assert.equal(saveNote.error.code, 'not-configured')
+  const saved = await saveNote(c, { path: join(c.vault, 'x.md'), body: '一' })
+  assert.equal(saved.ok, false)
+  assert.equal(saved.error.code, 'not-configured')
 })
 
 test('state：返回 configured / notes / settings，knownRevision 相同时 unchanged', async () => {
@@ -438,7 +489,7 @@ test('saveNote：只替换正文，frontmatter 原样保留并补结尾换行', 
   const notePath = c.seeded['保存.md']
   const before = await c.call('state')
 
-  const result = await c.call('saveNote', { path: notePath, body: '# 新标题\n\n新正文' })
+  const result = await saveNote(c, { path: notePath, body: '# 新标题\n\n新正文' })
   assert.equal(result.ok, true)
   assert.equal(result.value.note.path, notePath)
   assert.equal(result.value.note.title, '保存')
@@ -465,7 +516,7 @@ test('saveNote：正文规范化（去首尾空白、CRLF → LF）', async () =
   const c = await makeCase({ notes: { '规范.md': '---\nfoo: 1\n---\n\n旧正文\n' } })
   const notePath = c.seeded['规范.md']
 
-  const result = await c.call('saveNote', {
+  const result = await saveNote(c, {
     path: notePath,
     body: '\r\n\r\n新正文一段  \r\n\r\n第二段\r\n\r\n',
   })
@@ -478,7 +529,7 @@ test('saveNote：空正文只留 frontmatter', async () => {
   const c = await makeCase({ notes: { '清空.md': '---\nPROJECTS: "[[x|X]]"\n---\n\n# 旧\n\n旧正文\n' } })
   const notePath = c.seeded['清空.md']
 
-  const result = await c.call('saveNote', { path: notePath, body: '' })
+  const result = await saveNote(c, { path: notePath, body: '' })
   assert.equal(result.ok, true)
   assert.equal(result.value.note.excerpt, '')
   assert.equal(await readFile(notePath, 'utf8'), '---\nPROJECTS: "[[x|X]]"\n---\n')
@@ -494,12 +545,12 @@ test('saveNote：没有 frontmatter 的便签直接写正文（不新建 frontma
   const c = await makeCase({ notes: { '裸.md': '# 旧\n\n旧正文\n' } })
   const notePath = c.seeded['裸.md']
 
-  const result = await c.call('saveNote', { path: notePath, body: '新正文' })
+  const result = await saveNote(c, { path: notePath, body: '新正文' })
   assert.equal(result.ok, true)
   assert.equal(await readFile(notePath, 'utf8'), '新正文\n')
 
   // 空正文 + 无 frontmatter → 空文件
-  const cleared = await c.call('saveNote', { path: notePath, body: '' })
+  const cleared = await saveNote(c, { path: notePath, body: '' })
   assert.equal(cleared.ok, true)
   assert.equal(await readFile(notePath, 'utf8'), '')
 })
@@ -508,7 +559,7 @@ test('saveNote：BOM 保留', async () => {
   const c = await makeCase({ notes: { 'BOM.md': '\uFEFF---\nfoo: 1\n---\n\n旧正文\n' } })
   const notePath = c.seeded['BOM.md']
 
-  const result = await c.call('saveNote', { path: notePath, body: '新正文' })
+  const result = await saveNote(c, { path: notePath, body: '新正文' })
   assert.equal(result.ok, true)
   const content = await readFile(notePath, 'utf8')
   assert.equal(content.startsWith('\uFEFF---'), true)
@@ -517,7 +568,7 @@ test('saveNote：BOM 保留', async () => {
 
 test('saveNote：同一次保存同时改文件名和正文', async () => {
   const c = await makeCase({ notes: { '旧名.md': '---\nkeep: true\n---\n\n旧正文\n' } })
-  const result = await c.call('saveNote', { path: c.seeded['旧名.md'], name: '新名', body: '新正文' })
+  const result = await saveNote(c, { path: c.seeded['旧名.md'], name: '新名', body: '新正文' })
   assert.equal(result.ok, true)
   assert.equal(result.value.note.path, join(c.notesDir, '新名.md'))
   assert.equal(await readFile(join(c.notesDir, '新名.md'), 'utf8'), '---\nkeep: true\n---\n\n新正文\n')
@@ -528,10 +579,10 @@ test('saveNote：保留原有长文件名与大写扩展名；重名失败不写
   const filename = `${'a'.repeat(70)}.MD`
   const c = await makeCase({ notes: { [filename]: '原正文\n', 'existing.md': '保留\n' } })
   const path = c.seeded[filename]
-  const saved = await c.call('saveNote', { path, name: 'a'.repeat(70), body: '新正文' })
+  const saved = await saveNote(c, { path, name: 'a'.repeat(70), body: '新正文' })
   assert.equal(saved.ok, true)
   assert.equal(saved.value.note.path, path)
-  const conflict = await c.call('saveNote', { path, name: 'existing', body: '不应保存' })
+  const conflict = await saveNote(c, { path, name: 'existing', body: '不应保存' })
   assert.equal(conflict.error.code, 'exists')
   assert.equal(await readFile(path, 'utf8'), '新正文\n')
   assert.equal(await readFile(join(c.notesDir, 'existing.md'), 'utf8'), '保留\n')
@@ -565,7 +616,7 @@ test('saveNote：仅大小写改名应允许（大小写不敏感文件系统）
   assert.equal(before.value.notes[0].name, 'Case')
 
   // 目标文件在大小写不敏感文件系统上会命中自己：realpath 相同则应允许，而不是误报 exists
-  const result = await c.call('saveNote', { path: originalPath, name: 'CASE', body: '新正文' })
+  const result = await saveNote(c, { path: originalPath, name: 'CASE', body: '新正文' })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.value.note.path, join(c.notesDir, 'CASE.md'))
   assert.equal(result.value.note.name, 'CASE')
@@ -608,23 +659,7 @@ test('toggleTask：无 frontmatter 的首行任务保留 BOM', async () => {
   assert.equal(await readFile(path, 'utf8'), original.replace('[ ]', '[x]'))
 })
 
-test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', async () => {
-  const c = await makeCase({ notes: { '甲.md': '# 甲\n\n原文\n' } })
-  const notePath = c.seeded['甲.md']
-  const before = await readFile(notePath, 'utf8')
-
-  for (const payload of [{ path: notePath }, { path: notePath, body: 123 }, { path: notePath, body: null }]) {
-    const result = await c.call('saveNote', payload)
-    assert.equal(result.ok, false, `payload ${JSON.stringify(payload)} 应被拒绝`)
-    assert.equal(result.error.code, 'bad-request')
-  }
-
-  // 注：saveNote 的「正文过大」分支在 RPC 层不可达——webServer 路由先以
-  // raw body > 2MB 返回 400 unreadable body（已有专门用例覆盖）。
-  assert.equal(await readFile(notePath, 'utf8'), before)
-})
-
-/* ─────────────────────────── browseDirectory ─────────────────────────── */
+/* ───────────────────────── toggleTask / readImage ───────────────────────── */
 
 test('toggleTask：只改任务标记，保留 BOM、CRLF 和 frontmatter，可取消勾选', async () => {
   const original = '\uFEFF---\r\nkeep: true\r\n---\r\n\r\n- [ ] 任务\r\n\r\n正文\r\n'
@@ -756,133 +791,21 @@ test('readImage：传 maxBytes 时超限返回 too-large，未传仍 8MB，正�
   assert.equal(smallWithLimit.ok, true)
 })
 
-test('browseDirectory：列目录、目录优先排序、隐藏项跳过、parent/crumbs/shortcuts', async () => {
-  const c = await makeCase({ notes: {} })
-  const dir = join(c.dir, '浏览目标')
-  await mkdir(join(dir, 'zeta'), { recursive: true })
-  await mkdir(join(dir, 'alpha'), { recursive: true })
-  await mkdir(join(dir, '.hidden-dir'), { recursive: true })
-  await writeFile(join(dir, 'beta.md'), '# b\n', 'utf8')
-  await writeFile(join(dir, 'alpha.txt'), 't', 'utf8')
-  await writeFile(join(dir, '.secret.md'), 'x', 'utf8')
+test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', async () => {
+  const c = await makeCase({ notes: { '甲.md': '# 甲\n\n原文\n' } })
+  const notePath = c.seeded['甲.md']
+  const before = await readFile(notePath, 'utf8')
 
-  const result = await c.call('browseDirectory', { path: dir })
-  assert.equal(result.ok, true)
-  const value = result.value
-  assert.equal(value.path, dir)
-  assert.equal(value.error, undefined)
-  assert.equal(value.parent, resolve(dir, '..'))
-  assert.equal(value.home, homedir())
-  assert.equal(value.truncated, false)
-
-  // 目录在前、名称排序；隐藏目录/文件完全不出现
-  assert.deepEqual(value.entries.map((entry) => entry.name), ['alpha', 'zeta', 'alpha.txt', 'beta.md'])
-  assert.deepEqual(value.entries.map((entry) => entry.isDirectory), [true, true, false, false])
-  for (const entry of value.entries) {
-    assert.equal(entry.hidden, false)
-    assert.equal(entry.path, join(dir, entry.name))
-  }
-  assert.equal(value.entries.some((entry) => entry.name.startsWith('.')), false)
-
-  // crumbs：根 → … → 目标
-  assert.ok(Array.isArray(value.crumbs) && value.crumbs.length >= 2)
-  assert.deepEqual(value.crumbs.at(-1), { name: '浏览目标', path: dir })
-  assert.equal(value.crumbs[0].path, sep)
-  for (let i = 1; i < value.crumbs.length; i += 1) {
-    assert.equal(dirname(value.crumbs[i].path), value.crumbs[i - 1].path)
-  }
-  for (const crumb of value.crumbs) {
-    assert.equal(typeof crumb.name, 'string')
-    assert.equal(isAbsolute(crumb.path), true)
+  for (const payload of [{ path: notePath }, { path: notePath, body: 123 }, { path: notePath, body: null }]) {
+    const result = await saveNote(c, payload)
+    assert.equal(result.ok, false, `payload ${JSON.stringify(payload)} 应被拒绝`)
+    assert.equal(result.error.code, 'bad-request')
   }
 
-  // shortcuts：数组，首项是主目录
-  assert.ok(Array.isArray(value.shortcuts) && value.shortcuts.length >= 1)
-  assert.deepEqual(value.shortcuts[0], { label: '主目录', path: homedir() })
-  for (const shortcut of value.shortcuts) {
-    assert.equal(typeof shortcut.label, 'string')
-    assert.equal(typeof shortcut.path, 'string')
-    assert.equal(isAbsolute(shortcut.path), true)
-  }
+  // 注：saveNote 的「正文过大」分支在 RPC 层不可达——webServer 路由先以
+  // raw body > 2MB 返回 400 unreadable body（已有专门用例覆盖）。
+  assert.equal(await readFile(notePath, 'utf8'), before)
 })
-
-test('browseDirectory：path 为空默认 settings.vaultPath；~ 展开', async () => {
-  const c = await makeCase({ notes: {} })
-
-  const fallback = await c.call('browseDirectory', {})
-  assert.equal(fallback.ok, true)
-  assert.equal(fallback.value.path, c.vault)
-  assert.equal(fallback.value.error, undefined)
-
-  const emptyPath = await c.call('browseDirectory', { path: '' })
-  assert.equal(emptyPath.value.path, c.vault)
-
-  // 纯空白 path 是 truthy，会跳过 vaultPath 回退，由 expandHomePath 落到主目录
-  const blankPath = await c.call('browseDirectory', { path: '   ' })
-  assert.equal(blankPath.ok, true)
-  assert.equal(blankPath.value.path, homedir())
-
-  const home = await c.call('browseDirectory', { path: '~' })
-  assert.equal(home.ok, true)
-  assert.equal(home.value.path, homedir())
-  assert.equal(home.value.home, homedir())
-
-  const homeSlash = await c.call('browseDirectory', { path: '~/' })
-  assert.equal(homeSlash.ok, true)
-  assert.equal(homeSlash.value.path, homedir())
-
-  const homeMissing = await c.call('browseDirectory', { path: '~/__sticky_not_exist__' })
-  assert.equal(homeMissing.ok, true)
-  assert.equal(homeMissing.value.path, resolve(homedir(), '__sticky_not_exist__'))
-  assert.match(homeMissing.value.error, /目录不存在/)
-  assert.deepEqual(homeMissing.value.entries, [])
-})
-
-test('browseDirectory：不存在 / 文件 / 不可读目录 → ok:true + error 文案，entries=[]，shortcuts 仍有效', async (t) => {
-  // root 无视目录权限，chmod 000 不会让 readdir 失败；这种环境跳过不可读用例
-  if (typeof process.getuid === 'function' && process.getuid() === 0) {
-    t.skip('root 用户无法用 chmod 000 模拟不可读目录')
-    return
-  }
-  const c = await makeCase({ notes: {} })
-
-  const missingPath = join(c.dir, '不存在目录')
-  const missing = await c.call('browseDirectory', { path: missingPath })
-  assert.equal(missing.ok, true)
-  assert.equal(missing.value.path, missingPath)
-  assert.match(missing.value.error, /目录不存在/)
-  assert.deepEqual(missing.value.entries, [])
-  assert.equal(missing.value.truncated, false)
-  assert.ok(Array.isArray(missing.value.shortcuts) && missing.value.shortcuts.length >= 1)
-
-  const filePath = join(c.dir, '普通文件.txt')
-  await writeFile(filePath, 'x', 'utf8')
-  const asFile = await c.call('browseDirectory', { path: filePath })
-  assert.equal(asFile.ok, true)
-  assert.match(asFile.value.error, /不是文件夹/)
-  assert.deepEqual(asFile.value.entries, [])
-  assert.ok(asFile.value.shortcuts.length >= 1)
-
-  // chmod 000 模拟 macOS 拒绝列目录（iCloud 容器父目录的 EPERM/EACCES）
-  const noRead = join(c.dir, '不可读目录')
-  await mkdir(noRead, { recursive: true })
-  await writeFile(join(noRead, '藏起来的.md'), '# x\n', 'utf8')
-  await chmod(noRead, 0o000)
-  try {
-    const denied = await c.call('browseDirectory', { path: noRead })
-    assert.equal(denied.ok, true)
-    assert.equal(denied.value.path, noRead)
-    assert.match(denied.value.error, /读不了目录/)
-    assert.deepEqual(denied.value.entries, [])
-    assert.equal(denied.value.truncated, false)
-    assert.ok(Array.isArray(denied.value.shortcuts) && denied.value.shortcuts.length >= 1)
-    assert.deepEqual(denied.value.shortcuts[0], { label: '主目录', path: homedir() })
-  } finally {
-    await chmod(noRead, 0o755)
-  }
-})
-
-/* ──────────────────────────────── note ──────────────────────────────── */
 
 test('note：返回全文 blocks / comments / projects', async () => {
   const c = await makeCase({
@@ -923,18 +846,6 @@ test('note：返回全文 blocks / comments / projects', async () => {
 })
 
 /* ─────────────────────────────── comment ─────────────────────────────── */
-
-test('renameNote：更新文件名且拒绝同名覆盖', async () => {
-  const c = await makeCase({ notes: { '原名.md': '# 标题\n', '已存在.md': '保留\n' } })
-  const result = await c.call('renameNote', { path: c.seeded['原名.md'], name: '新 名' })
-  assert.equal(result.ok, true)
-  assert.equal(result.value.note.name, '新 名')
-  assert.equal(await readFile(join(c.notesDir, '新 名.md'), 'utf8'), '# 标题\n')
-  const duplicate = await c.call('renameNote', { path: join(c.notesDir, '新 名.md'), name: '已存在' })
-  assert.equal(duplicate.ok, false)
-  assert.equal(duplicate.error.code, 'exists')
-  assert.equal(await readFile(join(c.notesDir, '已存在.md'), 'utf8'), '保留\n')
-})
 
 test('comment：异步生成后写入 callout，轮询到 done', async () => {
   const c = await makeCase({ notes: { '评论.md': '# 评论标题\n\n评论正文。\n' } })
@@ -1419,19 +1330,19 @@ test('路径校验：saveNote 便签目录外 / 非 md / 缺 path 都被拒绝',
 
   const outsideNote = join(c.vault, '目录外.md')
   await writeFile(outsideNote, '# 外\n', 'utf8')
-  const outside = await c.call('saveNote', { path: outsideNote, body: '一' })
+  const outside = await saveNote(c, { path: outsideNote, body: '一' })
   assert.equal(outside.ok, false)
   assert.equal(outside.error.code, 'bad-request')
   assert.match(outside.error.message, /便签不在配置的便签目录内/)
 
   const notMd = join(c.notesDir, '不是便签.txt')
   await writeFile(notMd, 'txt', 'utf8')
-  const wrongExt = await c.call('saveNote', { path: notMd, body: '一' })
+  const wrongExt = await saveNote(c, { path: notMd, body: '一' })
   assert.equal(wrongExt.ok, false)
   assert.equal(wrongExt.error.code, 'bad-request')
   assert.match(wrongExt.error.message, /不是 markdown/)
 
-  const missingPath = await c.call('saveNote', { body: '一' })
+  const missingPath = await saveNote(c, { body: '一' })
   assert.equal(missingPath.ok, false)
   assert.equal(missingPath.error.code, 'bad-request')
 })
@@ -1443,7 +1354,7 @@ test('路径校验：便签目录内指向仓库外的符号链接不能读写�
   await writeFile(outsideNote, '# 保持不变\n', 'utf8')
   await symlink(outsideNote, linkedNote)
 
-  const result = await c.call('saveNote', { path: linkedNote, body: '已越界' })
+  const result = await saveNote(c, { path: linkedNote, body: '已越界' })
   assert.equal(result.ok, false)
   assert.equal(result.error.code, 'bad-request')
   assert.match(result.error.message, /符号链接指向了配置目录之外/)

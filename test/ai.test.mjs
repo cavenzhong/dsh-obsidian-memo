@@ -66,7 +66,7 @@ test('buildProjectDocument：来源路径/标题里的双引号被转义', () =>
 
 test('buildCommentRequest：emoji 提示词进 system，便签内容进 prompt，预算默认高', () => {
   const request = buildCommentRequest(
-    { title: '标题', blocks: [{ kind: 'p', text: '一段正文' }], comments: [] },
+    { title: '标题', body: '一段正文' },
     { prompt: '你是评论者' },
   )
   assert.match(request.system, /^你是评论者/)
@@ -118,53 +118,19 @@ test('buildProjectRequest：projectAi 预算进入请求', () => {
   assert.equal(request.reasoningEffort, 'low')
 })
 
-test('renderNoteForModel：块前缀与最近 3 条评论', () => {
-  const rendered = renderNoteForModel({
-    title: 'T',
-    blocks: [
-      { kind: 'p', text: '段落' },
-      { kind: 'li', text: '列表' },
-      { kind: 'h', text: '标题二' },
-      { kind: 'quote', text: '引用' },
-      { kind: 'code', text: '代码' },
-    ],
-    comments: [
-      { emoji: '🔍', label: '洞察', text: '一' },
-      { emoji: '💡', label: '延伸', text: '二' },
-      { emoji: '⚠️', label: '风险', text: '三' },
-      { emoji: '✅', label: '下一步', text: '四' },
-    ],
-  })
-  assert.match(rendered, /^标题：T/)
-  assert.match(rendered, /\n- 列表\n/)
-  assert.match(rendered, /\n## 标题二\n/)
-  assert.match(rendered, /\n> 引用\n/)
-  assert.match(rendered, /\n代码\n/)
-  // 只保留最后 3 条评论
-  assert.doesNotMatch(rendered, /洞察：一/)
-  assert.match(rendered, /延伸：二/)
-  assert.match(rendered, /下一步：四/)
-})
-
-test('renderNoteForModel：标题（现在=文件名）与 blocks 首段都进入模型文本', () => {
-  // 新行为：note.title 由 Host/scan 填成 md 文件名；首段不再从 blocks 剔除，
-  // 因此评论/开档请求里既能看到文件名标题，也能看到第一段正文。
-  const rendered = renderNoteForModel({
-    title: '便签',
-    blocks: [
-      { kind: 'p', text: '这是首段正文。' },
-      { kind: 'p', text: '这是第二段。' },
-    ],
-    comments: [],
-  })
+test('renderNoteForModel：原始 Markdown 不受展示块与评论上限影响', () => {
+  const body = '# 正文\n\n' + '长'.repeat(2100) + '段尾信息\n\n> [!quote] 😈 评论\n> 原始评论'
+  const rendered = renderNoteForModel({ title: '便签', body, blocks: [{ kind: 'p', text: '已裁切的展示内容' }] })
   assert.match(rendered, /^标题：便签/)
-  assert.match(rendered, /这是首段正文。/)
-  assert.match(rendered, /这是第二段。/)
+  assert.ok(rendered.includes(body))
+  assert.doesNotMatch(rendered, /已裁切的展示内容/)
 })
 
-test('renderNoteForModel：空便签不炸', () => {
+test('renderNoteForModel：空文本与超长输入有明确边界提示', () => {
   assert.equal(renderNoteForModel({}), '')
-  assert.equal(renderNoteForModel({ title: '', blocks: [], comments: [] }), '')
+  const rendered = renderNoteForModel({ body: '🙂'.repeat(13000) })
+  assert.equal(Array.from(rendered).length, 12000)
+  assert.match(rendered, /后续内容未提供/)
 })
 
 test('sourceWikilink：去掉 .md 并生成别名', () => {
@@ -323,4 +289,20 @@ test('generateText：模型返回空内容 → llm-failed', async () => {
     generateText(mockCtx({ chunks: [{ type: 'finish', reason: { kind: 'stop' } }] }), REQUEST),
     (error) => error.code === 'llm-failed' && /空内容/.test(error.message),
   )
+})
+
+test('generateText：评论与开档分别限长，字符裁切也标记 truncated', async () => {
+  const ctx = {
+    get(key) {
+      return key === 'llm'
+        ? { async *stream() { yield { type: 'text-delta', text: '字'.repeat(5000) }; yield { type: 'finish', reason: { kind: 'stop' } } } }
+        : { currentSelection: () => ({ provider: 'mock', model: 'mock' }) }
+    },
+  }
+  const comment = await generateText(ctx, buildCommentRequest({ body: '正文' }, { prompt: '评论' }))
+  assert.equal(comment.text.length, 4000)
+  assert.equal(comment.truncated, true)
+  const project = await generateText(ctx, buildProjectRequest({ body: '正文' }, '开档', '项目'))
+  assert.equal(project.text.length, 5000)
+  assert.equal(project.truncated, false)
 })
