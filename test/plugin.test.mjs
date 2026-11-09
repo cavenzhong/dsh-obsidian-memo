@@ -660,6 +660,20 @@ test('saveNote：保留原有长文件名与大写扩展名；重名失败不写
   assert.equal(await readFile(join(c.notesDir, 'existing.md'), 'utf8'), '保留\n')
 })
 
+test('saveNote：改名与新建共用文件名规则（保留名/超长拒绝，特殊字符清洗）', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文\n' } })
+  const path = c.seeded['甲.md']
+  for (const name of ['CON', '字'.repeat(81)]) {
+    const result = await saveNote(c, { path, name, body: '不应保存' })
+    assert.equal(result.ok, false)
+    assert.equal(result.error.code, 'bad-request')
+  }
+  assert.equal(await readFile(path, 'utf8'), '原文\n')
+  const saved = await saveNote(c, { path, name: '  a/b  ', body: '新正文' })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  assert.equal(saved.value.note.path, join(c.notesDir, 'a b.md'))
+})
+
 /** 当前文件系统是否大小写不敏感（macOS 默认 APFS 是）。 */
 async function caseInsensitiveFilesystem() {
   const dir = await mkdtemp(join(tmpdir(), 'sticky-case-'))

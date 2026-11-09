@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createCapturedNote } from '../lib/capture.js'
@@ -106,6 +106,7 @@ async function templateConfig(paths, config) {
   const dir = join(paths.vault, '.obsidian/plugins/default-template')
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, 'data.json'), JSON.stringify(config))
+  await writeFile(join(paths.vault, '.obsidian/community-plugins.json'), '["default-template"]')
 }
 
 test('快速记录：空正文、有正文、有图片都携带文件夹模板 meta，仅插入一次且不插入模板占位正文', async (t) => {
@@ -155,6 +156,23 @@ test('快速记录：模板 frontmatter 的 {{date}}/{{time}}/{{title}} 按 Defa
   assert.equal(times.has(frontmatter.match(/clock: (.+)/)?.[1]), true)
   assert.equal(times.has(frontmatter.match(/time: (.+)/)?.[1]), true)
   assert.match(frontmatter, /literal: YYYY$/m, '[YYYY] 按 moment 的转义语义输出字面量')
+})
+
+test('快速记录：community-plugins.json 缺失/损坏/非数组/不含插件时不套模板', async (t) => {
+  const { create, paths } = await fixture(t)
+  await writeFile(join(paths.vault, 'template.md'), '---\nkeep: yes\n---')
+  await templateConfig(paths, { defaultTemplate: 'template.md' })
+  const community = join(paths.vault, '.obsidian/community-plugins.json')
+  await unlink(community)
+  assert.equal(await readFile(await create({ title: '缺失启用清单' }), 'utf8'), '')
+  await writeFile(community, '{ 坏掉的 JSON')
+  assert.equal(await readFile(await create({ title: '坏启用清单' }), 'utf8'), '')
+  await writeFile(community, '{"default-template": true}')
+  assert.equal(await readFile(await create({ title: '非数组启用清单' }), 'utf8'), '')
+  await writeFile(community, '["other-plugin"]')
+  assert.equal(await readFile(await create({ title: '未启用' }), 'utf8'), '')
+  await writeFile(community, '["default-template"]')
+  assert.match(await readFile(await create({ title: '已启用' }), 'utf8'), /keep: yes/)
 })
 
 test('快速记录模板：就近文件夹优先，遵守忽略目录和禁用插件，禁止模板越界', async (t) => {

@@ -202,7 +202,7 @@ test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败
   const title = nodes.find((n) => n.props.className === 'SN_captureTitle')
   title.props.onKeyDown({ key: 'Enter', nativeEvent: { isComposing: true }, preventDefault() { throw new Error('不应拦截输入法') } })
   assert.equal(count, 0)
-  title.props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  title.props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
   nodes = render()
   nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '正文草稿', style: {}, scrollHeight: 90 } })
   nodes = render()
@@ -226,6 +226,24 @@ test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败
   assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), false)
 })
 
+test('快速记录：标题 Enter/Tab 阻止事件冒泡，避免触发宿主快捷键', async (t) => {
+  const runner = hookRunner(t)
+  let stopped = 0
+  const pending = deferred()
+  const props = { t: (key) => key, enabled: true, onCreate: () => pending.promise, onCreated() {}, onError() {} }
+  const render = () => captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  let nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onChange({ target: { value: '标题' } })
+  nodes = render()
+  const title = nodes.find((n) => n.props.className === 'SN_captureTitle')
+  title.props.onKeyDown({ key: 'Enter', preventDefault() {}, stopPropagation() { stopped++ } })
+  assert.equal(stopped, 1)
+  title.props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() { stopped++ } })
+  assert.equal(stopped, 2)
+  pending.resolve({})
+  await flush()
+})
+
 test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab 可再次返回正文', (t) => {
   const runner = hookRunner(t)
   let focused = '', prevented = 0, stopped = 0
@@ -240,7 +258,7 @@ test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab �
   }
   let nodes = render()
   nodes.find((n) => n.props.className === 'SN_captureTitle').props.onChange({ target: { value: '原标题' } })
-  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
   nodes = render()
   nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '保留正文', style: {}, scrollHeight: 90 } })
   nodes = render()
@@ -254,7 +272,7 @@ test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab �
   nodes = render()
   assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '修改标题')
   assert.equal(nodes.find((n) => n.props.className === 'SN_captureBody').props.value, '保留正文')
-  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
   assert.equal(focused, 'Body')
   for (const extra of [{ shiftKey: false }, { isComposing: true }, { nativeEvent: { isComposing: true } }, { keyCode: 229 }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
     body.props.onKeyDown({ ...event, ...extra })
@@ -275,7 +293,7 @@ test('快速记录：正文删空后自动收起为标题态并聚焦标题，�
     return nodes
   }
   let nodes = render()
-  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
   nodes = render()
   nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '要删掉的正文', style: {}, scrollHeight: 90 } })
   nodes = render()
@@ -286,7 +304,7 @@ test('快速记录：正文删空后自动收起为标题态并聚焦标题，�
   assert.equal(nodes.some((n) => n.props.className === 'SN_captureSubmitHint'), false)
   assert.equal(nodes.some((n) => n.props.className === 'SN_captureHint'), true, '应回到标题态的 Tab 提示')
   assert.equal(focused, 'Title')
-  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
   nodes = render()
   assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), true, '再次 Tab 可重新展开')
 })
@@ -340,12 +358,27 @@ test('快速记录：只有无焦点/面板空白处按 Tab 才进入标题，�
   assert.equal(prevented, 2)
 })
 
+test('快速记录：失败提交的焦点恢复字段——正文回正文，其余回标题', (t) => {
+  const api = loadClient(t).mod.__test
+  const body = {}
+  assert.equal(api.captureRefocusField(body, body), 'body')
+  assert.equal(api.captureRefocusField({}, body), 'title')
+  assert.equal(api.captureRefocusField(null, body), 'title')
+  assert.equal(api.captureRefocusField(body, null), 'title')
+})
+
 test('阅读列表：有序项目显示数字标记，无序项目保留圆点样式', (t) => {
   const api = loadClient(t).mod.__test
   const ordered = api.components.NoteBlock({ block: { kind: 'li', text: '第二项', marker: '2.' } })
   assert.equal(ordered.props.className, 'SN_blockLi SN_blockOrdered')
   assert.equal(captureNodes(ordered).find((n) => n.props.className === 'SN_listNumber').children[0], '2.')
   assert.equal(api.components.NoteBlock({ block: { kind: 'li', text: '圆点' } }).props.className, 'SN_blockLi')
+  const orderedTask = api.components.NoteBlock({ block: { kind: 'li', text: '完成项', marker: '3.', checked: false, sourceLine: 2 }, taskBusy: false, onToggleTask() {} })
+  assert.match(orderedTask.props.className, /SN_blockTask/)
+  assert.match(orderedTask.props.className, /SN_blockOrdered/)
+  const taskNodes = captureNodes(orderedTask)
+  assert.equal(taskNodes.find((n) => n.props.className === 'SN_listNumber').children[0], '3.')
+  assert.equal(taskNodes.find((n) => n.props.role === 'checkbox').props['aria-checked'], false)
 })
 
 test('图片处理：默认与 Host 对齐，压缩关闭时原文件直通，尺寸保持比例且不放大', async (t) => {
@@ -1031,12 +1064,12 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
     configured: true,
     revision: 'r1',
     unchanged: true,
-    version: '0.14.1',
+    version: '0.14.2',
     jobs: [],
     settings,
   })
   assert.notEqual(versionChanged, prev)
-  assert.equal(versionChanged.version, '0.14.1')
+  assert.equal(versionChanged.version, '0.14.2')
 
   // jobs 变化要新建 view（pending 展示依赖）
   const jobsChanged = api.mergeState(prev, {
