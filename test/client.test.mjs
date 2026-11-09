@@ -280,24 +280,33 @@ test('快速记录：拖入图片添加预览，拖入反馈结束后复原，�
   assert.equal(errors.length, 0)
 })
 
-test('快速记录：无焦点的 Tab 进入标题，保留输入框内 Tab、反向 Tab、弹窗和隐藏面板的正常行为', (t) => {
+test('快速记录：只有无焦点/面板空白处按 Tab 才进入标题，交互元素保持原生 Tab 顺序', (t) => {
   const api = loadClient(t).mod.__test
   let focused = 0, prevented = 0, modal = false, visible = true
-  const body = {}, card = {}, input = { closest: () => ({}) }, outside = {}
+  const body = {}, wall = {}, card = { closest: () => ({}) }, headerButton = { closest: () => ({}) }
+  const input = { closest: () => ({}) }, outside = {}
   const doc = { body }
-  const panel = { ownerDocument: doc, getClientRects: () => visible ? [{}] : [], contains: (target) => [card, input].includes(target), querySelector: () => modal ? {} : null }
+  const panel = {
+    ownerDocument: doc,
+    getClientRects: () => visible ? [{}] : [],
+    contains: (target) => [wall, card, headerButton, input].includes(target),
+    querySelector: () => modal ? {} : null,
+  }
   const form = { contains: (target) => target === input }, title = { focus() { focused++ } }
   const event = { key: 'Tab', target: body, preventDefault() { prevented++ } }
   const options = { panel, form, title }
-  assert.equal(api.focusCaptureOnTab(event, options), true)
-  assert.equal(api.focusCaptureOnTab({ ...event, target: card }, options), true)
-  for (const patch of [{ shiftKey: true }, { target: input }, { target: outside }, { ctrlKey: true }, { isComposing: true }]) {
+  assert.equal(api.focusCaptureOnTab(event, options), true, '无焦点时 Tab 进入标题')
+  assert.equal(api.focusCaptureOnTab({ ...event, target: wall }, options), true, '面板空白处进入标题')
+  for (const interactive of [card, headerButton, input]) {
+    assert.equal(api.focusCaptureOnTab({ ...event, target: interactive }, options), false, '交互元素保持原生 Tab 顺序')
+  }
+  for (const patch of [{ shiftKey: true }, { target: outside }, { ctrlKey: true }, { isComposing: true }]) {
     assert.equal(api.focusCaptureOnTab({ ...event, ...patch }, options), false)
   }
   modal = true
-  assert.equal(api.focusCaptureOnTab(event, options), false)
+  assert.equal(api.focusCaptureOnTab(event, options), false, '抽屉/模态/菜单打开时不拦截')
   modal = false; visible = false
-  assert.equal(api.focusCaptureOnTab(event, options), false)
+  assert.equal(api.focusCaptureOnTab(event, options), false, '面板不可见不拦截')
   assert.equal(focused, 2)
   assert.equal(prevented, 2)
 })

@@ -1597,6 +1597,23 @@ test('RPC 路由：非法 JSON / 读取 body 失败 / body 过大', async () => 
   assert.equal(tooLarge.envelope, null)
 })
 
+test('RPC 失败信封：业务错误都带 code/message/details，且不把原型链属性当 endpoint', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文\n' } })
+  const failures = [
+    await c.call('saveNote', { path: c.seeded['甲.md'], body: '新正文', expectedRevision: 'stale' }),
+    await c.call('note', { path: join(c.dir, 'outside.md') }),
+    await c.call('no-such-endpoint', {}),
+    await c.call('constructor', {}),
+  ]
+  assert.equal(failures[0].error.code, 'conflict')
+  for (const result of failures) {
+    assert.equal(result.ok, false)
+    assert.equal(typeof result.error.code, 'string')
+    assert.equal(typeof result.error.message, 'string')
+    assert.deepEqual(result.error.details, {}, 'DSH client-connection 解析器要求失败信封带 details 对象')
+  }
+})
+
 /* ─────────────────── 0.13.8 在 Obsidian 打开 ─────────────────── */
 
 test('openInObsidian：仓库内文件交给系统打开 obsidian:// URI；越界/不存在拒绝', async () => {

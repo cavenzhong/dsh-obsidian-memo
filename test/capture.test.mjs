@@ -115,6 +115,39 @@ test('快速记录：空正文、有正文、有图片都携带文件夹模板 m
   }
 })
 
+test('快速记录：模板 frontmatter 的 {{date}}/{{time}}/{{title}} 按 Default Template 语义替换', async (t) => {
+  const { create, paths } = await fixture(t)
+  await writeFile(join(paths.vault, 'template.md'), [
+    '---',
+    'created: {{date:YYYY-MM-DD}}',
+    'clock: {{time:HH:mm}}',
+    'title: {{title}}',
+    'day: {{date}}',
+    'time: {{time}}',
+    'literal: {{date:[YYYY]}}',
+    '---',
+    '',
+    '模板正文',
+  ].join('\n'))
+  await templateConfig(paths, { folderTemplates: { '进行时': 'template.md' } })
+  const before = new Date()
+  const path = await create({ title: '变量', body: '正文' })
+  const after = new Date()
+  const { frontmatter } = splitFrontmatter(await readFile(path, 'utf8'))
+  const pad = (value) => String(value).padStart(2, '0')
+  const dateOf = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const timeOf = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  const dates = new Set([dateOf(before), dateOf(after)])
+  const times = new Set([timeOf(before), timeOf(after)])
+  assert.equal(frontmatter.includes('{{'), false, 'frontmatter 不应留下模板变量')
+  assert.equal(frontmatter.includes('title: 变量'), true)
+  assert.equal(dates.has(frontmatter.match(/created: (.+)/)?.[1]), true)
+  assert.equal(dates.has(frontmatter.match(/day: (.+)/)?.[1]), true)
+  assert.equal(times.has(frontmatter.match(/clock: (.+)/)?.[1]), true)
+  assert.equal(times.has(frontmatter.match(/time: (.+)/)?.[1]), true)
+  assert.match(frontmatter, /literal: YYYY$/m, '[YYYY] 按 moment 的转义语义输出字面量')
+})
+
 test('快速记录模板：就近文件夹优先，遵守忽略目录和禁用插件，禁止模板越界', async (t) => {
   const { create, paths, root } = await fixture(t)
   await writeFile(join(paths.vault, 'parent.md'), '---\nsource: parent\n---')

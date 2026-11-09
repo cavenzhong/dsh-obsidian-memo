@@ -14,7 +14,7 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 
 - 包目录：`/Users/cavenzhong/Documents/个人项目/memobisidian/dsh-sticky-notes`
 - 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 为唯一运行时版本来源。
-- Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）；`lib/files.js`（真实路径校验、内容版本、原子写入）；`lib/obsidian.js`（在 Obsidian 打开：URI 构造 + 系统打开器）。
+- Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）；`lib/files.js`（真实路径校验、内容版本、原子写入）；`lib/capture.js`（快速新建便签：模板 meta、附件写入、独占发布）；`lib/obsidian.js`（在 Obsidian 打开：URI 构造 + 系统打开器）。
 - Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-sticky-notes', factory(require) { ... } })`）。
 - 设置：`data/settings.json`（插件目录内，运行时生成，HMR 已忽略 `data`）。绝不写 Obsidian 仓库里的配置文件。
 
@@ -35,10 +35,11 @@ Client 通过客户端连接服务调用（同一条已认证通道，Web GUI �
 ```js
 // inject = ['slots', 'locale', 'connection']
 const result = await ctx.connection.rpc.call('/sticky-notes', 'state', payload, signal)
-// result: { ok: true, value: unknown } | { ok: false, error: { code: string, message: string } }
+// result: { ok: true, value: unknown } | { ok: false, error: { code: string, message: string, details: object } }
 ```
 
-- `endpoint` 只能是单段（`[A-Za-z0-9_$.-]`）。
+- **失败信封必须带 `details` 对象**（`{}` 即可）：DSH 0.2.x 的 client-connection 解析器要求 `error.details` 是 record，缺失会把业务错误误判成 transport 错误（真实 code/message 全部丢失）。Host 的 `dispatch` 与路由级错误都遵循这一点。
+- `endpoint` 只能是单段（`[A-Za-z0-9_$.-]`），且必须是 `endpoints` 的自有属性（不能是原型链上的 `constructor`/`toString`）。
 - Client 必须捕获 rejection（网络/通道失败）与 `ok:false` 两种失败。
 - 连续调用需串行或带 AbortController；页面卸载后停止轮询。
 
@@ -301,7 +302,7 @@ function apply(ctx) {
 
 ### 7.1 布局
 
-- 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
+- 整面板：纵向 flex，`height: 100%`，`min-height: 0`；便签墙占满剩余高度，0.14 起底部浮岛 `CaptureComposer` 绝对定位在墙下方（不占 flex 高度），由 `.SN_wallWrap[data-capture='true']` 给墙/空态补底部 padding，`--sn-capture-height` 由 `ResizeObserver` 按实际高度更新。
 - 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.14.0`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
@@ -323,7 +324,7 @@ function apply(ctx) {
   - **图片预览与菜单的统一规则（0.13.4）**：**只要卡片操作菜单出现（= 悬停/键盘聚焦整张卡片，或归档目标菜单打开）且这张卡有图片预览，就统一隐藏图片条**（`.SN_card[data-menu='true'] .SN_cardImages{opacity:0; pointer-events:none}`），移出卡片后恢复。不再区分「鼠标是否停在某一枚 emoji 上」，旧的 `.SN_cardScrim` 同色渐变蒙版及其 emoji 行专属 hover 状态已**删除**（0.13.4 简化）。
   - 抽屉打开时整个操作区不出现（保持现有行为）。
 - 卡片有 `pending` 时：操作区位置显示 `✍️ 正在写评论…`。
-- **单击卡片打开右侧抽屉**（没有选中态、没有输入栏）；键盘 Enter 也可打开。
+- **单击卡片打开右侧抽屉**（没有选中态）；键盘 Enter 也可打开。
 - 空状态 / 未配置 / 出错：面板中央说明 + 主按钮（去设置 / 重试）。
 - 加载中：首次 fetch 显示骨架。
 
@@ -499,7 +500,7 @@ AI 输入使用去掉 frontmatter 后的原始 Markdown（含已有评论），�
 ### 11.1 输入交互与模板修正
 
 - 图片可直接拖入胶囊；拖入时显示焦点描边反馈，松开即走相同的预览、数量校验与压缩流程，并阻止浏览器打开图片文件。
-- 可见面板内、输入栏外按 Tab 进入标题；标题内再按 Tab 展开正文，正文 Shift+Tab 返回标题且保留草稿。输入栏外的 Shift+Tab、其他输入框／可编辑区域、菜单和模态窗口内保持原有键盘行为。
+- 无焦点或在面板空白处按 Tab 进入标题；焦点在按钮、卡片、缩略图、输入框等交互元素上时保持原生 Tab 顺序（快捷键不抢焦点）。标题内再按 Tab 展开正文，正文 Shift+Tab 返回标题且保留草稿；Shift+Tab、抽屉/模态/菜单内保持原有键盘行为。
 - 正文区右下角常驻小号浅色 `⌘ Enter 提交` 提示；聚焦与拖图状态的描边增至约 2px 视觉厚度，深浅色主题一致。
-- Host 只读 Obsidian Default Template 的配置，按最近文件夹匹配模板，提取原始 frontmatter；无正文、有正文和带图三种新建方式都先写入同一份 meta。遵守 ignorePaths 与插件禁用状态；模板路径及符号链接不能越出仓库。不写 Obsidian 配置，不执行模板脚本，不插入模板占位正文。
+- Host 只读 Obsidian Default Template 的配置，按最近文件夹匹配模板，提取 frontmatter 并把 `{{date[:fmt]}}` / `{{time[:fmt]}}` / `{{title}}` 按 moment 常用 token 子集替换（`YYYY`/`YY`/`MMM`/`MM`/`M`/`DD`/`D`/`HH`/`H`/`hh`/`h`/`mm`/`m`/`ss`/`s`/`A`/`a`/`Z`/`ZZ`、英文月份/星期名与 `[literal]` 转义；未识别字符原样保留）；无正文、有正文和带图三种新建方式都先写入同一份 meta。遵守 ignorePaths 与插件禁用状态；模板路径及符号链接不能越出仓库。不写 Obsidian 配置，不执行模板脚本，不插入模板占位正文。
 - 有序列表解析保留 `marker`（如 `1.`、`2.`、`12)`），阅读视图显示数字标记；无序列表保留圆点，任务与代码块的行为不变。
