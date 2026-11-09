@@ -305,6 +305,77 @@ async function saveNote(c, payload) {
   return c.call('saveNote', { ...payload, expectedRevision: result.ok ? result.value.contentRevision : undefined })
 }
 
+test('createNote：已认证 RPC 支持超过 2 MB 的图片请求，返回摘要并可阅读附件', async () => {
+  const c = await makeCase()
+  const bytes = Buffer.alloc(2 * 1024 * 1024)
+  Buffer.from('89504e470d0a1a0a', 'hex').copy(bytes)
+  const created = await c.call('createNote', { title: '快速记录', body: '一点细节', images: [{ dataUrl: `data:image/png;base64,${bytes.toString('base64')}` }] })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.equal(created.value.note.title, '快速记录')
+  assert.equal(created.value.note.imageCount, 1)
+  const image = created.value.note.images[0]
+  const loaded = await c.call('readImage', { path: created.value.path, ...image })
+  assert.equal(loaded.ok, true)
+  assert.equal(Buffer.from(loaded.value.dataUrl.split(',')[1], 'base64').length, bytes.length)
+  const state = await c.call('state', {})
+  assert.equal(state.value.notes.length, 1)
+  const duplicate = await c.call('createNote', { title: '快速记录', body: '覆盖' })
+  assert.equal(duplicate.error.code, 'exists')
+  const full = await c.call('note', { path: created.value.path })
+  assert.match(full.value.body, /^一点细节/)
+})
+
+test('图片处理设置：默认启用 70 / 2048，关闭与自定义参数可保存并读回', async () => {
+  const c = await makeCase()
+  const first = await c.call('state', {})
+  assert.deepEqual(first.value.settings.imageCompression, { enabled: true, quality: 70, maxDimension: 2048 })
+  const saved = await c.call('saveSettings', { settings: { ...first.value.settings, imageCompression: { enabled: false, quality: 85, maxDimension: 4096 } } })
+  assert.equal(saved.ok, true)
+  assert.deepEqual(saved.value.settings.imageCompression, { enabled: false, quality: 85, maxDimension: 4096 })
+  assert.deepEqual(JSON.parse(await readFile(c.settingsPath, 'utf8')).imageCompression, saved.value.settings.imageCompression)
+})
+
+test('图片文件夹设置：保存后新建图片使用指定目录，清空恢复默认，原图片仍可读取', async () => {
+  const c = await makeCase()
+  const settings = (await c.call('state')).value.settings
+  assert.equal(settings.attachmentDir, '')
+  const saved = await c.call('saveSettings', { settings: { ...settings, attachmentDir: '附件/图片' } })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  assert.equal(saved.value.settings.attachmentDir, join(c.vault, '附件/图片'))
+  assert.equal(JSON.parse(await readFile(c.settingsPath, 'utf8')).attachmentDir, saved.value.settings.attachmentDir)
+  const image = { dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=' }
+  const created = await c.call('createNote', { title: '自定义图片', body: '', images: [image] })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.match(created.value.note.images[0].source, /^附件\/图片\//)
+  const restored = await c.call('saveSettings', { settings: { ...saved.value.settings, attachmentDir: '' } })
+  assert.equal(restored.ok, true)
+  const fallback = await c.call('createNote', { title: '默认图片', body: '', images: [image] })
+  assert.equal(fallback.ok, true, JSON.stringify(fallback))
+  assert.match(fallback.value.note.images[0].source, /^进行时\/_attachments\//)
+  const loaded = await c.call('readImage', { path: created.value.path, ...created.value.note.images[0] })
+  assert.equal(loaded.ok, true, JSON.stringify(loaded))
+  assert.equal(loaded.value.dataUrl, image.dataUrl)
+})
+
+test('图片文件夹设置：拒绝越界、符号链接越界和已有文件，不写入无效设置', async () => {
+  const c = await makeCase()
+  const settings = (await c.call('state')).value.settings
+  const outside = join(c.dir, 'outside')
+  await mkdir(outside)
+  const linked = join(c.vault, 'linked')
+  await symlink(outside, linked)
+  const file = join(c.vault, 'file.png')
+  await writeFile(file, 'existing file')
+  for (const attachmentDir of [outside, join(linked, 'nested'), file]) {
+    const result = await c.call('saveSettings', { settings: { ...settings, attachmentDir } })
+    assert.equal(result.ok, false)
+    assert.equal(result.error.code, 'bad-request')
+  }
+  assert.equal((await c.call('state')).value.settings.attachmentDir, '')
+  assert.equal(JSON.parse(await readFile(c.settingsPath, 'utf8')).attachmentDir, '')
+  assert.deepEqual(await readdir(outside), [])
+})
+
 test('saveNote：旧编辑版本不能覆盖后追加的 AI 评论，失败时文件不变', async () => {
   const c = await makeCase({ notes: { '甲.md': '原文\n' } })
   const path = c.seeded['甲.md']

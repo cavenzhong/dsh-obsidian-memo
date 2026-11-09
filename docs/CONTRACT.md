@@ -4,9 +4,11 @@
 
 ## 0. 一句话
 
-Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中央全宽便签墙。只读写 md 文件本身，不碰 Obsidian。
+Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中央全宽便签墙。读写 md 文件与新建图片附件，不碰 Obsidian 配置。
 
 **运行版本以 `package.json` 为准**。0.13 的目标是「更轻的日间视觉 + 更实用的阅读/编辑 + 更有性格的 AI 评论」；0.13.4 追加日期筛选、锁定面板恢复、卡片菜单/图片的统一处理与版本号对齐；0.13.8 追加便签墙动态加载、在 Obsidian 打开、设置里 emoji/名称/callout 样式同排；0.13.9 把日期筛选改成开关、修正 Obsidian block id 隐藏、把锁定改图钉、打开按钮紫色高亮并允许换行、顶栏标题区可拖动桌面窗口，具体 UX 见 §7。
+
+0.14 新增底部快速记录（文件名即想法、Tab 正文、多图叠放预览）、独立图片处理设置（默认 WebP 70／2048px）与无三角的悬停日期菜单。
 
 ## 1. 包结构与运行方式
 
@@ -55,10 +57,12 @@ interface Settings {
   vaultPath: string            // Obsidian 仓库根目录绝对路径；'' = 未配置
   notesDir: string             // 绝对路径；'' = 未配置
   projectDir: string           // 开档目录绝对路径；'' = 未配置
+  attachmentDir: string        // 新建图片目录绝对路径；'' = notesDir/_attachments
   archiveTargets: { id: string; label: string; path: string }[]  // path 绝对
   emojis: { id: string; emoji: string; label: string; prompt: string; callout: string; ai: AiBudget }[]
   projectPrompt: string        // 开档结构化文档的提示词（可编辑）
   projectAi: AiBudget          // 0.13 新增：开档生成项目文档的 token 预算
+  imageCompression: { enabled: boolean; quality: number; maxDimension: number } // 0.14：默认 true / 70 / 2048
   includeSubfolders: boolean   // 0.13 新增：是否扫描便签目录的子文件夹；缺省/非 false 一律 true
 }
 ```
@@ -108,7 +112,7 @@ interface Comment {
 interface NoteFull extends NoteSummary {
   contentRevision: string // 原文件内容 SHA-256，保存时作为 expectedRevision 回传
   body: string          // 原始正文（不含 frontmatter，编辑模式直接编辑它）
-  blocks: { kind: 'p' | 'h' | 'li' | 'quote' | 'code' | 'hr' | 'image'; text: string; checked?: boolean; sourceLine?: number; source?: string; alt?: string; wiki?: boolean }[]  // sourceLine 为去掉 frontmatter 后正文的零基行号；image 带 source/alt/wiki
+  blocks: { kind: 'p' | 'h' | 'li' | 'quote' | 'code' | 'hr' | 'image'; text: string; checked?: boolean; sourceLine?: number; marker?: string; source?: string; alt?: string; wiki?: boolean }[]  // sourceLine 为去掉 frontmatter 后正文的零基行号；image 带 source/alt/wiki
   comments: Comment[]   // 全部评论（最多 30 条）
   projects: string | null  // frontmatter 里 PROJECTS 的值（原文）
 }
@@ -165,6 +169,7 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 |---|---|---|---|
 | `state` | `{ knownRevision?: string \| null }` | 见下 | 主轮询入口 |
 | `note` | `{ path: string }` | `NoteFull` | 打开右侧抽屉只读视图 / 编辑前取全文 |
+| `createNote` | `{ title: string, body: string, images?: { dataUrl: string }[] }` | `{ note: NoteSummary \| null, path: string }` | 0.14：在 notesDir 顶层新建，独占发布拒绝覆盖；图片由 Client 按设置处理后上传 |
 | `saveNote` | `{ path: string, body: string, name?: string, expectedRevision: string }` | `{ note: NoteSummary }` | 同时保存正文与文件名；拒绝同名覆盖；缺少或不匹配编辑版本返回 conflict |
 | `toggleTask` | `{ path: string, sourceLine: number, checked: boolean, expectedBody: string }` | `{ note: NoteSummary }` | 只修改任务标记；内容已变化返回 conflict；不允许修改代码块 |
 | `readImage` | `{ path: string, source: string, wiki?: boolean, maxBytes?: number }` | `{ dataUrl: string }` | 读取仓库内图片；默认上限 8 MB，传 `maxBytes` 时以它为准；**超过上限统一报 `too-large`**（卡片缩略图用 `LIMITS.cardImageMaxBytes` 避免把大图塞进卡片）；校验真实路径；wiki 裸附件名歧义时拒绝。附件名查找结果会缓存（以真实路径复核），避免卡片缩略图反复全库遍历 |
@@ -193,7 +198,7 @@ interface StateValue {
 ```
 
 - Client 每次带上次的 `revision`；`unchanged` 时只合并 `jobs`/`settings`。
-- 任何写操作（saveNote/comment/archive/openProject/saveSettings）之后 Client 主动 `state` 一次；`revision` 变了就整份替换 notes。
+- 任何写操作（createNote/saveNote/comment/archive/openProject/saveSettings）之后 Client 主动 `state` 一次；`revision` 变了就整份替换 notes。
 
 ### 4.1 错误码
 
@@ -297,7 +302,7 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；**没有底部输入栏**，便签墙占满剩余高度。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.13.9.2`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.13.9，操作区第一个；主按钮是开关、右侧小三角弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.14.0`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
@@ -365,10 +370,10 @@ function apply(ctx) {
 
 ### 7.3.1b 日期筛选开关 + 档位菜单（0.13.9，源自 0.13.4）
 
-- 顶栏操作区**第一个**是日期筛选控件，结构 = **主按钮（自绘日历，开关） + 小三角（档位菜单）**：
+- 顶栏操作区**第一个**是日期筛选控件，使用单个与相邻图标等宽的**日历开关**，不显示三角：
   - **主按钮 = 开关**：`aria-pressed` + `data-active` 反映开关状态，点亮（统一紫色样式）时按当前档位过滤；熄灭时**显示全部便签**。点击立即切换并记住（`localStorage['dsh-sticky-notes.dateFilterEnabled.v1'] = '1'/'0'`，**默认 '1'**）。`aria-label` / `title` 说明当前状态与点击后果（`date.toggleOn` / `date.toggleOff` 文案，带当前档位名）。
-  - **小三角**：`aria-haspopup="menu"` + `aria-expanded`，点击打开档位菜单（与排序菜单同款小菜单，绝对定位在按钮下方、点外部 / `Esc` 关闭）。
-  - 这套「主按钮开关 + 小三角菜单」与子文件夹开关的「点亮 = 开启」语义统一；以后文件夹若也要选择显示哪个目录，可复用同一结构。
+  - **范围菜单**：日历按钮保留 `aria-haspopup="menu"` + `aria-expanded`，悬停显示范围菜单，移出、点外部或 `Esc` 关闭；键盘 ↓ 打开并聚焦第一项。
+  - 与子文件夹开关的「点亮 = 开启」语义统一，点击日历仍只切换日期筛选。
 - 菜单**四档**单选，默认今天：`今天` / `3 天` / `本周` / `本月`。点选 = 更新档位 + **自动点亮开关**（开关熄灭时菜单项不显示勾选）。`全部` 已从菜单移除（熄灭开关就是全部）；旧版 `dateFilter.v1 === 'all'` 迁移为「档位 today + 开关熄灭」。档位持久化 `localStorage['dsh-sticky-notes.dateFilter.v1']`，非法值回退 `today`。
 - 菜单底部用分割线隔开一个**勾选项**：`日期截止按真实时间`（`role="menuitemcheckbox"`，状态写入 `localStorage['dsh-sticky-notes.dateRealtime.v1'] = '1'/'0'`，**默认不勾**）。
   - **勾选**：按每日 00:00 作为分界点（真实日期）——今天 = 本地 0 点；3 天 = 含今天的最近 3 个自然日；本周 = 本周一 0 点；本月 = 本月 1 号 0 点。
@@ -454,7 +459,7 @@ function apply(ctx) {
 - [ ] 抽屉锁定 → 变成右侧内联双栏、不遮挡；解锁恢复 overlay；刷新后锁定状态记住
 - [ ] 顶栏子文件夹 icon 切换：关闭后墙只剩顶层便签，刷新后状态记住；激活态是紫色高亮
 - [ ] 排序按钮与菜单（默认创建时间新→旧），刷新后记住
-- [ ] 日期筛选是顶栏操作区第一个，且是「开关 + 档位菜单」：主按钮点亮=按今天/3 天/本周/本月筛选，熄灭=显示全部；小三角菜单四档（无「全部」，默认今天）并自动点亮开关；勾选项「日期截止按真实时间」（勾选=每日 00:00 分界，不勾=以最后一篇为界）；刷新后开关/档位/勾选都记住；计数随筛选变化
+- [ ] 日期筛选是顶栏操作区第一个，且是「开关 + 档位菜单」：主按钮点亮=按今天/3 天/本周/本月筛选，熄灭=显示全部；悬停菜单四档（无「全部」，默认今天）并自动点亮开关；勾选项「日期截止按真实时间」（勾选=每日 00:00 分界，不勾=以最后一篇为界）；刷新后开关/档位/勾选都记住；计数随筛选变化
 - [ ] 锁定面板重进不隐藏：恢复上次打开的便签；它不在当前筛选里时自动打开筛选排序后的第一篇
 - [ ] 菜单出现时图片预览统一隐藏（不再只在 emoji 上才隐藏）
 - [ ] 卡片 hover 操作行第三项是「在 Obsidian 打开」（转发 icon + 紫色高亮粗体文字、行内靠右）；右侧抽屉操作条窄到放不下时归档/开档在上、它换到下一行并靠右；点它系统打开 Obsidian 对应笔记，失败 toast
@@ -463,7 +468,7 @@ function apply(ctx) {
 - [ ] 桌面版 DSH 里按住顶栏「Obsidian MEMO」标题区可以拖动整个窗口，右侧按钮/菜单仍可点击（Web GUI 不受影响）
 - [ ] 便签墙首屏 50 张；滚到底自动补 50 张；补批时墙底出现三点加载动画 + 「加载中…」；排序/日期筛选变化回到 50 张
 - [ ] 设置里每枚 emoji 一行：emoji + 名称 + callout 样式按钮 + 删除；样式按钮显示「callout样式-xx」，点开 13 项菜单、当前项打勾
-- [ ] 顶栏显示 Host 下发的完整版本（当前 0.13.9.2），locale 描述不写版本
+- [ ] 顶栏显示 Host 下发的完整版本（当前 0.14.0），locale 描述不写版本
 - [ ] 设置里目录字段走系统选择器，能直接选 iCloud 里的 Obsidian 库（也可手动输入 `~` 路径）
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
 - [ ] 归档 → toast + 撤销 → 文件移动/恢复
@@ -477,3 +482,24 @@ function apply(ctx) {
 所有便签、附件和写入目标都校验用户路径与真实位置；尚未创建的路径解析最近的已有父目录。悬空符号链接不视作新建目录。归档撤销也须符合当前仓库与便签目录边界。
 
 AI 输入使用去掉 frontmatter 后的原始 Markdown（含已有评论），不复用展示 blocks；输入总上限 12000 字符，裁切时向模型附加明确提示。评论与开档输出上限分别为 4000 和 24000 字符；字符裁切与 token 截断均设置 `Job.truncated`。开档目标占用、任务去重、部分完成和卸载策略保持原状。
+
+## 11. v0.14 快速记录与图片处理
+
+- `CaptureComposer` 放在 `.SN_wallWrap` 内，底部浮岛不覆盖右侧锁定面板；`ResizeObserver` 根据实际高度给便签墙预留滚动空间。背景蒙层不接收指针，只有胶囊本体接收输入。
+- 标题即新建文件名，不写入正文；文件名清除路径／Markdown 链接特殊字符和控制字符，拒绝空名、保留设备名与超过 240 UTF-8 字节的标题。不截断内容；提示将细节放入正文。
+- Tab 从标题进入正文，正文 Shift+Tab 返回标题修改并保留正文；分割线与小字区分正文。中文输入法确认键不触发提交；标题 Enter、正文 Cmd/Ctrl+Enter 提交，正文 Enter 换行。提交使用同步 ref 锁防止连按重复请求，失败保留草稿与附件。
+- 图片支持 PNG／JPEG／GIF／WebP，多选或粘贴即在左侧显示方形叠放缩略图；悬停／聚焦展开，600ms 后显示完整图小浮窗（最大约 260×220px），移出取消。对象 URL 在删除、提交成功和卸载时释放。
+- `Settings.imageCompression` 缺失时补 `{ enabled: true, quality: 70, maxDimension: 2048 }`。质量取整并限制 1–100，最大边长取整并限制 256–8192px；取消勾选仍保留已设定的参数。
+- Client 创建时串行解码并通过 Canvas 生成 WebP（`quality / 100`），按最大边长等比缩小，不放大；转换成静态图并保留透明背景。关闭时直接读取原文件字节。WebP 编码不可用或图片解码失败时明确报错，不默默换格式。设置对待提交图片生效。
+- 原图选择限制：压缩开启时单张 32 MB／合计 64 MB，关闭时单张 8 MB／合计 16 MB；最多 8 张。处理后统一执行 8 MB／16 MB 上限。Host 校验 data URL、图片签名、数量和字节预算；不信任 Client 扩展名，附件用 UUID 命名。
+- 仅 `POST /sticky-notes/createNote` 允许最多 25 MB 的 RPC 请求体（16 MB 图片的 base64 + 正文与信封）；其他路由继续 2 MB，读取请求流时即执行上限。
+- 「图片处理」设置可手填或选择图片文件夹。`Settings.attachmentDir` 缺省／留空时，`capture.js` 沿用 `notesDir/_attachments`；自定义相对路径按仓库解析，目标必须在仓库内，首次保存图片时自动创建缺失目录。修改仅影响后续保存的图片。用仓库相对 wikilink 引用，归档移动 Markdown 后图片仍有效；目录与符号链接必须在仓库内。最后将完整临时 Markdown 独占 `link` 到目标，跨请求也不覆盖同名文件；失败清理本次写入的附件。创建成功后刷新失败仍返回提交成功，避免误导用户重复创建。
+- 日期按钮与子文件夹按钮等宽，点击切换筛选，悬停打开范围菜单；菜单与按钮之间有可移入区域，移出关闭。键盘 ↓ 聚焦菜单第一项，Esc 关闭；右键也可打开，不再有单独三角按钮。
+
+### 11.1 输入交互与模板修正
+
+- 图片可直接拖入胶囊；拖入时显示焦点描边反馈，松开即走相同的预览、数量校验与压缩流程，并阻止浏览器打开图片文件。
+- 可见面板内、输入栏外按 Tab 进入标题；标题内再按 Tab 展开正文，正文 Shift+Tab 返回标题且保留草稿。输入栏外的 Shift+Tab、其他输入框／可编辑区域、菜单和模态窗口内保持原有键盘行为。
+- 正文区右下角常驻小号浅色 `⌘ Enter 提交` 提示；聚焦与拖图状态的描边增至约 2px 视觉厚度，深浅色主题一致。
+- Host 只读 Obsidian Default Template 的配置，按最近文件夹匹配模板，提取原始 frontmatter；无正文、有正文和带图三种新建方式都先写入同一份 meta。遵守 ignorePaths 与插件禁用状态；模板路径及符号链接不能越出仓库。不写 Obsidian 配置，不执行模板脚本，不插入模板占位正文。
+- 有序列表解析保留 `marker`（如 `1.`、`2.`、`12)`），阅读视图显示数字标记；无序列表保留圆点，任务与代码块的行为不变。

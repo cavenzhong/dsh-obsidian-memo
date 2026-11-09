@@ -216,6 +216,24 @@ test('locale / package meta：已改名为 Obsidian MEMO（包名/安装 id 不�
 
 /* ─────────────────────────────── 路径解析 ─────────────────────────────── */
 
+test('图片文件夹：缺省和留空沿用默认目录，相对仓库解析并持久化', async (t) => {
+  assert.equal(DEFAULT_SETTINGS.attachmentDir, '')
+  for (const attachmentDir of [undefined, null, '', '  ', 42]) {
+    assert.equal(normalizeSettings({ vaultPath: '/vault', attachmentDir }).attachmentDir, '')
+  }
+  assert.equal(normalizeSettings({ vaultPath: '/vault', attachmentDir: ' 附件/图片 ' }).attachmentDir, '/vault/附件/图片')
+  assert.equal(normalizeSettings({ vaultPath: '/vault', attachmentDir: '/vault/pictures' }).attachmentDir, '/vault/pictures')
+  assert.equal(settingsEqual({}, { attachmentDir: '' }), true)
+  assert.equal(settingsEqual({}, { attachmentDir: '/vault/pictures' }), false)
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-attachment-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+  await writeSettingsFile(file, { vaultPath: '/vault', attachmentDir: '附件/图片' })
+  assert.equal((await readSettingsFile(file)).attachmentDir, '/vault/附件/图片')
+  await writeSettingsFile(file, { vaultPath: '/vault', attachmentDir: '' })
+  assert.equal((await readSettingsFile(file)).attachmentDir, '')
+})
+
 test('resolveUserPath：空串保留、绝对路径归一、相对路径按 vault 解析', () => {
   assert.equal(resolveUserPath('', '/vault'), '')
   assert.equal(resolveUserPath(undefined, '/vault'), '')

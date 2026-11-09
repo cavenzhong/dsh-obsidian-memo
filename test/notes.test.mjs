@@ -234,6 +234,15 @@ test('parseNote：只有列表时用列表首项当标题', () => {
   assert.equal(parsed.title, '第一项')
 })
 
+test('parseNote：保留有序列表数字，圆点与任务列表继续独立解析，代码不当作列表', () => {
+  const parsed = parseNote('1. 第一项\n2. 第二项\n12) 第十二项\n- 圆点\n* 星号\n+ 加号\n- [ ] 任务\n\n```\n1. 代码\n```')
+  assert.deepEqual(parsed.blocks.filter((block) => block.kind === 'li').map((block) => [block.text, block.marker, block.checked]), [
+    ['第一项', '1.', undefined], ['第二项', '2.', undefined], ['第十二项', '12)', undefined],
+    ['圆点', undefined, undefined], ['星号', undefined, undefined], ['加号', undefined, undefined], ['任务', undefined, false],
+  ])
+  assert.equal(parsed.blocks.at(-1).kind, 'code')
+})
+
 test('parseNote：任务列表解析 checked（[ ] / [x] / [X]）且标记不残留', () => {
   const parsed = parseNote(
     [

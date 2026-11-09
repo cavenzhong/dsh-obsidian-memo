@@ -1,0 +1,135 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createCapturedNote } from '../lib/capture.js'
+import { getBody, splitFrontmatter } from '../lib/notes.js'
+
+const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+async function fixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'sticky-capture-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const paths = { vault: join(root, 'vault'), notes: join(root, 'vault', '进行时') }
+  await mkdir(paths.notes, { recursive: true })
+  return { root, paths, create: (payload) => createCapturedNote(paths, { title: '一个想法', body: '', ...payload }) }
+}
+
+test('快速记录：想法仅作为文件名，可创建空正文；多图保留为仓库相对链接', async (t) => {
+  const { create, paths } = await fixture(t)
+  const bare = await create({ title: '只有标题' })
+  assert.equal(await readFile(bare, 'utf8'), '')
+  const path = await create({ body: '第一行\r\n\r\n第二行', images: [{ dataUrl: pixel }, { dataUrl: pixel }] })
+  const content = await readFile(path, 'utf8')
+  assert.match(content, /^第一行\n\n第二行\n\n!\[\[进行时\/_attachments\//)
+  assert.equal(content.includes('一个想法'), false)
+  const files = await readdir(join(paths.notes, '_attachments'))
+  assert.equal(files.length, 2)
+  assert.deepEqual(await readFile(join(paths.notes, '_attachments', files[0])), Buffer.from(pixel.split(',')[1], 'base64'))
+})
+
+test('快速记录：并发重名只成功一次，失败不覆盖正文、不遗留附件和临时文件', async (t) => {
+  const { create, paths } = await fixture(t)
+  const results = await Promise.allSettled([create({ body: '甲', images: [{ dataUrl: pixel }] }), create({ body: '乙', images: [{ dataUrl: pixel }] })])
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1)
+  assert.equal(results.find((r) => r.status === 'rejected').reason.code, 'exists')
+  assert.equal((await readdir(join(paths.notes, '_attachments'))).length, 1)
+  assert.deepEqual((await readdir(paths.notes)).sort(), ['_attachments', '一个想法.md'])
+})
+
+test('快速记录：自定义图片文件夹自动创建，重名失败清理附件，清空设置恢复默认目录', async (t) => {
+  const { create, paths } = await fixture(t)
+  paths.attachmentDir = join(paths.vault, '附件', '图片')
+  await create({ title: '无图' })
+  assert.deepEqual(await readdir(paths.vault), ['进行时'])
+  const path = await create({ images: [{ dataUrl: pixel }] })
+  const text = await readFile(path, 'utf8')
+  assert.match(text, /^!\[\[附件\/图片\//)
+  const files = await readdir(paths.attachmentDir)
+  assert.equal(files.length, 1)
+  assert.deepEqual(await readFile(join(paths.attachmentDir, files[0])), Buffer.from(pixel.split(',')[1], 'base64'))
+  await assert.rejects(create({ images: [{ dataUrl: pixel }] }), { code: 'exists' })
+  assert.deepEqual(await readdir(paths.attachmentDir), files)
+  paths.attachmentDir = ''
+  const fallback = await create({ title: '恢复默认', images: [{ dataUrl: pixel }] })
+  assert.match(await readFile(fallback, 'utf8'), /^!\[\[进行时\/_attachments\//)
+  assert.equal(await readFile(path, 'utf8'), text)
+  assert.deepEqual(await readdir(join(paths.vault, '附件', '图片')), files)
+})
+
+test('快速记录：自定义图片文件夹拒绝仓库外路径、外部及悬空符号链接', async (t) => {
+  const { create, paths, root } = await fixture(t)
+  const outside = join(root, 'outside')
+  await mkdir(outside)
+  await symlink(outside, join(paths.vault, 'external'))
+  await symlink(join(root, 'missing'), join(paths.vault, 'dangling'))
+  for (const attachmentDir of [outside, join(paths.vault, 'external', 'nested'), join(paths.vault, 'dangling')]) {
+    paths.attachmentDir = attachmentDir
+    await assert.rejects(create({ images: [{ dataUrl: pixel }] }), { code: 'bad-request' })
+  }
+  assert.deepEqual(await readdir(outside), [])
+  assert.deepEqual(await readdir(paths.notes), [])
+})
+
+test('快速记录：先验证所有图片、正文和文件名，再写入文件', async (t) => {
+  const { create, paths } = await fixture(t)
+  for (const payload of [{ title: '  ' }, { title: '字'.repeat(81) }, { title: 'CON' }, { body: 'x'.repeat(2 * 1024 * 1024 + 1) },
+    { images: [{ dataUrl: pixel }, { dataUrl: 'data:image/webp;base64,YWJjZA==' }] },
+    { images: Array.from({ length: 9 }, () => ({ dataUrl: pixel })) }]) {
+    await assert.rejects(create(payload))
+  }
+  assert.deepEqual(await readdir(paths.notes), [])
+})
+
+test('快速记录：附件目录与便签目录的外部符号链接都拒绝', async (t) => {
+  const { create, paths, root } = await fixture(t)
+  const outside = join(root, 'outside')
+  await mkdir(outside)
+  await symlink(outside, join(paths.notes, '_attachments'))
+  await assert.rejects(create({ images: [{ dataUrl: pixel }] }), { code: 'bad-request' })
+  const linked = join(paths.vault, 'linked')
+  await symlink(outside, linked)
+  await assert.rejects(createCapturedNote({ ...paths, notes: linked }, { title: '越界', body: '' }), { code: 'bad-request' })
+  assert.deepEqual(await readdir(outside), [])
+})
+
+async function templateConfig(paths, config) {
+  const dir = join(paths.vault, '.obsidian/plugins/default-template')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'data.json'), JSON.stringify(config))
+}
+
+test('快速记录：空正文、有正文、有图片都携带文件夹模板 meta，仅插入一次且不插入模板占位正文', async (t) => {
+  const { create, paths } = await fixture(t)
+  const meta = '---\nPROJECTS:\nTODO:\n  - 检查关联\n---'
+  await writeFile(join(paths.vault, 'template.md'), `${meta}\n\n模板的占位正文`)
+  await templateConfig(paths, { folderTemplates: { '进行时': 'template.md' } })
+  for (const [title, body, images] of [['空正文', '', []], ['有正文', '1. 第一项\n2. 第二项\n- 补充', []], ['有图', '正文', [{ dataUrl: pixel }]]]) {
+    const path = await create({ title, body, images })
+    const text = await readFile(path, 'utf8')
+    assert.equal(splitFrontmatter(text).frontmatter, meta)
+    assert.equal(text.split('PROJECTS:').length, 2)
+    assert.equal(text.includes('模板的占位正文'), false)
+    assert.ok(getBody(text).startsWith(body))
+    if (images.length) assert.match(getBody(text), /!\[\[进行时\/_attachments\//)
+  }
+})
+
+test('快速记录模板：就近文件夹优先，遵守忽略目录和禁用插件，禁止模板越界', async (t) => {
+  const { create, paths, root } = await fixture(t)
+  await writeFile(join(paths.vault, 'parent.md'), '---\nsource: parent\n---')
+  await writeFile(join(paths.vault, 'near.md'), '---\nsource: near\n---')
+  const config = { defaultTemplate: 'parent.md', folderTemplates: { '进行时': 'near.md' } }
+  await templateConfig(paths, config)
+  assert.match(await readFile(await create({ title: '就近' }), 'utf8'), /source: near/)
+  await templateConfig(paths, { ...config, ignorePaths: ['进行时'] })
+  assert.equal(await readFile(await create({ title: '忽略', body: '正文' }), 'utf8'), '正文\n')
+  await templateConfig(paths, config)
+  await writeFile(join(paths.vault, '.obsidian/community-plugins.json'), '[]')
+  assert.equal(await readFile(await create({ title: '禁用' }), 'utf8'), '')
+  await writeFile(join(paths.vault, '.obsidian/community-plugins.json'), '["default-template"]')
+  await writeFile(join(root, 'outside.md'), '---\nsecret: x\n---')
+  await symlink(join(root, 'outside.md'), join(paths.vault, 'escape.md'))
+  await templateConfig(paths, { defaultTemplate: 'escape.md' })
+  await assert.rejects(create({ title: '越界模板' }), { code: 'bad-request' })
+})

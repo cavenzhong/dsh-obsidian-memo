@@ -184,6 +184,180 @@ function hookRunner(t) {
 }
 
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+function captureNodes(node, result = []) {
+  if (Array.isArray(node)) node.forEach((child) => captureNodes(child, result))
+  else if (node && typeof node === 'object') { result.push(node); captureNodes(node.children, result) }
+  return result
+}
+
+test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败保留草稿，成功才清空', async (t) => {
+  const runner = hookRunner(t)
+  let pending = deferred(), count = 0, saved
+  const props = { t: (key) => key, enabled: true, onCreate: (payload) => { count++; saved = payload; return pending.promise }, onCreated() {}, onError() {} }
+  const render = () => captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  let nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onChange({ target: { value: '标题草稿' } })
+  nodes = render()
+  const title = nodes.find((n) => n.props.className === 'SN_captureTitle')
+  title.props.onKeyDown({ key: 'Enter', nativeEvent: { isComposing: true }, preventDefault() { throw new Error('不应拦截输入法') } })
+  assert.equal(count, 0)
+  title.props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '正文草稿', style: {}, scrollHeight: 90 } })
+  nodes = render()
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureSubmitHint').children[0], 'capture.submitHint')
+  const submit = nodes.find((n) => n.type === 'form').props.onSubmit
+  const first = submit(), duplicate = submit()
+  await flush()
+  assert.equal(count, 1)
+  assert.deepEqual(saved, { title: '标题草稿', body: '正文草稿', images: [] })
+  pending.reject(new Error('同名便签已存在'))
+  await Promise.all([first, duplicate])
+  nodes = render()
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '标题草稿')
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureBody').props.value, '正文草稿')
+  pending = deferred()
+  const second = nodes.find((n) => n.type === 'form').props.onSubmit()
+  pending.resolve({ path: '/vault/标题草稿.md' })
+  await second
+  nodes = render()
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '')
+  assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), false)
+})
+
+test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab 可再次返回正文', (t) => {
+  const runner = hookRunner(t)
+  let focused = '', prevented = 0, stopped = 0
+  const props = { enabled: true, t: (key) => key, onCreate() {}, onCreated() {}, onError() {} }
+  const render = () => {
+    const nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+    for (const name of ['Title', 'Body']) {
+      const node = nodes.find((n) => n.props.className === 'SN_capture' + name)
+      if (node) node.props.ref.current = { focus() { focused = name } }
+    }
+    return nodes
+  }
+  let nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onChange({ target: { value: '原标题' } })
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  nodes = render()
+  nodes.find((n) => n.props.className === 'SN_captureBody').props.onChange({ target: { value: '保留正文', style: {}, scrollHeight: 90 } })
+  nodes = render()
+  const body = nodes.find((n) => n.props.className === 'SN_captureBody')
+  const event = { key: 'Tab', shiftKey: true, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+  body.props.onKeyDown(event)
+  assert.equal(focused, 'Title')
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 1)
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onChange({ target: { value: '修改标题' } })
+  nodes = render()
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '修改标题')
+  assert.equal(nodes.find((n) => n.props.className === 'SN_captureBody').props.value, '保留正文')
+  nodes.find((n) => n.props.className === 'SN_captureTitle').props.onKeyDown({ key: 'Tab', preventDefault() {} })
+  assert.equal(focused, 'Body')
+  for (const extra of [{ shiftKey: false }, { isComposing: true }, { nativeEvent: { isComposing: true } }, { keyCode: 229 }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+    body.props.onKeyDown({ ...event, ...extra })
+  }
+  assert.equal(prevented, 1)
+})
+
+test('快速记录：拖入图片添加预览，拖入反馈结束后复原，不执行浏览器默认打开文件', (t) => {
+  const runner = hookRunner(t), errors = []
+  const props = { enabled: true, t: (key) => key, onError: (error) => errors.push(error), onCreate() {}, onCreated() {} }
+  const render = () => captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  let nodes = render(), prevented = 0
+  const file = new Blob(['image'], { type: 'image/png' })
+  const event = { dataTransfer: { types: ['Files'], files: [file] }, preventDefault() { prevented++ }, stopPropagation() {} }
+  nodes.find((n) => n.type === 'form').props.onDragEnter(event)
+  nodes = render()
+  assert.equal(nodes.find((n) => n.type === 'form').props['data-dragging'], 'true')
+  nodes.find((n) => n.type === 'form').props.onDrop(event)
+  nodes = render()
+  assert.equal(nodes.find((n) => n.type === 'form').props['data-dragging'], 'false')
+  assert.equal(nodes.filter((n) => n.props.className === 'SN_captureThumb').length, 1)
+  assert.equal(prevented, 2)
+  assert.equal(errors.length, 0)
+})
+
+test('快速记录：无焦点的 Tab 进入标题，保留输入框内 Tab、反向 Tab、弹窗和隐藏面板的正常行为', (t) => {
+  const api = loadClient(t).mod.__test
+  let focused = 0, prevented = 0, modal = false, visible = true
+  const body = {}, card = {}, input = { closest: () => ({}) }, outside = {}
+  const doc = { body }
+  const panel = { ownerDocument: doc, getClientRects: () => visible ? [{}] : [], contains: (target) => [card, input].includes(target), querySelector: () => modal ? {} : null }
+  const form = { contains: (target) => target === input }, title = { focus() { focused++ } }
+  const event = { key: 'Tab', target: body, preventDefault() { prevented++ } }
+  const options = { panel, form, title }
+  assert.equal(api.focusCaptureOnTab(event, options), true)
+  assert.equal(api.focusCaptureOnTab({ ...event, target: card }, options), true)
+  for (const patch of [{ shiftKey: true }, { target: input }, { target: outside }, { ctrlKey: true }, { isComposing: true }]) {
+    assert.equal(api.focusCaptureOnTab({ ...event, ...patch }, options), false)
+  }
+  modal = true
+  assert.equal(api.focusCaptureOnTab(event, options), false)
+  modal = false; visible = false
+  assert.equal(api.focusCaptureOnTab(event, options), false)
+  assert.equal(focused, 2)
+  assert.equal(prevented, 2)
+})
+
+test('阅读列表：有序项目显示数字标记，无序项目保留圆点样式', (t) => {
+  const api = loadClient(t).mod.__test
+  const ordered = api.components.NoteBlock({ block: { kind: 'li', text: '第二项', marker: '2.' } })
+  assert.equal(ordered.props.className, 'SN_blockLi SN_blockOrdered')
+  assert.equal(captureNodes(ordered).find((n) => n.props.className === 'SN_listNumber').children[0], '2.')
+  assert.equal(api.components.NoteBlock({ block: { kind: 'li', text: '圆点' } }).props.className, 'SN_blockLi')
+})
+
+test('图片处理：默认与 Host 对齐，压缩关闭时原文件直通，尺寸保持比例且不放大', async (t) => {
+  const api = loadClient(t).mod.__test
+  const { normalizeImageCompression, LIMITS } = await import('../lib/shared.js')
+  for (const input of [undefined, {}, { enabled: false, quality: 90, maxDimension: 4096 }, { quality: -1, maxDimension: 99999 }, { quality: '', maxDimension: null }]) {
+    assert.deepEqual(api.readImageCompression(input), normalizeImageCompression(input))
+  }
+  assert.equal(api.CAPTURE_IMAGES, LIMITS.captureImages)
+  assert.equal(api.CAPTURE_IMAGE_BYTES, LIMITS.captureImageBytes)
+  assert.equal(api.CAPTURE_TOTAL_BYTES, LIMITS.captureTotalBytes)
+  const file = { type: 'image/png', size: 10 }
+  assert.equal(await api.compressCaptureImage(file, { enabled: false }), file)
+  assert.deepEqual(api.captureImageSize(4000, 3000, 2048), { width: 2048, height: 1536 })
+  assert.deepEqual(api.captureImageSize(500, 1000, 2048), { width: 500, height: 1000 })
+  assert.deepEqual(api.captureImageSize(1000, 4000, 1024), { width: 256, height: 1024 })
+  assert.equal(api.captureFiles([], [{ type: 'image/png', size: 9 * 1024 * 1024 }]), '')
+  assert.equal(api.captureFiles([], [{ type: 'image/png', size: 9 * 1024 * 1024 }], { enabled: false }), 'capture.imageLimit')
+  assert.equal(api.captureFiles([], [{ type: 'image/svg+xml', size: 10 }]), 'capture.imageType')
+})
+
+test('图片文件夹设置：支持手填、清空和选择文件夹，不受压缩开关影响', (t) => {
+  const api = loadClient(t).mod.__test
+  const patches = [], picks = []
+  const nodes = captureNodes(api.components.SettingsDrawer({
+    t: (key) => key, draft: { attachmentDir: '附件/图片', imageCompression: { enabled: false } },
+    picking: null, saving: false, onPatch: (patch) => patches.push(patch), onPick: (field) => picks.push(field),
+  }))
+  const field = nodes.find((n) => n.props.field === 'attachmentDir')
+  const controls = captureNodes(field.type(field.props))
+  const input = controls.find((n) => n.type === 'input')
+  assert.equal(input.props.value, '附件/图片')
+  assert.equal(input.props.disabled, false)
+  input.props.onChange({ target: { value: '新的图片目录' } })
+  input.props.onChange({ target: { value: '' } })
+  controls.find((n) => n.type === 'button').props.onClick()
+  assert.deepEqual(patches, [{ attachmentDir: '新的图片目录' }, { attachmentDir: '' }])
+  assert.deepEqual(picks, ['attachmentDir'])
+})
+
+test('图片处理设置：关闭压缩保留质量与分辨率，数字失焦提交并限制范围', (t) => {
+  const api = loadClient(t).mod.__test
+  const changes = []
+  const nodes = captureNodes(api.components.ImageProcessingSettings({ t: (key) => key, value: { enabled: true, quality: 70, maxDimension: 2048 }, onChange: (next) => changes.push(next) }))
+  nodes.find((n) => n.props.type === 'checkbox').props.onChange({ target: { checked: false } })
+  assert.deepEqual(changes[0], { enabled: false, quality: 70, maxDimension: 2048 })
+  nodes.find((n) => n.props['aria-label'] === 'settings.imageQuality').props.onBlur({ target: { value: '200' } })
+  assert.equal(changes[1].quality, 100)
+})
+
 function deferred() {
   let resolve, reject
   const promise = new Promise((yes, no) => { resolve = yes; reject = no })
@@ -1209,10 +1383,11 @@ test('client 源码 / 字典：日期筛选是顶栏第一个「开关 + 档位�
   assert.ok(dateIndex > actionsIndex, '应找到日期筛选开关')
   assert.ok(subIndex > dateIndex, '日期筛选按钮应排在子文件夹开关之前')
   assert.equal((CLIENT_SOURCE.match(/ref: dateWrapRef/g) || []).length, 1, '日期菜单不应重复渲染')
-  // 主按钮 = 开关（aria-pressed / 点亮态 = dateEnabled），小三角 = 档位菜单。
+  // 0.14：主按钮维持开关语义；范围菜单通过悬停或方向键打开。
   assert.match(CLIENT_SOURCE, /className: 'SN_iconBtn SN_dateToggle'/)
   assert.match(CLIENT_SOURCE, /'aria-pressed': dateEnabled \? 'true' : 'false'/)
-  assert.match(CLIENT_SOURCE, /className: 'SN_iconBtn SN_dateCaret'/)
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_dateCaret/)
+  assert.match(CLIENT_SOURCE, /onMouseEnter: openDateMenu/)
   assert.match(CLIENT_SOURCE, /onClick: toggleDateEnabled/)
   assert.doesNotMatch(CLIENT_SOURCE, /'date\.all': '全部'/, '菜单不应再有「全部」')
   assert.match(CLIENT_SOURCE, /'date\.realtime': '日期截止按真实时间'/, '勾选项名称应为「日期截止按真实时间」')
