@@ -1,10 +1,10 @@
 {
-  "name": "dsh-sticky-notes",
+  "name": "dsh-obsidian-memo",
   "version": "0.14.2",
-  "private": true,
   "type": "module",
-  "description": "Obsidian MEMO：把 Obsidian 进行时文件夹以淡色便签形式放进 DSH，支持快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。",
+  "description": "dsh-obsidian-memo：DeepSeek Harness 的 Obsidian 便签插件。把 Obsidian 进行时文件夹变成淡色便签墙，支持快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。",
   "main": "lib/index.js",
+  "icon": "icon.svg",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
@@ -17,7 +17,8 @@
     "locale",
     "cordis.patch.yml",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dsh": {
     "manifestVersion": 1,
@@ -33,8 +34,30 @@
       ]
     }
   },
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
+  },
   "scripts": {
     "test": "node --test"
   },
-  "license": "MIT"
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "obsidian",
+    "markdown",
+    "notes",
+    "sticky-notes",
+    "productivity"
+  ],
+  "author": "cavenzhong",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cavenzhong/dsh-obsidian-memo.git"
+  },
+  "homepage": "https://github.com/cavenzhong/dsh-obsidian-memo#readme",
+  "bugs": {
+    "url": "https://github.com/cavenzhong/dsh-obsidian-memo/issues"
+  }
 }

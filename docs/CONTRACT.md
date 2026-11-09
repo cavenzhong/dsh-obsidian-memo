@@ -1,4 +1,4 @@
-# dsh-sticky-notes · 实现契约（Host ↔ Client）
+# dsh-obsidian-memo · 实现契约（Host ↔ Client）
 
 > 本文记录 Host 与 Client 的接口及当前行为。结构收敛保留单文件浏览器发布与零运行时依赖；开档任务流程的调整暂不纳入本次范围。
 
@@ -16,10 +16,10 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 
 ## 1. 包结构与运行方式
 
-- 包目录：`/Users/cavenzhong/Documents/个人项目/memobisidian/dsh-sticky-notes`
-- 包名：`dsh-sticky-notes`，ESM，零运行时依赖，`package.json` 为唯一运行时版本来源。
+- 包目录：仓库根目录（本地开发用 `link:` 引用，见 README 的安装说明）
+- 包名：`dsh-obsidian-memo`，ESM，零运行时依赖，`package.json` 为唯一运行时版本来源。
 - Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）；`lib/files.js`（真实路径校验、内容版本、原子写入）；`lib/capture.js`（快速新建便签：模板 meta、附件写入、独占发布）；`lib/obsidian.js`（在 Obsidian 打开：URI 构造 + 系统打开器）。
-- Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-sticky-notes', factory(require) { ... } })`）。
+- Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-obsidian-memo', factory(require) { ... } })`）。
 - 设置：`data/settings.json`（插件目录内，运行时生成，HMR 已忽略 `data`）。绝不写 Obsidian 仓库里的配置文件。
 
 ## 2. 通信通道
@@ -243,7 +243,7 @@ interface StateValue {
 
 ```js
 window.__ModuleLoader__.load({
-  id: 'dsh-sticky-notes',
+  id: 'dsh-obsidian-memo',
   factory(require) {
     const React = require('react')
     const ReactDOM = require('react-dom')   // 需要 portal 时才用

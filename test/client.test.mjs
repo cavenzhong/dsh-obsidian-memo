@@ -129,7 +129,7 @@ function loadClient(t, { storage = makeStorage(), react = createReactStub() } = 
   new Function('window', CLIENT_SOURCE)(fakeWindow)
 
   assert.notEqual(registration, null, 'client.js 应当调用 window.__ModuleLoader__.load')
-  assert.equal(registration.id, 'dsh-sticky-notes')
+  assert.equal(registration.id, 'dsh-obsidian-memo')
   assert.equal(typeof registration.factory, 'function')
 
   const mod = registration.factory(makeRequire(react))

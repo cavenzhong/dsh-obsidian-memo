@@ -194,7 +194,7 @@ test('settingsEqual：AI 预算变化算不同设置', () => {
   )
 })
 
-test('locale / package meta：已改名为 Obsidian MEMO（包名/安装 id 不变）', async () => {
+test('locale / package meta：产品显示 Obsidian MEMO，包名为 dsh-obsidian-memo', async () => {
   const readJson = async (relativePath) => JSON.parse(await readFile(new URL(relativePath, import.meta.url), 'utf8'))
   const zh = await readJson('../locale/zh.json')
   const en = await readJson('../locale/en.json')
@@ -203,9 +203,9 @@ test('locale / package meta：已改名为 Obsidian MEMO（包名/安装 id 不�
   assert.equal(zh.meta.title, 'Obsidian MEMO')
   assert.equal(en.meta.title, 'Obsidian MEMO')
   assert.match(zh.meta.description, /^Obsidian MEMO/)
-  assert.match(pkg.description, /^Obsidian MEMO/)
-  // 包名（安装 id / RPC 通道）保持不变
-  assert.equal(pkg.name, 'dsh-sticky-notes')
+  assert.match(pkg.description, /^dsh-obsidian-memo/)
+  // 包名与 Client 注册 id 用 dsh-obsidian-memo；RPC 通道 / localStorage 键沿用旧命名
+  assert.equal(pkg.name, 'dsh-obsidian-memo')
 
   // 旧品牌名不应再出现在 locale meta 里
   for (const locale of [zh, en]) {
