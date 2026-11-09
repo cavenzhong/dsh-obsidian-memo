@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安装、用法与常见问题
+    url: https://github.com/cavenzhong/dsh-obsidian-memo#%E5%AE%89%E8%A3%85
+    about: 提交 Issue 前，先看 README 的安装步骤、兼容性与常见问题
+  - name: 已知问题与暂缓项
+    url: https://github.com/cavenzhong/dsh-obsidian-memo/blob/main/docs/KNOWN_ISSUES.md
+    about: 已经记录在案的暂缓项；如果你的问题不在其中，再开新的 Issue

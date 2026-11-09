@@ -1,0 +1,50 @@
+name: 功能建议
+description: 想要新的能力，或现有行为可以更顺手
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个插件刻意保持小而轻。提建议时，先说清「你在什么场景下缺什么」，比直接描述实现方案更有帮助。
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 你当时在做什么？希望插件帮你完成哪一步？
+      placeholder: "在便签墙上找上周记下的一条灵感，现在只能靠日期筛选和肉眼翻..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 希望的行为
+      description: 如果有具体交互或界面想法，可以一起写。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 目前的替代做法（可选）
+      description: 现在你会怎么绕过？为什么不够用？
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响范围
+      options:
+        - 便签墙 / 筛选 / 排序
+        - 快速记录 / 图片
+        - 阅读 / 编辑 / 任务
+        - AI 评论 / 开档
+        - 归档 / 在 Obsidian 打开
+        - 设置 / 安装 / 文档
+        - 其他
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已查看 README 的「兼容性与边界」与 docs/KNOWN_ISSUES.md，确认不在已有暂缓范围内
+          required: true
