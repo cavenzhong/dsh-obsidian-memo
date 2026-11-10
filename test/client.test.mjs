@@ -359,7 +359,9 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
     assert.ok(edge.left >= 8 && edge.top >= 48)
     assert.ok(edge.left + edge.previewWidth <= viewport.width - 8)
     assert.ok(edge.top + edge.previewHeight <= viewport.height - 8)
-    assert.ok(edge.left + edge.hintWidth <= viewport.width - 8)
+    const center = edge.left + edge.previewWidth / 2
+    assert.ok(center - edge.hintWidth / 2 >= 8)
+    assert.ok(center + edge.hintWidth / 2 <= viewport.width - 8)
   }
   const previous = globalThis.document
   const body = {}
@@ -378,6 +380,8 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(layer, document\.body\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*bottom:calc\(100% \+ 8px\);z-index:2/)
   assert.match(CLIENT_SOURCE, /\.SN_dragPreview\{[^}]*z-index:1/)
+  assert.match(CLIENT_SOURCE, /\.SN_dragLayer::before\{[^}]*box-shadow:/, '阴影按缩略图真实尺寸绘制，不随内部 1/3 缩放变淡')
+  assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*left:50%;transform:translateX\(-50%\)/, '提示位于卡片上方居中')
 })
 
 function dragMotionFixture(api, { reducedMotion = false } = {}) {
@@ -465,6 +469,29 @@ test('v0.15 放手：有效操作仅淡出，减弱动态效果时立即结束�
   assert.equal(reduced.animations.length, 0)
   assert.equal(reduced.listeners.size, 0)
   reduced.motion.dispose()
+})
+
+test('归档待选择：缩略卡停在归档位置正中，停止跟随鼠标，取消仍能回到原卡片', async (t) => {
+  const fixture = dragMotionFixture(loadClient(t).mod.__test)
+  fixture.move(500, 500)
+  const anchor = { getBoundingClientRect: () => ({ left: 100, top: 600, width: 300, height: 90 }) }
+  fixture.motion.park(anchor)
+  assert.equal(fixture.frames.size, 0)
+  assert.equal(fixture.listeners.has('dragover'), false)
+  assert.equal(fixture.listeners.has('drag'), false)
+  assert.equal(fixture.layer.dataset.parked, 'true')
+  assert.equal(fixture.writes.find(([kind]) => kind === 'transform')[1], 'translate3d(200px,610.3333333333334px,0)')
+  const writes = fixture.writes.length
+  fixture.move(800, 100); fixture.frame()
+  assert.equal(fixture.writes.length, writes)
+  assert.equal(fixture.sourceReads(), 0, '停靠不读取卡片墙布局')
+  const result = fixture.motion.finish('return', fixture.source)
+  assert.equal(fixture.sourceReads(), 1)
+  assert.equal(fixture.animations[0].keyframes[0].transform, 'translate3d(200px,610.3333333333334px,0)')
+  assert.equal(fixture.animations[0].keyframes[1].transform, 'translate3d(50px,80px,0) scale(3)')
+  fixture.complete(); await result
+  fixture.motion.dispose()
+  assert.equal(fixture.listeners.size, 0)
 })
 
 test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽后输入草稿仍在', (t) => {
@@ -968,6 +995,87 @@ test('拖拽放手：空白处接收内部拖放并立即回落，不等待原�
   assert.equal(listeners.has('dragover:true'), false)
   assert.equal(listeners.has('drop:false'), false)
 })
+
+for (const exit of ['pointerdown', 'focusin', 'blur', 'Escape', 'Enter', 'choose']) {
+  test('归档目录待选择：停靠后 ' + exit + ' 正确结束会话，不在原卡片弹菜单', async (t) => {
+    const runner = hookRunner(t), listeners = new Map(), animation = deferred(), operation = deferred()
+    const previousDocument = globalThis.document
+    globalThis.document = {
+      addEventListener(name, fn, capture = false) { listeners.set(name + ':' + capture, fn) },
+      removeEventListener(name, fn, capture = false) { if (listeners.get(name + ':' + capture) === fn) listeners.delete(name + ':' + capture) },
+    }
+    globalThis.window.addEventListener = (name, fn) => listeners.set('window:' + name, fn)
+    globalThis.window.removeEventListener = (name, fn) => { if (listeners.get('window:' + name) === fn) listeners.delete('window:' + name) }
+    t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+    const note = { path: '/A.md', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
+    let notes = [note]
+    const mutations = [], targets = [{ id: 'work', label: '工作' }, { id: 'life', label: '生活' }]
+    runner.connect(async (_, endpoint, payload) => {
+      if (endpoint === 'state') return { ok: true, value: { configured: true, revision: String(notes.length), notes, jobs: [], settings: { emojis: [], archiveTargets: targets } } }
+      assert.equal(endpoint, 'archive'); mutations.push(payload)
+      await operation.promise; notes = []
+      return { ok: true, value: {} }
+    })
+    let focused = 0
+    const field = { focus() { focused++ } }, form = { contains: () => false }
+    const root = { contains: () => true, getClientRects: () => [{}], querySelector: (selector) => selector === '.SN_capture' ? form : selector === '.SN_captureTitle' ? field : null }
+    const props = { t: (key) => key }, render = () => {
+      const panel = runner.render(runner.api.components.StickyNotesPanel, props)
+      panel.props.ref.current = root
+      return panel
+    }
+    render(); await flush()
+    const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard), anchor = {}
+    const source = {}
+    card.props.actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, source)
+    let panel = render(), modes = [], parked = []
+    captureNodes(panel).find((node) => node.type === runner.api.components.CardDragOverlay).props.motionRef.current = {
+      park(element) { parked.push(element) },
+      finish(mode, element) { assert.equal(element, source); modes.push(mode); return animation.promise },
+    }
+    let composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
+    composer.props.onArchiveDrop({ dataTransfer: { getData: () => note.path }, currentTarget: { closest: () => anchor } })
+    card.props.actions.current.onDragEnd()
+    assert.deepEqual(parked, [anchor])
+    assert.deepEqual(modes, [])
+    assert.deepEqual(mutations, [])
+    panel = render()
+    composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
+    assert.equal(composer.props.archiveParked, true)
+    assert.equal(composer.props.dropAction, 'archive')
+    assert.equal(captureNodes(panel).filter((node) => node.props.className === 'SN_menu').length, 0)
+    listeners.get('pointerdown:true')({ target: { closest: () => anchor } })
+    listeners.get('focusin:true')({ target: { closest: () => anchor } })
+    composer.props.onDragHover(null)
+    assert.deepEqual(modes, [], '在归档区内移动焦点或鼠标不关闭菜单')
+    if (exit === 'choose') {
+      composer.props.onArchiveChoose('missing')
+      assert.deepEqual(modes, [])
+      const menu = captureNodes(runner.api.components.DropActions({ t: props.t, active: 'archive', targets, parked: true, onArchiveChoose: composer.props.onArchiveChoose }))
+      const item = menu.find((node) => node.props['data-target-id'] === 'life')
+      assert.equal(item.type, 'button')
+      assert.equal(item.props.role, 'menuitem')
+      item.props.onClick({ stopPropagation() {} })
+      composer.props.onArchiveChoose('life')
+      assert.deepEqual(modes, ['drop'])
+      assert.deepEqual(mutations, [{ path: note.path, targetId: 'life' }])
+    } else if (exit === 'Escape' || exit === 'Enter') listeners.get('keydown:true')({ key: exit, target: {}, preventDefault() {}, stopPropagation() {} })
+    else if (exit === 'blur') listeners.get('window:blur')({ type: 'blur' })
+    else listeners.get(exit + ':true')({ target: { closest: () => null } })
+    if (exit !== 'choose') assert.deepEqual(modes, ['return'])
+    assert.equal(render().props['data-card-dragging'], 'true')
+    animation.resolve(); await flush()
+    if (exit === 'choose') { assert.equal(render().props['data-card-dragging'], 'true'); operation.resolve(); await flush() }
+    assert.equal(focused, 0, '必须等 React 提交输入岛可见状态后再聚焦')
+    panel = render()
+    assert.equal(panel.props['data-card-dragging'], 'false')
+    assert.equal(captureNodes(panel).filter((node) => node.type === runner.api.components.NoteCard).length, exit === 'choose' ? 0 : 1)
+    assert.equal(listeners.has('pointerdown:true'), false)
+    assert.equal(listeners.has('focusin:true'), false)
+    assert.equal(listeners.has('window:blur'), false)
+    assert.equal(focused, exit === 'Enter' ? 1 : 0)
+  })
+}
 
 for (const failed of [false, true]) {
   test(`拖拽会话：drop 与 dragend 只收尾一次，${failed ? '操作失败恢复卡片' : '操作成功移除卡片'}`, async (t) => {

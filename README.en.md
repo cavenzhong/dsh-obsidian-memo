@@ -135,6 +135,8 @@ Comments are appended to the Markdown as Obsidian callouts, so they remain reada
 
 ### Organize, copy and delete
 
+The drag preview has a soft shadow, with its action hint centered above it. The archive folder menu sits above the Archive zone with a subtle shadow. Releasing over the main zone parks the preview at its center and temporarily hides the icon and label. Click a folder to archive; clicking outside, moving focus outside, losing window focus, or pressing Esc returns the card. Enter returns it and focuses capture.
+
 Dragging a card replaces capture with Archive / To project / Delete. Archive reveals the configured archive folders, To project opens the project name dialog, and Delete acts on release. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
 Pointer movement updates only the preview layer, and switching the dock keeps the layout stable. Cancelling animates the card back; archive and delete fade it out and keep the placeholder until the operation completes, preventing a brief flash of the original card. Reduced-motion preferences skip these animations.
 
