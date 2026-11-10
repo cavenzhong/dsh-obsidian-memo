@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.14.2](https://img.shields.io/badge/version-0.14.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.15.0](https://img.shields.io/badge/version-0.15.0-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -133,7 +133,16 @@ Click an emoji on a card to ask Harness's current default model about that note.
 
 Comments are appended to the Markdown as Obsidian callouts, so they remain readable in Obsidian. If the same emoji already has a comment, the plugin asks before adding another.
 
-### Open a project, archive, open in Obsidian
+### Organize, copy and delete
+
+Dragging a card replaces capture with Archive / To project / Delete. Archive reveals the configured archive folders, To project opens the project name dialog, and Delete acts on release. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
+Pointer movement updates only the preview layer, and switching the dock keeps the layout stable. Cancelling animates the card back; archive and delete fade it out and keep the placeholder until the operation completes, preventing a brief flash of the original card. Reduced-motion preferences skip these animations.
+
+- **Copy:** copies the filename title on its own line followed by the full Markdown body, without frontmatter, and shows a success message.
+- **Delete:** drop on Delete or press `⌘ / Ctrl + Backspace` on a card or in the reader. The note and its exclusive local images move together to `.trash/MEMO-…` inside the vault, with a 5-second undo. Shared images stay in place. After expiry, files remain available for manual recovery using the original paths in `restore.json`; nothing is automatically purged. Existing trash files are preserved. In macOS Finder, press `⌘ + Shift + .` to show hidden folders.
+- **Back to top:** a round ↑ button appears above capture after scrolling past one screen.
+
+### To project, archive, open in Obsidian
 
 - **Open project:** enter a project name; AI creates `<name>/<name>.md` in the project folder with needs, current state, findings, next steps, and open questions, then writes the link back to the source note's `PROJECTS` field.
 - **Archive:** moves the Markdown file to the chosen archive folder, with a 6-second undo.
@@ -144,7 +153,9 @@ Comments are appended to the Markdown as Obsidian callouts, so they remain reada
 | Action | Shortcut |
 | --- | --- |
 | Create note | `Enter` in the title field |
-| Expand / collapse body | `Tab` / `Esc` |
+| Focus / blur capture | `Enter` (except while typing in capture or editing the reader body) / `Esc` within capture |
+| Expand / collapse body | `Tab` in title / `Backspace` or blur with an empty body |
+| Delete note | `⌘ / Ctrl + Backspace` on a card or in the reader |
 | Submit note | `⌘ / Ctrl + Enter` |
 | Back from body to title | `Shift + Tab` |
 | Save edit | `⌘ / Ctrl + S` |
@@ -154,7 +165,7 @@ Comments are appended to the Markdown as Obsidian callouts, so they remain reada
 
 ## Data & privacy
 
-- **Notes and images stay in your vault.** The plugin reads and writes the Obsidian folder you choose; it does not import, copy, or maintain a second library.
+- **Notes and images stay in your vault, including deleted files in its `.trash` folder.** The plugin reads and writes the Obsidian folder you choose; it does not import, copy, or maintain a second library.
 - **Settings live in the plugin's own `data/settings.json`.** Nothing is written to the DSH profile config or to your Obsidian vault.
 - **No separate API key.** AI uses Harness's current default model and is called only when you click a comment or Open project; it does not start a conversation or write chat logs.
 - **No telemetry.** The plugin makes no analytics or tracking calls. Remote images inside notes are loaded by the browser, as with any Markdown file.

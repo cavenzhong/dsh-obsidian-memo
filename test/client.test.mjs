@@ -185,6 +185,325 @@ function hookRunner(t) {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 
+test('v0.15 输入岛：空正文失焦或 Backspace 收起，Esc 退出焦点且保留非空草稿', (t) => {
+  const runner = hookRunner(t)
+  const props = { enabled: true, t: (key) => key, onCreate() {}, onCreated() {}, onError() {} }
+  const render = () => captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  const key = (name) => ({ key: name, preventDefault() {}, stopPropagation() {} })
+  let nodes = render()
+  const open = () => nodes.find((node) => node.props.className === 'SN_captureTitle').props.onKeyDown(key('Tab'))
+  open(); nodes = render()
+  nodes.find((node) => node.type === 'form').props.onBlur({ currentTarget: { contains: () => false }, relatedTarget: {} })
+  nodes = render()
+  assert.equal(nodes.some((node) => node.props.className === 'SN_captureBody'), false)
+  open(); nodes = render()
+  nodes.find((node) => node.props.className === 'SN_captureBody').props.onKeyDown(key('Backspace'))
+  nodes = render()
+  assert.equal(nodes.some((node) => node.props.className === 'SN_captureBody'), false)
+  open(); nodes = render()
+  nodes.find((node) => node.props.className === 'SN_captureBody').props.onChange({ target: { value: '保留的正文', style: {}, scrollHeight: 80 } })
+  nodes = render()
+  let blurred = 0
+  const previous = globalThis.document
+  globalThis.document = { activeElement: { blur() { blurred++ } } }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  nodes.find((node) => node.type === 'form').props.onKeyDown(key('Escape'))
+  assert.equal(blurred, 1)
+  nodes = render()
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureBody').props.value, '保留的正文')
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').type, 'textarea')
+})
+
+test('v0.15 Enter：卡片悬停/聚焦、按钮、阅读面板和菜单均进入输入岛，仅岛内与正文编辑放行', (t) => {
+  const api = loadClient(t).mod.__test
+  let focused = 0, prevented = 0, stopped = 0, visible = true
+  const root = {}, html = {}, blank = {}, outside = {}, islandTitle = {}, islandBody = {}
+  const control = { closest: (selector) => selector === '.SN_noteEditor' ? null : control }
+  const editor = { closest: (selector) => selector === '.SN_noteEditor' ? editor : null }
+  const doc = { body: root, documentElement: html }
+  const options = {
+    panel: { ownerDocument: doc, getClientRects: () => visible ? [{}] : [], contains: (target) => target !== outside, querySelector: () => ({}) },
+    form: { contains: (target) => [islandTitle, islandBody].includes(target) }, title: { focus() { focused++ } },
+  }
+  const event = { key: 'Enter', target: blank, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+  for (const target of [blank, root, html, doc, control]) {
+    assert.equal(api.focusCaptureOnTab({ ...event, target }, options), true, '无焦点、卡片和按钮统一聚焦输入岛，菜单打开不影响 Enter')
+  }
+  for (const extra of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }]) {
+    assert.equal(api.focusCaptureOnTab({ ...event, ...extra }, options), true, '岛外 Enter 不因修饰键改为卡片/按钮操作')
+  }
+  for (const extra of [{ target: islandTitle }, { target: islandBody }, { target: editor }, { target: outside }, { isComposing: true }, { nativeEvent: { isComposing: true } }, { keyCode: 229 }, { defaultPrevented: true }]) {
+    assert.equal(api.focusCaptureOnTab({ ...event, ...extra }, options), false)
+  }
+  visible = false
+  assert.equal(api.focusCaptureOnTab(event, options), false, '面板隐藏时不影响其他页面')
+  visible = true
+  assert.equal(api.focusCaptureOnTab(event, { ...options, busy: true }), false)
+  assert.equal(focused, 9)
+  assert.equal(prevented, focused)
+  assert.equal(stopped, focused)
+  assert.equal(api.dictionaries.zh['card.openHint'], '单击打开')
+  assert.equal(api.dictionaries.en['card.openHint'], 'Click to open')
+})
+
+test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详情，拖拽与删除正常', (t) => {
+  const api = loadClient(t).mod.__test, calls = []
+  const note = { path: '/vault/便签.md', title: '便签', images: [], comments: [] }
+  const actions = { current: {
+    t: (key) => key,
+    onCopy: (n) => calls.push(['copy', n.path]),
+    onOpen: (n) => calls.push(['open', n.path]),
+    onOpenObsidian: (n) => calls.push(['obsidian', n.path]),
+    onToggleArchive: (n) => calls.push(['archive', n.path]),
+    onProject: (n) => calls.push(['project', n.path]),
+    onDelete: (n) => calls.push(['delete', n.path]),
+    onDragStart: (n) => calls.push(['drag', n.path]),
+    onDragEnd: () => calls.push(['end']),
+  } }
+  const card = api.components.NoteCard({ note, emojis: [], actions, hoverActive: true })
+  const nodes = captureNodes(card)
+  nodes.find((node) => node.children.includes('card.copy')).props.onClick({ stopPropagation() {} })
+  nodes.find((node) => node.props.className === 'SN_mini SN_obsidianBtn').props.onClick({ stopPropagation() {} })
+  assert.equal(nodes.some((node) => node.children.includes('card.archive') || node.children.includes('card.project')), false)
+  const actionRow = nodes.find((node) => node.props.className === 'SN_actionRow')
+  assert.equal(actionRow.children.filter((node) => node.type === 'button').length, 2)
+  assert.equal(nodes.some((node) => node.props.className === 'SN_cardDelete'), false)
+  let stopped = 0, prevented = 0
+  const element = {}, enter = { key: 'Enter', target: element, currentTarget: element, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+  card.props.onKeyDown(enter)
+  card.props.onKeyDown({ ...enter, target: {} })
+  card.props.onKeyDown({ ...enter, nativeEvent: { isComposing: true } })
+  assert.equal(prevented, 0)
+  assert.equal(stopped, 0, '卡片不再截获 Enter，由输入岛统一处理')
+  card.props.onKeyDown({ key: 'Backspace', metaKey: true, preventDefault() {}, stopPropagation() {} })
+  const data = {}, transfer = { setData: (kind, value) => { data[kind] = value } }
+  card.props.onDragStart({ target: { closest: () => null }, dataTransfer: transfer })
+  card.props.onDragEnd()
+  assert.deepEqual(calls, [['copy', note.path], ['obsidian', note.path], ['delete', note.path], ['drag', note.path], ['end']])
+  assert.equal(data['application/x-dsh-memo'], note.path)
+  assert.equal(transfer.effectAllowed, 'move')
+})
+
+test('v0.15 Enter：实际输入岛 hook 在捕获阶段拦截卡片与按钮，岛内和右侧正文编辑仍可输入', (t) => {
+  const runner = hookRunner(t), registrations = [], removals = []
+  const previous = globalThis.document
+  const doc = {
+    body: {},
+    addEventListener(...args) { registrations.push(args) },
+    removeEventListener(...args) { removals.push(args) },
+  }
+  globalThis.document = doc
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  const nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, { enabled: true, t: (key) => key }))
+  let focused = 0
+  const form = { contains: (target) => target === field }
+  const field = { style: {}, scrollHeight: 32, focus() { focused++ } }
+  const panel = { ownerDocument: doc, contains: () => true, getClientRects: () => [{}], querySelector: () => null }
+  nodes.find((node) => node.props.className === 'SN_captureDock').props.ref.current = { closest: () => panel }
+  nodes.find((node) => node.type === 'form').props.ref.current = form
+  nodes.find((node) => node.props.className === 'SN_captureTitle').props.ref.current = field
+  const [name, listener, capture] = registrations.find(([name]) => name === 'keydown')
+  assert.equal(name, 'keydown')
+  assert.equal(capture, true, '必须先于卡片/按钮的 React 处理器和浏览器默认点击')
+  const editor = { closest: (selector) => selector === '.SN_noteEditor' ? editor : null }
+  for (const target of [doc.body, { closest: () => null }, { closest: (selector) => selector === '.SN_noteEditor' ? null : {} }]) {
+    let prevented = false, stopped = false
+    listener({ key: 'Enter', target, preventDefault() { prevented = true }, stopPropagation() { stopped = true } })
+    assert.equal(prevented, true)
+    assert.equal(stopped, true)
+  }
+  for (const target of [field, editor]) {
+    listener({ key: 'Enter', target, preventDefault() { assert.fail('输入区 Enter 不应被拦截') }, stopPropagation() { assert.fail('输入区 Enter 不应被拦截') } })
+  }
+  assert.equal(focused, 3)
+  runner.render(runner.api.components.CaptureComposer, { enabled: false, t: (key) => key })
+  assert.ok(removals.some(([name, callback, capture]) => name === 'keydown' && callback === listener && capture === true))
+})
+
+test('v0.15 拖拽：透明系统拖影，保存真实尺寸与抓取位置，原卡片保留空虚线框', async (t) => {
+  const api = loadClient(t).mod.__test
+  let appended = false, removed = false, received, dragImage
+  const image = { style: {}, remove() { removed = true } }
+  const currentTarget = {
+    getBoundingClientRect: () => ({ left: 50, top: 80, width: 300, height: 208 }),
+    ownerDocument: { createElement: (tag) => { assert.equal(tag, 'canvas'); return image }, body: { appendChild(node) { assert.equal(node, image); appended = true } } },
+  }
+  const note = { path: '/vault/a.md', title: '便签', images: [], comments: [] }
+  const card = api.components.NoteCard({ note, dragging: true, actions: { current: { t: (key) => key, onDragStart: (...args) => { received = args } } } })
+  card.props.onDragStart({ target: { closest: () => null }, currentTarget, clientX: 200, clientY: 184, dataTransfer: {
+    setData() {}, setDragImage(...args) { assert.equal(appended, true); dragImage = args },
+  } })
+  assert.deepEqual(dragImage, [image, 0, 0])
+  assert.equal(image.width, 1)
+  assert.equal(image.height, 1)
+  assert.deepEqual(received, [note, { x: 200, y: 184, width: 300, height: 208, offsetX: 150, offsetY: 104 }, currentTarget])
+  assert.equal(card.props['data-dragging'], 'true')
+  assert.match(CLIENT_SOURCE, /\.SN_card\[data-dragging='true'\]\{[^}]*outline:2px dashed[^}]*transform:none/)
+  assert.match(CLIENT_SOURCE, /\.SN_card\[data-dragging='true'\]>\*\{visibility:hidden\}/)
+  await new Promise((resolve) => setTimeout(resolve, 1))
+  assert.equal(removed, true)
+})
+
+test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，四边位置不溢出', (t) => {
+  const api = loadClient(t).mod.__test
+  const point = { x: 200, y: 184, width: 300, height: 208, offsetX: 150, offsetY: 104 }
+  const viewport = { width: 1024, height: 768 }
+  const layout = api.cardDragLayout(point, viewport)
+  assert.equal(layout.scale, 1 / 3)
+  assert.equal(layout.previewWidth, 100)
+  assert.equal(layout.previewHeight, 208 / 3)
+  assert.equal(layout.left, 150)
+  assert.equal(layout.top, 184 - 104 / 3)
+  for (const [x, y] of [[0, 0], [1024, 0], [0, 768], [1024, 768]]) {
+    const edge = api.cardDragLayout({ ...point, x, y }, viewport)
+    assert.ok(edge.left >= 8 && edge.top >= 48)
+    assert.ok(edge.left + edge.previewWidth <= viewport.width - 8)
+    assert.ok(edge.top + edge.previewHeight <= viewport.height - 8)
+    assert.ok(edge.left + edge.hintWidth <= viewport.width - 8)
+  }
+  const previous = globalThis.document
+  const body = {}
+  globalThis.document = { body }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  const nodes = captureNodes(api.components.CardDragOverlay({ note: { path: 'a.md', title: '拖动便签' }, point, action: 'archive', targetId: 'work', targets: [{ id: 'work', label: '工作' }], t: (key, data) => data?.label || key }))
+  const preview = nodes.find((node) => node.props.className === 'SN_dragPreview')
+  assert.equal(preview.props.style.transform, 'scale(' + 1 / 3 + ')')
+  const previewCard = preview.children[0]
+  assert.equal(previewCard.props.preview, true)
+  assert.equal(previewCard.props.drawerOpen, true, '拖动预览隐藏操作菜单')
+  const renderedCard = api.components.NoteCard(previewCard.props)
+  assert.equal(renderedCard.props.draggable, false)
+  assert.equal(renderedCard.props.tabIndex, -1)
+  assert.equal(nodes.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], '工作')
+  assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(layer, document\.body\)/)
+  assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*bottom:calc\(100% \+ 8px\);z-index:2/)
+  assert.match(CLIENT_SOURCE, /\.SN_dragPreview\{[^}]*z-index:1/)
+})
+
+function dragMotionFixture(api, { reducedMotion = false } = {}) {
+  const listeners = new Map(), frames = new Map(), writes = [], animations = []
+  let sequence = 0, sourceReads = 0, completed
+  const win = {
+    innerWidth: 1024, innerHeight: 768,
+    requestAnimationFrame(fn) { const id = ++sequence; frames.set(id, fn); return id },
+    cancelAnimationFrame(id) { frames.delete(id) },
+    addEventListener(name, fn) { listeners.set(name, fn) },
+    removeEventListener(name, fn) { if (listeners.get(name) === fn) listeners.delete(name) },
+    matchMedia: () => ({ matches: reducedMotion }),
+  }
+  const doc = { defaultView: win, addEventListener: win.addEventListener, removeEventListener: win.removeEventListener }
+  const style = { set transform(value) { writes.push(['transform', value]) }, setProperty(...args) { writes.push(args) } }
+  const layer = { ownerDocument: doc, style, dataset: {}, animate(keyframes, options) {
+    const finished = new Promise((resolve) => { completed = resolve })
+    const animation = { keyframes, options, finished, cancel() { completed() } }
+    animations.push(animation); return animation
+  } }
+  const source = { isConnected: true, getBoundingClientRect() { sourceReads++; return { left: 50, top: 80, width: 300, height: 208 } } }
+  const point = { x: 200, y: 184, width: 300, height: 208, offsetX: 150, offsetY: 104 }
+  const motion = api.createCardDragMotion(layer, point)
+  return { motion, point, layer, source, win, listeners, frames, writes, animations,
+    sourceReads: () => sourceReads, complete: () => completed?.(),
+    frame() { const queued = [...frames.values()]; frames.clear(); queued.forEach((fn) => fn()) },
+    move(x, y, type = 'dragover') { listeners.get(type)?.({ clientX: x, clientY: y, type }) },
+  }
+}
+
+test('v0.15 拖拽性能：1000 次移动合并为一帧，只写 transform，无 React 更新与布局读取', (t) => {
+  const api = loadClient(t).mod.__test, fixture = dragMotionFixture(api)
+  for (let index = 0; index < 1000; index++) fixture.move(200 + index / 10, 300 + index / 10)
+  assert.equal(fixture.frames.size, 1)
+  assert.equal(fixture.writes.length, 0, '事件内不直接操作布局')
+  assert.equal(fixture.sourceReads(), 0)
+  fixture.frame()
+  assert.equal(fixture.writes.filter(([kind]) => kind === 'transform').length, 1)
+  assert.equal(fixture.writes.length, 1, '视口中部只写 transform，不反复修改提示宽度导致布局失效')
+  assert.match(fixture.writes[0][1], /^translate3d\(/)
+  assert.equal(fixture.frames.size, 0)
+  fixture.move(299.9, 399.9)
+  fixture.move(0, 0, 'drag')
+  fixture.move(NaN, 200)
+  assert.equal(fixture.frames.size, 0, '相同位置与 dragend 的零坐标不产生额外帧')
+  fixture.move(400, 400)
+  assert.equal(fixture.frames.size, 1)
+  fixture.motion.dispose()
+  assert.equal(fixture.frames.size, 0)
+  assert.equal(fixture.listeners.size, 0)
+})
+
+test('v0.15 放手：取消时仅测量一次原位置，150ms 合成动画回落，结束前不重现原卡片', async (t) => {
+  const fixture = dragMotionFixture(loadClient(t).mod.__test)
+  fixture.move(500, 500); fixture.frame()
+  fixture.move(600, 600)
+  let finished = false
+  const result = fixture.motion.finish('return', fixture.source).then(() => { finished = true })
+  assert.equal(fixture.sourceReads(), 1)
+  assert.equal(fixture.frames.size, 0)
+  assert.equal(fixture.listeners.size, 0)
+  assert.equal(fixture.layer.dataset.settling, 'true')
+  assert.equal(fixture.animations[0].options.duration, 150)
+  assert.equal(fixture.animations[0].keyframes[1].transform, 'translate3d(50px,80px,0) scale(3)')
+  assert.equal(finished, false)
+  await fixture.motion.finish('return', fixture.source)
+  assert.equal(fixture.sourceReads(), 1)
+  assert.equal(fixture.animations.length, 1)
+  fixture.complete(); await result
+  assert.equal(finished, true)
+  fixture.motion.dispose()
+})
+
+test('v0.15 放手：有效操作仅淡出，减弱动态效果时立即结束，取消清理无残留', async (t) => {
+  const api = loadClient(t).mod.__test
+  const fixture = dragMotionFixture(api)
+  const result = fixture.motion.finish('drop', fixture.source)
+  assert.equal(fixture.sourceReads(), 0, '删除/归档不读取原卡片布局')
+  assert.equal(fixture.animations[0].options.duration, 110)
+  assert.equal(fixture.animations[0].keyframes[1].opacity, 0)
+  fixture.motion.dispose(); await result
+  assert.equal(fixture.listeners.size, 0)
+  const reduced = dragMotionFixture(api, { reducedMotion: true })
+  await reduced.motion.finish('return', reduced.source)
+  assert.equal(reduced.animations.length, 0)
+  assert.equal(reduced.listeners.size, 0)
+  reduced.motion.dispose()
+})
+
+test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽后输入草稿仍在', (t) => {
+  const runner = hookRunner(t), api = runner.api
+  const calls = [], active = []
+  const menu = captureNodes(api.components.DropActions({
+    t: (key) => key, active: null, activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
+    onHover: (kind, targetId) => active.push([kind, targetId]),
+    onArchive: (_, targetId) => calls.push(['archive', targetId]),
+    onProject: () => calls.push(['project']),
+    onDelete: () => calls.push(['delete']),
+  }))
+  const event = { dataTransfer: {}, preventDefault() {}, stopPropagation() {} }
+  for (const node of menu.filter((node) => node.props['data-action'])) {
+    node.props.onDragEnter(event)
+    node.props.onDragOver(event)
+    assert.equal(event.dataTransfer.dropEffect, 'move')
+    node.props.onDrop(event)
+  }
+  assert.deepEqual(calls, [['archive', null], ['project'], ['delete']])
+  const archiveMenu = captureNodes(api.components.DropActions({
+    t: (key) => key, active: 'archive', activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
+    onHover: (kind, targetId) => active.push([kind, targetId]),
+    onArchive: (_, targetId) => calls.push(['archive', targetId]), onProject() {}, onDelete() {},
+  }))
+  const target = archiveMenu.find((node) => node.props.className === 'SN_dropTarget')
+  target.props.onDragOver(event)
+  target.props.onDrop(event)
+  assert.deepEqual(calls[3], ['archive', 'work'])
+  assert.ok(active.some(([kind, targetId]) => kind === 'archive' && targetId === 'work'))
+  const props = { enabled: true, t: (key) => key }
+  let nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
+  nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } })
+  nodes = captureNodes(runner.render(api.components.CaptureComposer, { ...props, dragNote: { path: 'a.md' } }))
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureDock').props['data-card-dragging'], 'true')
+  nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').props.value, '未提交的草稿')
+})
+
 function captureNodes(node, result = []) {
   if (Array.isArray(node)) node.forEach((child) => captureNodes(child, result))
   else if (node && typeof node === 'object') { result.push(node); captureNodes(node.children, result) }
@@ -252,7 +571,7 @@ test('快速记录：正文 Shift+Tab 返回标题修改，保留正文，Tab �
     const nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
     for (const name of ['Title', 'Body']) {
       const node = nodes.find((n) => n.props.className === 'SN_capture' + name)
-      if (node) node.props.ref.current = { focus() { focused = name } }
+      if (node) node.props.ref.current = { style: {}, scrollHeight: 24, focus() { focused = name } }
     }
     return nodes
   }
@@ -288,7 +607,7 @@ test('快速记录：正文删空后自动收起为标题态并聚焦标题，�
     const nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
     for (const name of ['Title', 'Body']) {
       const node = nodes.find((n) => n.props.className === 'SN_capture' + name)
-      if (node) node.props.ref.current = { focus() { focused = name } }
+      if (node) node.props.ref.current = { style: {}, scrollHeight: 24, focus() { focused = name } }
     }
     return nodes
   }
@@ -603,6 +922,99 @@ test('面板 hook：组合数据、抽屉与设置职责后可以挂载和卸载
   const panel = runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
   assert.equal(panel.props.className, 'SN_panel')
 })
+
+test('拖拽放手：空白处接收内部拖放并立即回落，不等待原生 dragend，不拦截外部文件', async (t) => {
+  const runner = hookRunner(t), listeners = new Map(), animation = deferred()
+  const previousDocument = globalThis.document
+  globalThis.document = {
+    addEventListener(name, fn, capture = false) { listeners.set(name + ':' + capture, fn) },
+    removeEventListener(name, fn, capture = false) { if (listeners.get(name + ':' + capture) === fn) listeners.delete(name + ':' + capture) },
+  }
+  globalThis.window.addEventListener = () => {}
+  globalThis.window.removeEventListener = () => {}
+  t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+  const note = { path: '/A.md', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
+  runner.connect(async () => ({ ok: true, value: { configured: true, revision: '1', notes: [note], jobs: [], settings: { emojis: [], archiveTargets: [] } } }))
+  const render = () => runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
+  render(); await flush()
+  const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard)
+  const source = {}
+  card.props.actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, source)
+  const overlay = captureNodes(render()).find((node) => node.type === runner.api.components.CardDragOverlay)
+  let finishes = 0
+  overlay.props.motionRef.current = { finish(mode, element) { assert.equal(mode, 'return'); assert.equal(element, source); finishes++; return animation.promise } }
+  const dragenter = listeners.get('dragenter:true'), dragover = listeners.get('dragover:true'), drop = listeners.get('drop:false')
+  assert.equal(typeof dragenter, 'function')
+  assert.equal(typeof dragover, 'function')
+  assert.equal(typeof drop, 'function')
+  let prevented = 0
+  const internal = { type: 'dragover', dataTransfer: { types: ['application/x-dsh-memo'], dropEffect: 'none' }, preventDefault() { prevented++ } }
+  dragover(internal)
+  assert.equal(prevented, 1)
+  assert.equal(internal.dataTransfer.dropEffect, 'move')
+  dragenter({ ...internal, type: 'dragenter' })
+  assert.equal(prevented, 2, '进入新元素后立即放手也接收，不必等下一次 dragover')
+  const external = { type: 'drop', dataTransfer: { types: ['Files'] }, preventDefault() { assert.fail('外部文件不属于卡片会话') } }
+  dragover(external); drop(external)
+  assert.equal(finishes, 0)
+  const ended = drop({ ...internal, type: 'drop' })
+  assert.equal(prevented, 3)
+  assert.equal(finishes, 1, 'drop 当场开始回落，早于可能被浏览器延迟的 dragend')
+  assert.equal(card.props.actions.current.onDragEnd(), ended)
+  assert.equal(finishes, 1)
+  animation.resolve(); await ended
+  assert.equal(render().props['data-card-dragging'], 'false')
+  assert.equal(listeners.has('dragenter:true'), false)
+  assert.equal(listeners.has('dragover:true'), false)
+  assert.equal(listeners.has('drop:false'), false)
+})
+
+for (const failed of [false, true]) {
+  test(`拖拽会话：drop 与 dragend 只收尾一次，${failed ? '操作失败恢复卡片' : '操作成功移除卡片'}`, async (t) => {
+    const runner = hookRunner(t), operation = deferred(), animation = deferred()
+    const previousDocument = globalThis.document
+    globalThis.document = { addEventListener() {}, removeEventListener() {} }
+    globalThis.window.addEventListener = () => {}
+    globalThis.window.removeEventListener = () => {}
+    t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+    const note = { path: '/A.md', name: '甲', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
+    let notes = [note], mutations = 0, finishes = 0
+    runner.connect(async (_, endpoint) => {
+      if (endpoint === 'state') return { ok: true, value: { configured: true, revision: String(notes.length), notes, jobs: [], settings: { emojis: [], archiveTargets: [] } } }
+      assert.equal(endpoint, 'deleteNote')
+      mutations++
+      await operation.promise
+      if (failed) return { ok: false, error: { code: 'test-failed', message: '测试失败', details: {} } }
+      notes = []
+      return { ok: true, value: { undoToken: 'undo', expiresAt: Date.now() + 5000 } }
+    })
+    const render = () => runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
+    render(); await flush()
+    let panel = render()
+    const card = captureNodes(panel).find((node) => node.type === runner.api.components.NoteCard)
+    const actions = card.props.actions
+    actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, {})
+    panel = render()
+    const overlay = captureNodes(panel).find((node) => node.type === runner.api.components.CardDragOverlay)
+    overlay.props.motionRef.current = { finish(mode) { assert.equal(mode, 'drop'); finishes++; return animation.promise } }
+    const composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
+    const event = { dataTransfer: { getData: () => note.path } }
+    composer.props.onDeleteDrop(event)
+    composer.props.onDeleteDrop(event)
+    const ended = actions.current.onDragEnd()
+    assert.equal(mutations, 1)
+    assert.equal(finishes, 1)
+    assert.equal(render().props['data-card-dragging'], 'true')
+    animation.resolve(); await flush()
+    assert.equal(render().props['data-card-dragging'], 'true', '动画结束后仍等待文件操作，避免原卡片闪回')
+    operation.resolve(); await ended; await flush()
+    panel = render()
+    assert.equal(panel.props['data-card-dragging'], 'false')
+    assert.equal(captureNodes(panel).filter((node) => node.type === runner.api.components.NoteCard).length, failed ? 1 : 0)
+    assert.equal(mutations, 1)
+    assert.equal(finishes, 1)
+  })
+}
 
 /** 取 __test 并断言契约 §6.1 要求的全部纯函数都暴露了。 */
 function getTestApi(mod) {
@@ -1665,5 +2077,5 @@ test('client 源码：菜单出现就隐藏图片预览，旧 emoji 蒙版逻辑
     'enterCard 不应因抽屉打开而忽略 hover（menuVisible 已用 drawerOpen 屏蔽菜单）',
   )
   // 触屏兜底规则已删除：菜单可见性统一由 data-visible 决定
-  assert.doesNotMatch(CLIENT_SOURCE, /@media \(hover:none\)/, 'hover:none 的强制显示规则应已删除')
+  assert.doesNotMatch(CLIENT_SOURCE, /@media \(hover:none\)\{\.SN_cardActions/, '触屏也不能强制显示卡片底部菜单')
 })

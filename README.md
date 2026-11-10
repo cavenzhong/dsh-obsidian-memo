@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.14.2](https://img.shields.io/badge/version-0.14.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.15.0](https://img.shields.io/badge/version-0.15.0-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -110,7 +110,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 ### 快速记录
 
-底部胶囊浮在便签墙下方。输入想法作为新 `.md` 的文件名，按 `Enter` 创建；标题不会重复写进正文。按 `Tab` 展开正文区，正文删空后自动收起；提交失败（重名、文件名过长等）会保留草稿与图片。
+底部胶囊浮在便签墙下方，标题自动折行显示全文。输入想法作为新 `.md` 的文件名，按 `Enter` 创建；标题不会重复写进正文。按 `Tab` 展开正文区，空正文在失焦或按 Backspace 后收起；提交失败（重名、文件名过长等）会保留草稿与图片。
 
 图片可以粘贴、拖入或点左侧加号多选，最多 8 张；默认压缩成静态 WebP，原始格式与动图可在设置里选择保留。新建时会沿用 Obsidian 为当前文件夹配置的 Default Template 的 frontmatter。
 
@@ -135,9 +135,18 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 反馈以 Obsidian callout 追加到原 Markdown 末尾，回到 Obsidian 仍然能读。同一个 emoji 已有评论时，会先确认是否再生成一条。
 
-### 开档、归档、在 Obsidian 打开
+### 整理、复制与删除
 
-- **开档**：输入项目名，AI 在开档目录生成 `<项目名>/<项目名>.md`，整理诉求、现状与已知、调查与线索、下一步、待确认事项，并把链接写回源便签的 `PROJECTS` 字段。
+拖动卡片时，输入岛切换为「归档 / 到项目 / 删除」操作栏；拖到归档时可继续选择已配置的归档目录，拖到项目会打开项目名确认框，拖到删除即执行。原位置保留空虚线框，跟随光标的卡片宽高缩为原来的 1/3，实色动作提示固定在预览上方且层级更高；底部渐变按操作变色，操作栏避开右侧面板。卡片菜单的 AI 评论区下方仅保留「复制 / 在 Obsidian 打开」。
+拖动只更新跟随浮层；输入岛与操作栏切换保持布局稳定。取消放手时短动画回落，归档或删除时淡出，操作完成后再清理占位，避免原卡片闪回。系统开启减弱动态效果时直接完成动画。
+
+- **复制**：卡片底部的复制按钮将标题单独一行、换行后完整 Markdown 正文复制到剪贴板，成功显示提示。
+- **删除**：拖到删除区，或在卡片/阅读面板按 `⌘ / Ctrl + Backspace`。Markdown 与独占本地图片成组进入笔记库内的 `.trash/MEMO-…` 文件夹，5 秒内可撤回；共享图片保留，避免影响其他笔记。过期后保留文件，不自动清空，可按组内 `restore.json` 的原路径手动移回。使用已有的 `.trash` 时不会清理其他回收文件。macOS Finder 可按 `⌘ + Shift + .` 显示隐藏文件夹。
+- **返回顶部**：向下滚动超过一屏后，输入岛上方出现圆形 ↑ 按钮。
+
+### 到项目、归档、在 Obsidian 打开
+
+- **到项目**：从阅读面板或拖拽菜单进入；输入项目名后，AI 在开档目录生成 `<项目名>/<项目名>.md`，整理诉求、现状与已知、调查与线索、下一步、待确认事项，并把链接写回源便签的 `PROJECTS` 字段。
 - **归档**：把 Markdown 文件移动到所选归档目录；顶部浮窗 6 秒内可撤销。
 - **在 Obsidian 打开**：由 Host 调用系统打开器打开 `obsidian://open?path=<便签绝对路径>`；只对仓库内已存在的文件生效，不会写入任何内容。
 
@@ -146,7 +155,9 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 | 操作 | 快捷键 |
 | --- | --- |
 | 新建便签 | 标题输入框内按 `Enter` |
-| 展开 / 收起正文 | `Tab` / `Esc` |
+| 聚焦输入岛 / 退出焦点 | `Enter`（输入岛内输入、右侧正文编辑除外）/ 岛内 `Esc` |
+| 展开 / 收起正文 | 标题内 `Tab` / 空正文 `Backspace` 或失焦 |
+| 删除便签 | 卡片或阅读面板 `⌘ / Ctrl + Backspace` |
 | 提交便签 | `⌘ / Ctrl + Enter` |
 | 从正文回到标题 | `Shift + Tab` |
 | 保存编辑 | `⌘ / Ctrl + S` |
@@ -156,7 +167,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 ## 数据与隐私
 
-- **笔记与图片都在你的仓库里。** 插件直接读写你选定的 Obsidian 目录，不导入、不复制到别处，也不维护第二套笔记库。
+- **笔记与图片都在你的仓库里，删除后保留在库内 `.trash` 回收站。** 插件直接读写你选定的 Obsidian 目录，不导入、不复制到别处，也不维护第二套笔记库。
 - **设置只存在插件自己的 `data/settings.json`。** 不写 DSH profile 配置，也不往 Obsidian 仓库里放配置文件。
 - **不为插件单独配置 API Key。** AI 复用 Harness 当前默认模型；只有你主动点评论或开档时才调用，不新开会话、不写对话记录。
 - **除模型调用外不主动外联。** 没有遥测或统计上报；笔记里的网络图片由浏览器按需加载，这是普通 Markdown 的行为。

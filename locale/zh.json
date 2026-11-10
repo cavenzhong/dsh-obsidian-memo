@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Obsidian MEMO",
-    "description": "Obsidian MEMO：把「进行时」文件夹变成 DSH 淡色便签墙，支持快速新建、多图粘贴与 WebP 压缩、阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。"
+    "description": "Obsidian MEMO：把「进行时」文件夹变成 DSH 淡色便签墙，支持快速新建、多图粘贴与 WebP 压缩、阅读/编辑、AI 评论、拖拽删除与撤回、复制、归档、到项目与在 Obsidian 打开。"
   }
 }
