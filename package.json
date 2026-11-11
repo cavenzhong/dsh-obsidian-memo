@@ -1,6 +1,6 @@
 {
   "name": "dsh-obsidian-memo",
-  "version": "0.16.2",
+  "version": "0.16.3",
   "type": "module",
   "description": "dsh-obsidian-memo：DeepSeek Harness 的 Obsidian 便签插件。把 Obsidian 进行时文件夹变成淡色便签墙，支持快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。",
   "main": "lib/index.js",
@@ -14,10 +14,15 @@
   },
   "files": [
     "lib",
+    "src",
+    "scripts",
+    "AGENTS.md",
+    "docs/*.md",
     "locale",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
   "dsh": {
@@ -38,7 +43,11 @@
     "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "scripts": {
-    "test": "node --test",
+    "build": "node scripts/build-client.mjs",
+    "build:check": "node scripts/build-client.mjs --check",
+    "dev": "node scripts/build-client.mjs --watch",
+    "test": "pnpm build:check && node --test",
+    "prepack": "pnpm build",
     "bench": "node --expose-gc scripts/benchmark.mjs"
   },
   "keywords": [
@@ -60,5 +69,8 @@
   "homepage": "https://github.com/cavenzhong/dsh-obsidian-memo#readme",
   "bugs": {
     "url": "https://github.com/cavenzhong/dsh-obsidian-memo/issues"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }

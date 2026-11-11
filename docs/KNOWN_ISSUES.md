@@ -1,7 +1,7 @@
-# 已知问题与暂缓项（0.16.2）
+# 已知问题与暂缓项（0.16.3）
 
 > 用途：记录 0.14 审查中确认但**本轮未修**的问题，方便之后快速查阅、按文件定位并批量修复。
-> 状态基准：`v0.16.2`。行号会随代码改动漂移，检索时优先搜符号名/关键词。
+> 状态基准：`v0.16.3`。行号会随代码改动漂移，检索时优先搜符号名/关键词。
 > 原则：每条包含「位置 / 现象与影响 / 建议修法 / 优先级 / 触发条件」，优先级 P1 > P2 > P3。
 > 0.16 发版前排查、性能对比和修复范围见 [排查报告](AUDIT-0.16.md)。
 
@@ -12,20 +12,20 @@
 输入岛与拖拽操作栏根据阅读面板的实际宽度调整右侧留白，兼容进场动画、浮动/钉住与宽度拖拽。
 
 ### KI-02 触摸/无 hover 设备无法打开日期范围菜单
-- 位置：`lib/client.js` 日期控件 `onMouseEnter: openDateMenu`、`toggleDateEnabled` 里 `setDateMenu(false)`。
+- 位置：`src/client/panel/header.js` 日期控件与 `src/client/wall/use-wall-filters.js` `onMouseEnter: openDateMenu`、`toggleDateEnabled` 里 `setDateMenu(false)`。
 - 现象：tap 会先合成 mouseenter 打开菜单，随后 click 切换筛选又把菜单关掉；iOS/Android 长按 contextmenu 对 button 不可靠，软键盘没有 ↓。档位只能停留在持久值/默认 today。
 - 建议：`(hover: none)`/pointerType 分流：无 hover 时点击打开菜单，把筛选开关做成菜单内 menuitemcheckbox；并去掉 `toggleDateEnabled` 的无条件关闭。
 - 优先级：P2（用户已决定「移动端之后再考虑」）。
 - 触发：触摸设备或没有 hover 的输入方式。
 
 ### KI-03 日期菜单 hover 桥接区不足
-- 位置：`lib/client.js` `.SN_dateGroup::after` 只覆盖按钮下方 30px × 8px；菜单宽 214px 右对齐。
+- 位置：`src/client/styles/base.js` `.SN_dateGroup::after` 只覆盖按钮下方 30px × 8px；菜单宽 214px 右对齐。
 - 现象：从按钮斜向左下移向菜单左半区时，会经过 group 外、菜单上方的 6px 缝隙触发 mouseleave 关闭；CONTRACT 里「菜单与按钮之间有可移入区域」并不完全成立。
 - 建议：把桥挂到菜单上（`.SN_sortMenu::before{top:-8px;left:0;right:0;height:8px}`），或 mouseleave 延迟 120ms 关闭。
 - 优先级：P3（用户已决定「先不改」）。
 
 ### KI-04 拖放落在胶囊外可能触发浏览器默认导航
-- 位置：`lib/client.js` 仅 `<form class="SN_capture">` 上处理 dragenter/dragover/drop；dock 的 22px 内边距区与墙面没有兜底。
+- 位置：`src/client/capture/composer.js` 仅 `<form class="SN_capture">` 上处理 dragenter/dragover/drop；dock 的 22px 内边距区与墙面没有兜底。
 - 现象：Web GUI 在浏览器里把图片丢到胶囊外，可能按浏览器默认行为打开文件、丢失 SPA 状态（Electron 外壳实测「似乎没事」）。
 - 建议：在 `.SN_wallWrap` 或 document 上对 `dataTransfer.types` 含 `Files` 的 dragover/drop 做 preventDefault。
 - 优先级：P3（用户已实测，暂不改）。
@@ -56,13 +56,13 @@
 - 优先级：P3。
 
 ### KI-09 卡片缩略图 1.5MB 上限 vs 保存上限 8MB
-- 位置：`lib/shared.js` `LIMITS.cardImageMaxBytes`；`lib/client.js` 卡片图片 `maxBytes: CARD_IMAGE_MAX_BYTES`。
+- 位置：`lib/shared.js` `LIMITS.cardImageMaxBytes`；`src/client/images/components.js` 卡片图片 `maxBytes: CARD_IMAGE_MAX_BYTES`。
 - 现象：关闭压缩或高质量/大边长保存的图片可能超过 1.5MB，卡片会静默不显示缩略图（阅读抽屉仍可看原图）。
 - 建议：提高 `cardImageMaxBytes`（注意 LRU 字节预算），或客户端上传前生成缩略图（需要新字段/端点）；短期至少在设置提示里说明。
 - 优先级：P2（仅常用「关闭压缩」时明显）。
 
 ### KI-10 可访问性细节
-- 位置：`lib/client.js` 浮岛标题/正文无字段级 `:focus-visible`；缩略图 `div tabIndex=0` 无 `role`/名称；预览 `role="tooltip"` 未 `aria-describedby` 关联；日期按钮 `aria-haspopup="menu"` 但点击只切换筛选；`capture.submitHint` 在 Windows/Linux 也显示 ⌘。
+- 位置：`src/client/capture/composer.js`、`src/client/panel/header.js` 与 `src/client/styles/capture.js`：浮岛标题/正文无字段级 `:focus-visible`；缩略图 `div tabIndex=0` 无 `role`/名称；预览 `role="tooltip"` 未 `aria-describedby` 关联；日期按钮 `aria-haspopup="menu"` 但点击只切换筛选；`capture.submitHint` 在 Windows/Linux 也显示 ⌘。
 - 建议：字段级 focus 样式；缩略图加 `role="group"`/`aria-label`；tooltip 关联；日期按钮语义二选一（点击打开菜单或去掉 haspopup）；按平台显示 Ctrl/⌘。
 - 优先级：P2（与后续交互修改一起做）。
 
@@ -88,12 +88,12 @@ Client 已停止发送 Host 不使用的 initial，删除失去调用方的旧�
 输入岛停用且无运行中的提交时释放附件 URL、预览计时器与图片状态，文字草稿保留；补停用与重新启用的行为测试。
 
 ### KI-16 浮岛视觉小问题
-- 位置：`lib/client.js` `.SN_captureDock::before` 浅色渐变写死 `#fff`，覆盖墙底滚动条一段；展开正文改变 wall `padding-bottom` 时滚到底的内容会跳动。
+- 位置：`src/client/styles/capture.js` `.SN_captureDock::before` 浅色渐变写死 `#fff`，覆盖墙底滚动条一段；展开正文改变 wall `padding-bottom` 时滚到底的内容会跳动。
 - 建议：渐变改用 `var(--dsw-alias-bg-base)`；高度变化前后保持 scrollTop 锚点（或对小屏降低过渡）。
 - 优先级：P3。
 
 ### KI-17 EXIF 旋转照片的压缩方向
-- 位置：`lib/client.js` `compressCaptureImage`（Image → canvas → WebP）。
+- 位置：`src/client/capture/images.js` `compressCaptureImage`（Image → canvas → WebP）。
 - 现象：未验证 canvas 在 Chromium 中是否按 EXIF orientation 绘制；若方向/比例不对，手机竖拍照片会旋转/变形。
 - 建议：先用 iPhone 竖拍照片实测；若异常改用 `createImageBitmap(file, { imageOrientation: 'from-image' })` 后按 bitmap 尺寸绘制。
 - 优先级：P2（仅照片场景，先测再定）。

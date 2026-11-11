@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.2](https://img.shields.io/badge/version-0.16.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.3](https://img.shields.io/badge/version-0.16.3-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -233,29 +233,33 @@ No. It is a third-party DeepSeek Harness plugin, not affiliated with DeepSeek or
 ## Feedback & contributing
 
 - Found a bug or want different behavior? Open an [issue](https://github.com/cavenzhong/dsh-obsidian-memo/issues). Please include the DSH version, plugin version, OS, Obsidian version, steps to reproduce, expected and actual results, and screenshots or logs if possible.
-- Pull requests are welcome. The plugin is plain JavaScript with no runtime dependencies and no build step; run `pnpm test` and mention the result in the PR.
+- Pull requests are welcome. The plugin is plain JavaScript with no runtime dependencies. Browser sources are modular; run `pnpm build` and `pnpm test`, and mention the results in the PR.
 - Known issues and deferred items are tracked in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md); search it before filing.
 
 ## Development
 
 ```bash
 cd dsh-obsidian-memo
-pnpm test        # unit tests + mock-ctx integration tests + client pure-function tests (354 currently)
+pnpm install --frozen-lockfile
+pnpm build       # src/client/ → lib/client.js
+pnpm test        # generated output, architecture checks and regression tests
+pnpm dev         # optional: watch browser sources alongside Harness HMR
 ```
 
 To release, update the version in `package.json` and the README badges, add its entry to `docs/CHANGELOG.md`, and push to `main`. GitHub Actions tests and packs the plugin, then creates a `v<version>` tag and GitHub Release with a `.tgz` asset. Existing releases are skipped. Pushing a version tag also triggers publication; to publish an existing tag, enter it under Actions → Publish release → Run workflow. Ordinary commits do not create releases.
 
 | Path | Contents |
 | --- | --- |
-| `lib/index.js` | Host half: RPC routes and business composition. |
-| `lib/client.js` | Client half: single-file browser bundle, no build step. |
+| `lib/index.js` / `lib/host/` | Host entry, focused services and RPC transport. |
+| `src/client/` | Browser sources grouped by data, wall, reader, settings, images and dragging. |
+| `lib/client.js` | Generated browser bundle; installation requires no build. |
 | `lib/capture.js` / `lib/notes.js` | Note and attachment creation, Markdown parsing and writing. |
 | `lib/settings.js` / `lib/scan.js` | Settings, folder scanning and caches. |
 | `lib/ai.js` / `lib/obsidian.js` | Model calls and the system opener. |
-| `test/` | Tests, run directly with `node --test`. |
+| `test/` / `test-support/` | Focused suites and shared test harnesses. |
 | `docs/` | Guide, implementation contract, changelog, known issues. |
 
-See the [0.16 performance and architecture review](docs/AUDIT-0.16.md) (Chinese). Host modules separate file responsibilities, and Client hooks manage data, editing, and settings. Future growth should first separate interactions from the long main panel while reusing the existing copy, delete, and undo paths.
+Version 0.16.3 separates Host services, browser interactions and large test suites. Start with the [architecture map](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) to locate each feature and its tests. The [0.16 performance review](docs/AUDIT-0.16.md) retains the earlier audit findings (Chinese).
 
 See the [usage and development guide](docs/GUIDE.md) (Chinese) for full behavior and the HMR workflow, and the [implementation contract](docs/CONTRACT.md) for API and UX specifications.
 

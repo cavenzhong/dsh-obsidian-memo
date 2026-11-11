@@ -9,7 +9,7 @@
 ## 它长什么样
 
 ```
-┌─ DSH 侧栏 ─┐┌─────── Obsidian MEMO v0.16.2 ──────────┐
+┌─ DSH 侧栏 ─┐┌─────── Obsidian MEMO v0.16.3 ──────────┐
 │ 会话       ││ 120 张便签      [日期][子文件夹][排序][刷新][⚙]       │
 │ 插件       ││ ┌──────────┐ ┌──────────┐ ┌───────────┐        │
 │ 📌 便签    ││ │WORKING_NOW│ │ 无 tag   │ │🚧长期     │        │
@@ -76,7 +76,7 @@
       - /absolute/path/to/dsh-obsidian-memo
 ```
 
-之后改 `lib/*.js` 会自动重载（Host 与浏览器半都生效）。
+之后改 `lib/` 下的 Host 模块会自动重载。浏览器开发先运行 `pnpm dev`，修改 `src/client/` 后会自动更新 `lib/client.js`，再由 Harness HMR 重载。
 
 ## 首次配置
 
@@ -131,12 +131,12 @@
 
 ## 技术架构
 
-- **Host 半**：`lib/index.js` 组合 RPC 与业务；`files.js` 统一真实路径边界、内容版本与原子写入，`capture.js` 负责新建便签与附件；`notes.js` / `scan.js` / `settings.js` / `ai.js` / `obsidian.js` 分别负责解析、扫描缓存、设置、模型和系统打开。
+- **Host 半**：`lib/index.js` 组合 `lib/host/` 内的配置、扫描、写入、图片、AI 任务与 RPC 服务；`files.js` 统一真实路径边界、内容版本与原子写入，`capture.js` 负责新建便签与附件；`notes.js` / `scan.js` / `settings.js` / `ai.js` / `obsidian.js` 分别负责解析、扫描缓存、设置、模型和系统打开。
 - **通道**：Host 在 web server 上注册包内已认证 RPC 前缀路由 `/sticky-notes`，复用 client-connection 的 RPC 信封协议（Client 仍用 `ctx.connection.rpc.call('/sticky-notes', endpoint, payload)`），认证复用 `ctx.connection.requestRejection`。Web GUI 与桌面 App 外壳都走同一条已认证通道，不新开端口、不需要额外的 CSRF 防护。
 - **目录选择**：统一使用系统选择器 `pickDirectory`，也可手动输入路径；已移除没有界面调用的目录浏览 RPC。
-- **Client 半**（`lib/client.js`）：保留单文件发布、零构建步骤。内部由 `useNotesData` 管请求与轮询、`useNoteEditor` 管抽屉草稿与保存、`useSettingsDraft` 管设置草稿；面板组合布局和操作。所有 state 请求统一按代次接收，迟到响应不能覆盖新状态，未变化卡片复用对象。
+- **Client 半**：源码位于 `src/client/`，按功能组织组件、hooks、样式与文案；`pnpm build` 生成单文件 `lib/client.js` 供安装使用。`useNotesData` 管请求与轮询、`useNoteEditor` 管抽屉草稿与保存、`useSettingsDraft` 管设置草稿；主面板组合拖拽、AI、筛选、分页与布局模块。所有 state 请求统一按代次接收，迟到响应不能覆盖新状态，未变化卡片复用对象。
 - **不注册模型工具、不注入提示词**：除用户主动点评论/开档外，不产生任何模型调用与会话成本。
-- **已知问题与暂缓项**：见 [已知问题](KNOWN_ISSUES.md)（v0.16.2 基准，含触发条件与建议修法）。
+- **已知问题与暂缓项**：见 [已知问题](KNOWN_ISSUES.md)（v0.16.3 基准，含触发条件与建议修法）。
 
 ## 性能与后台开销
 
@@ -155,7 +155,7 @@
 - 编辑态保存是显式按钮（或 Cmd/Ctrl+S），退出编辑态会丢弃未保存修改。
 - 归档撤销窗口 6 秒（token 服务端保留 10 分钟）；撤销前若原位置已有同名文件则拒绝恢复。
 - 面板以轮询感知外部修改，不是实时监听；空闲时按 4–30 秒间隔检查外部变化，也可以手动刷新。
-- 手动改 `package.json` 或依赖不会被 HMR 检测；改 `lib/*.js` 需要配置 hmr root 才会即时生效。
+- 手动改 `package.json` 或依赖不会被 HMR 检测；改 Host 模块或前端生成文件需要配置 hmr root 才会即时生效，前端源码配合 `pnpm dev`。
 - 本地图片限仓库内的 PNG/JPEG/GIF/WebP/SVG/AVIF，单张不超过 8 MB；卡片缩略图只加载 ≤1.5 MB 的图片（超出的卡片上显示淡占位，进阅读模式仍可看）。卡片预览只覆盖正文图片，不覆盖 callout/列表内的图片。
 - 不读取仓库外的符号链接目标；网络图片由浏览器直接加载，加载失败时显示占位提示。支持正文中的行内和独立图片语法，不支持引用式图片及 callout/列表内图片。
 - 锁定面板状态存在浏览器 localStorage，换浏览器/清缓存后重置。
@@ -165,10 +165,13 @@
 
 ```bash
 cd dsh-obsidian-memo
-pnpm test                 # 单元测试 + mock-ctx 集成测试 + client 纯函数测试
+pnpm install --frozen-lockfile
+pnpm build                # 修改前端后更新发布文件
+pnpm test                 # 产物一致性、架构边界与回归测试
+pnpm dev                  # 可选：持续构建前端
 pnpm bench                # 1000 篇合成便签扫描/内存与 5000 条文件名排序基准
 ```
 
-接口与 UX 规格见 [实现契约](CONTRACT.md)。运行时升版本只改 `package.json`；[版本记录](CHANGELOG.md)保留对应发布时的信息。
+代码入口、职责与测试映射见 [架构导航](ARCHITECTURE.md)；接口与 UX 规格见 [实现契约](CONTRACT.md)。运行时升版本只改 `package.json`；[版本记录](CHANGELOG.md)保留对应发布时的信息。
 
 0.16 发版前的修复依据、前后性能数据与剩余限制见 [稳定性排查报告](AUDIT-0.16.md)。基准仅使用自动清理的临时目录，不访问真实 Obsidian 仓库。

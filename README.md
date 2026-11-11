@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.2](https://img.shields.io/badge/version-0.16.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.3](https://img.shields.io/badge/version-0.16.3-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -235,29 +235,33 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 ## 反馈与贡献
 
 - 遇到问题或想改行为，欢迎提 [Issue](https://github.com/cavenzhong/dsh-obsidian-memo/issues)。请附上 DSH 版本、插件版本、操作系统、Obsidian 版本、复现步骤、期望结果与实际结果；有截图或日志更好。
-- 也欢迎直接提 PR。插件是原生 JavaScript、零运行时依赖、无构建步骤；改动后请跑一遍 `pnpm test`，并在 PR 里说明测试结果。
+- 也欢迎直接提 PR。插件是原生 JavaScript、零运行时依赖；前端源码按模块维护，修改后运行 `pnpm build` 和 `pnpm test`，并在 PR 里说明测试结果。
 - 已知问题与暂缓项记录在 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)，提交前可以先搜一下是否已经涵盖。
 
 ## 开发
 
 ```bash
 cd dsh-obsidian-memo
-pnpm test        # 单元测试 + mock-ctx 集成测试 + client 纯函数测试（当前 354 个）
+pnpm install --frozen-lockfile
+pnpm build       # src/client/ → lib/client.js
+pnpm test        # 构建一致性 + 架构边界 + 单元与集成回归
+pnpm dev         # 可选：持续构建前端，配合 Harness HMR
 ```
 
 发布时更新 `package.json` 的版本号和本页版本标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试、打包并自动创建 `v<版本号>` 标签与 Release，附上插件 `.tgz`；同一版本已发布时跳过。推送版本标签也可触发发布，已有标签可在 Actions → Publish release → Run workflow 中填写后补发。普通提交不新增 Release。
 
 | 目录 | 内容 |
 | --- | --- |
-| `lib/index.js` | Host 半：RPC 路由与业务组合。 |
-| `lib/client.js` | Client 半：单文件浏览器 bundle，零构建。 |
+| `lib/index.js` / `lib/host/` | Host 入口与按职责拆分的业务服务、RPC。 |
+| `src/client/` | 浏览器源码：按数据、便签墙、阅读、设置、图片、拖拽等功能组织。 |
+| `lib/client.js` | 自动生成的浏览器发布文件；安装时无需构建。 |
 | `lib/capture.js` / `lib/notes.js` | 新建便签与附件、Markdown 解析与写入。 |
 | `lib/settings.js` / `lib/scan.js` | 设置读写、目录扫描与缓存。 |
 | `lib/ai.js` / `lib/obsidian.js` | 模型调用、系统打开器。 |
-| `test/` | 测试；`node --test` 直接运行。 |
+| `test/` / `test-support/` | 按功能拆分的测试与共享运行器。 |
 | `docs/` | 使用与开发指南、实现契约、版本记录、已知问题。 |
 
-0.16 的性能与结构复核见 [排查报告](docs/AUDIT-0.16.md)。Host 按文件职责拆分，Client 的数据、编辑与设置由独立 hooks 管理；后续扩展优先拆分较长的主面板交互，继续复用现有复制、删除和撤回逻辑。
+0.16.3 将 Host 服务、浏览器交互和大型测试按职责拆分。开发或让 AI agent 接手时，先看 [架构导航](docs/ARCHITECTURE.md) 与 [AGENTS.md](AGENTS.md)，按功能定位源码和测试；0.16 的性能复核记录保留在 [排查报告](docs/AUDIT-0.16.md)。
 
 更完整的操作说明、文件行为与 HMR 开发方式见 [使用与开发指南](docs/GUIDE.md)；接口与 UX 规格见 [实现契约](docs/CONTRACT.md)。
 

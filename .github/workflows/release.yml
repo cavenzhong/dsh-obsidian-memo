@@ -80,6 +80,10 @@ jobs:
           }
           NODE
 
+      - name: Install build dependencies
+        if: steps.release.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
       - name: Test
         if: steps.release.outputs.skip != 'true'
         run: pnpm test

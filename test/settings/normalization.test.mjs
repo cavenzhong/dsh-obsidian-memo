@@ -1,28 +1,10 @@
-/**
- * lib/settings.js 的单测：默认值、路径解析、归档去重、emoji/callout 回退、
- * projectPrompt 默认值，以及设置文件的读写（临时目录内，不碰真实 data/）。
- */
-
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-
-import {
-  DEFAULT_SETTINGS,
-  normalizeSettings,
-  readSettingsFile,
-  resolveUserPath,
-  settingsEqual,
-  writeSettingsFile,
-  configHome, locateConfig, readConfigFile, writeConfigFile, rememberConfig, portableSettings,
-} from '../lib/settings.js'
-import {
-  CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS, isLegacyDefaultEmojis,
-} from '../lib/shared.js'
-
-/* ─────────────────────────────── 默认值 ─────────────────────────────── */
+import { DEFAULT_SETTINGS, normalizeSettings, readSettingsFile, resolveUserPath, settingsEqual, writeSettingsFile } from '../../lib/settings.js'
+import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS } from '../../lib/shared.js'
 
 test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', () => {
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
@@ -85,8 +67,6 @@ test('normalizeSettings：非对象输入安全回退', () => {
   }
 })
 
-/* ─────────────────────────── includeSubfolders（0.12） ─────────────────────────── */
-
 test('normalizeSettings：includeSubfolders 只有显式 false 才关闭', () => {
   assert.equal(normalizeSettings({}).includeSubfolders, true, '缺省应为 true')
   assert.equal(normalizeSettings({ includeSubfolders: true }).includeSubfolders, true)
@@ -100,13 +80,6 @@ test('normalizeSettings：includeSubfolders 只有显式 false 才关闭', () =>
     )
   }
 })
-
-test('normalizeSettings：includeSubfolders 参与 settingsEqual 比较', () => {
-  assert.equal(settingsEqual({ includeSubfolders: true }, {}), true)
-  assert.equal(settingsEqual({ includeSubfolders: false }, {}), false)
-})
-
-/* ─────────────────────────── AI 预算（0.13） ─────────────────────────── */
 
 test('DEFAULT_SETTINGS：每枚 emoji 与开档都有默认高预算（high / 8192）', () => {
   assert.deepEqual(DEFAULT_SETTINGS.projectAi, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
@@ -163,43 +136,11 @@ test('normalizeSettings：预设值非法时回退默认高；每枚 emoji 的 a
   assert.equal(settings.emojis[2].ai.maxTokens, 8192)
 })
 
-test('writeSettingsFile / readSettingsFile：AI 预算落盘并读回', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-ai-'))
-  const file = join(dir, 'settings.json')
-  try {
-    const saved = await writeSettingsFile(file, {
-      emojis: [{ id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 } }],
-      projectAi: { preset: 'low' },
-    })
-    assert.equal(saved.emojis[0].ai.maxTokens, 6000)
-    const onDisk = JSON.parse(await readFile(file, 'utf8'))
-    assert.equal(onDisk.emojis[0].ai.preset, 'custom')
-    assert.equal(onDisk.projectAi.preset, 'low')
-    const readBack = await readSettingsFile(file)
-    assert.deepEqual(readBack.emojis[0].ai, { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 })
-    assert.deepEqual(readBack.projectAi, { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
-
-test('settingsEqual：AI 预算变化算不同设置', () => {
-  assert.equal(settingsEqual({ projectAi: { preset: 'high' } }, {}), true)
-  assert.equal(settingsEqual({ projectAi: { preset: 'low' } }, {}), false)
-  assert.equal(
-    settingsEqual(
-      { emojis: [{ emoji: '😈', label: 'x', callout: 'quote', prompt: 'p', ai: { preset: 'low' } }] },
-      { emojis: [{ emoji: '😈', label: 'x', callout: 'quote', prompt: 'p' }] },
-    ),
-    false,
-  )
-})
-
 test('locale / package meta：产品显示 Obsidian MEMO，包名为 dsh-obsidian-memo', async () => {
   const readJson = async (relativePath) => JSON.parse(await readFile(new URL(relativePath, import.meta.url), 'utf8'))
-  const zh = await readJson('../locale/zh.json')
-  const en = await readJson('../locale/en.json')
-  const pkg = await readJson('../package.json')
+  const zh = await readJson('../../locale/zh.json')
+  const en = await readJson('../../locale/en.json')
+  const pkg = await readJson('../../package.json')
 
   assert.equal(zh.meta.title, 'Obsidian MEMO')
   assert.equal(en.meta.title, 'Obsidian MEMO')
@@ -214,8 +155,6 @@ test('locale / package meta：产品显示 Obsidian MEMO，包名为 dsh-obsidia
     assert.doesNotMatch(locale.meta.description, /^sticky.?notes/i)
   }
 })
-
-/* ─────────────────────────────── 路径解析 ─────────────────────────────── */
 
 test('图片文件夹：缺省和留空沿用默认目录，相对仓库解析并持久化', async (t) => {
   assert.equal(DEFAULT_SETTINGS.attachmentDir, '')
@@ -291,8 +230,6 @@ test('normalizeSettings：路径首尾空白被去掉', () => {
   assert.equal(settings.notesDir, '/vault/进行时')
 })
 
-/* ──────────────────────────────── 归档目录 ──────────────────────────────── */
-
 test('normalizeSettings：归档目录去重（按解析后的绝对路径）', () => {
   const settings = normalizeSettings({
     vaultPath: '/vault',
@@ -330,8 +267,6 @@ test('normalizeSettings：归档目录缺 id 时生成唯一 id', () => {
   assert.equal(ids.every((id) => typeof id === 'string' && id.length > 0), true)
   assert.notEqual(ids[0], ids[1])
 })
-
-/* ──────────────────────────────── emoji ──────────────────────────────── */
 
 test('normalizeSettings：emoji 为空时回退到默认四枚', () => {
   assert.equal(normalizeSettings({ emojis: [] }).emojis.length, 4)
@@ -394,8 +329,6 @@ test('normalizeSettings：不修改传入的 DEFAULT_SETTINGS / 输入对象', (
   assert.equal(JSON.stringify(input), snapshot)
 })
 
-/* ───────────────────────────── projectPrompt ───────────────────────────── */
-
 test('normalizeSettings：projectPrompt 空 / 缺失 / 非字符串回退默认', () => {
   assert.equal(normalizeSettings({}).projectPrompt, DEFAULT_PROJECT_PROMPT)
   assert.equal(normalizeSettings({ projectPrompt: '' }).projectPrompt, DEFAULT_PROJECT_PROMPT)
@@ -405,239 +338,4 @@ test('normalizeSettings：projectPrompt 空 / 缺失 / 非字符串回退默认'
 
 test('normalizeSettings：自定义 projectPrompt 保留', () => {
   assert.equal(normalizeSettings({ projectPrompt: '自定义建档提示' }).projectPrompt, '自定义建档提示')
-})
-
-/* ──────────────────────────────── 文件读写 ──────────────────────────────── */
-
-test('readSettingsFile：文件不存在返回 fallback 的规范化结果', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-
-  const settings = await readSettingsFile(file)
-  assert.equal(settings.vaultPath, '')
-  assert.equal(settings.emojis.length, 4)
-  assert.equal(settings.includeSubfolders, true)
-
-  const custom = await readSettingsFile(file, { ...DEFAULT_SETTINGS, vaultPath: '/vault' })
-  assert.equal(custom.vaultPath, '/vault')
-
-  // fallback 里的 includeSubfolders:false 也保留
-  const flatFallback = await readSettingsFile(file, { ...DEFAULT_SETTINGS, includeSubfolders: false })
-  assert.equal(flatFallback.includeSubfolders, false)
-})
-
-test('readSettingsFile：JSON 损坏时回退', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-  await writeFile(file, '{ 这不是 json', 'utf8')
-  const settings = await readSettingsFile(file, { ...DEFAULT_SETTINGS, vaultPath: '/vault' })
-  assert.equal(settings.vaultPath, '/vault')
-  assert.equal(settings.emojis.length, 4)
-})
-
-test('writeSettingsFile / readSettingsFile：规范化后原子落盘并读回', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'nested', 'settings.json')
-
-  const written = await writeSettingsFile(file, {
-    vaultPath: '/vault',
-    notesDir: '进行时',
-    archiveTargets: [{ id: 'arch', label: '归档', path: '归档' }],
-  })
-  assert.equal(written.notesDir, '/vault/进行时')
-  assert.equal(written.archiveTargets[0].path, '/vault/归档')
-
-  const raw = JSON.parse(await readFile(file, 'utf8'))
-  assert.equal(raw.notesDir, '/vault/进行时')
-  assert.equal(raw.emojis.length, 4)
-
-  const read = await readSettingsFile(file)
-  assert.deepEqual(read, written)
-})
-
-test('writeSettingsFile / readSettingsFile：includeSubfolders 落盘并读回', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-
-  const written = await writeSettingsFile(file, { vaultPath: '/vault', includeSubfolders: false })
-  assert.equal(written.includeSubfolders, false)
-  const onDisk = JSON.parse(await readFile(file, 'utf8'))
-  assert.equal(onDisk.includeSubfolders, false)
-  assert.equal((await readSettingsFile(file)).includeSubfolders, false)
-})
-
-/* ─────────────────────── 旧默认预设迁移（0.12） ─────────────────────── */
-
-/** 写一个 settings.json（原始 JSON，不经过 normalizeSettings）。 */
-async function writeRawSettings(file, value) {
-  await mkdir(dirname(file), { recursive: true })
-  await writeFile(file, JSON.stringify(value, null, 2), 'utf8')
-}
-
-function legacyEmojis() {
-  return LEGACY_EMOJIS.map((item) => ({ ...item }))
-}
-
-test('readSettingsFile：旧版默认四枚（LEGACY_EMOJIS）自动迁移为 0.12 预设', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-  await writeRawSettings(file, {
-    vaultPath: '/vault',
-    notesDir: '/vault/进行时',
-    emojis: legacyEmojis(),
-  })
-
-  const settings = await readSettingsFile(file)
-  assert.deepEqual(
-    settings.emojis.map((item) => item.id),
-    ['devil', 'another', 'grounded', 'truth'],
-  )
-  assert.deepEqual(
-    settings.emojis.map((item) => item.emoji),
-    ['😈', '✨', '🧭', '😇'],
-  )
-  assert.deepEqual(
-    settings.emojis.map((item) => item.label),
-    ['毒舌', '另一面', '落地', '真心话'],
-  )
-  // 迁移只在读盘时发生在内存：原文件字节不动
-  const onDisk = JSON.parse(await readFile(file, 'utf8'))
-  assert.deepEqual(
-    onDisk.emojis.map((item) => item.id),
-    LEGACY_EMOJIS.map((item) => item.id),
-  )
-  // 下次保存（saveSettings 落盘）才写入新预设
-  await writeSettingsFile(file, settings)
-  assert.deepEqual(
-    JSON.parse(await readFile(file, 'utf8')).emojis.map((item) => item.id),
-    ['devil', 'another', 'grounded', 'truth'],
-  )
-})
-
-test('readSettingsFile：用户改过任何一项的旧预设原样保留（不迁移）', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-
-  // 只改第一项的 label
-  const labelEdited = legacyEmojis()
-  labelEdited[0] = { ...labelEdited[0], label: '我的洞察' }
-  await writeRawSettings(file, { emojis: labelEdited })
-  const first = await readSettingsFile(file)
-  assert.deepEqual(first.emojis.map((item) => item.id), LEGACY_EMOJIS.map((item) => item.id))
-  assert.equal(first.emojis[0].label, '我的洞察')
-
-  // 只改第三项的 prompt
-  const promptEdited = legacyEmojis()
-  promptEdited[2] = { ...promptEdited[2], prompt: '自定义风险提示词' }
-  await writeRawSettings(file, { emojis: promptEdited })
-  const second = await readSettingsFile(file)
-  assert.deepEqual(second.emojis.map((item) => item.id), LEGACY_EMOJIS.map((item) => item.id))
-  assert.equal(second.emojis[2].prompt, '自定义风险提示词')
-
-  // 顺序被调整过也不算"原样默认"，保留原数组
-  const reversed = legacyEmojis().reverse()
-  await writeRawSettings(file, { emojis: reversed })
-  const third = await readSettingsFile(file)
-  assert.deepEqual(
-    third.emojis.map((item) => item.id),
-    reversed.map((item) => item.id),
-  )
-})
-
-test('readSettingsFile：自定义预设原样保留', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'sticky-settings-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const file = join(dir, 'settings.json')
-  await writeRawSettings(file, {
-    emojis: [
-      { id: 'brain', emoji: '🧠', label: '脑暴', callout: 'tip', prompt: '给我灵感' },
-      { ...LEGACY_EMOJIS[0], id: 'legacy' },
-    ],
-  })
-
-  const settings = await readSettingsFile(file)
-  assert.deepEqual(settings.emojis.map((item) => item.id), ['brain', 'legacy'])
-  assert.equal(settings.emojis[0].emoji, '🧠')
-  assert.equal(settings.emojis[0].callout, 'tip')
-})
-
-test('isLegacyDefaultEmojis：逐字段严格匹配（顺序、id、emoji、label、callout、prompt）', () => {
-  assert.equal(isLegacyDefaultEmojis(legacyEmojis()), true)
-  assert.equal(isLegacyDefaultEmojis([...legacyEmojis()].reverse()), false)
-  assert.equal(isLegacyDefaultEmojis(legacyEmojis().slice(0, 3)), false)
-  assert.equal(isLegacyDefaultEmojis(null), false)
-  assert.equal(isLegacyDefaultEmojis([]), false)
-  const edited = legacyEmojis()
-  edited[1] = { ...edited[1], emoji: '🌟' }
-  assert.equal(isLegacyDefaultEmojis(edited), false)
-  const editedCallout = legacyEmojis()
-  editedCallout[1] = { ...editedCallout[1], callout: 'note' }
-  assert.equal(isLegacyDefaultEmojis(editedCallout), false)
-})
-
-test('settingsEqual：规范化后比较', () => {
-  assert.equal(settingsEqual({ vaultPath: '/v', notesDir: 'n' }, { vaultPath: '/v', notesDir: '/v/n' }), true)
-  assert.equal(settingsEqual({ vaultPath: '/v' }, { vaultPath: '/other' }), false)
-})
-
-test('v0.16 配置位置：独立于插件，支持 XDG / APPDATA 与环境变量覆盖', () => {
-  assert.equal(configHome({}, 'darwin', '/home/user'), '/home/user/.config/dsh-obsidian-memo')
-  assert.equal(configHome({ XDG_CONFIG_HOME: '/custom' }, 'linux', '/home/user'), '/custom/dsh-obsidian-memo')
-  assert.equal(configHome({ APPDATA: '/roaming' }, 'win32', '/home/user'), '/roaming/dsh-obsidian-memo')
-})
-
-test('v0.16 配置迁移：保留旧文件，优先已有新配置，记住选择的 JSON，不覆盖目标', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'memo-config-'))
-  try {
-    const legacy = join(root, 'plugin', 'data', 'settings.json')
-    const home = join(root, 'user-config')
-    const vault = join(root, 'vault')
-    await writeSettingsFile(legacy, { vaultPath: vault, notesDir: join(vault, '便签'), projectDir: join(vault, '项目') })
-    const old = await readFile(legacy, 'utf8')
-    const location = await locateConfig({ legacyPath: legacy, home, override: '' })
-    assert.equal(location.path, join(home, 'config.json'))
-    assert.equal(JSON.parse(await readFile(location.path, 'utf8')).notesDir, '便签')
-    assert.equal((await readConfigFile(location.path)).notesDir, join(vault, '便签'))
-    assert.equal(await readFile(legacy, 'utf8'), old)
-    await writeConfigFile(location.path, { vaultPath: vault, notesDir: '新便签' })
-    await locateConfig({ legacyPath: legacy, home, override: '' })
-    assert.equal((await readConfigFile(location.path)).notesDir, join(vault, '新便签'))
-    const selected = join(root, 'chosen.json')
-    await writeConfigFile(selected, { vaultPath: vault, notesDir: '已选择' }, { exclusive: true })
-    await assert.rejects(writeConfigFile(selected, {}, { exclusive: true }), { code: 'EEXIST' })
-    await rememberConfig(location, selected)
-    assert.equal((await locateConfig({ legacyPath: legacy, home, override: '' })).path, selected)
-    assert.equal((await locateConfig({ legacyPath: legacy, home, override: '/fixed.json' })).path, '/fixed.json')
-    await writeFile(selected, '[1,2]')
-    await assert.rejects(readConfigFile(selected), /JSON 对象/)
-  } finally { await rm(root, { recursive: true, force: true }) }
-})
-
-test('v0.16 文件夹历史：跨字段共享、去重、限制仓库边界并保留旧选择', () => {
-  const settings = normalizeSettings({ vaultPath: '/vault', notesDir: '/vault/notes', projectDir: 'projects',
-    archiveTargets: [{ id: 'a', path: 'archive' }], folderHistory: ['old', '/vault/notes', '../outside', '.trash'] })
-  assert.deepEqual(settings.folderHistory, ['/vault/notes', '/vault/projects', '/vault/archive', '/vault/old'])
-  const portable = portableSettings(settings)
-  assert.equal(portable.notesDir, 'notes')
-  assert.deepEqual(portable.folderHistory, ['notes', 'projects', 'archive', 'old'])
-  assert.equal(portable.archiveTargets[0].path, 'archive')
-  assert.equal(normalizeSettings(portable).projectDir, '/vault/projects')
-})
-
-test('v0.16 配置原子写入失败时清理临时文件，保留原目标', async (t) => {
-  const root = await mkdtemp(join(tmpdir(), 'memo-config-write-')), target = join(root, 'config.json')
-  t.after(() => rm(root, { recursive: true, force: true }))
-  await mkdir(target)
-  await assert.rejects(writeConfigFile(target, {}))
-  assert.deepEqual(await readdir(root), ['config.json'])
-  const pointer = join(root, 'location.json')
-  await mkdir(pointer)
-  await assert.rejects(rememberConfig({ home: root, pinned: false }, '/other/config.json'))
-  assert.deepEqual((await readdir(root)).sort(), ['config.json', 'location.json'])
 })
