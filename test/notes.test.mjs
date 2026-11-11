@@ -590,3 +590,26 @@ test('clip：短文本原样，长文本截断加省略号', () => {
   assert.equal(clip('abc', 5), 'abc')
   assert.equal(clip('abcdef', 3), 'abc…')
 })
+
+test('parseNote：展示块到达上限后仍读取尾部评论，并跳过代码和引用中的示例', () => {
+  const text = ['# 标题', '', '第二块', '', '- 第三块', '',
+    '后续正文\n\n'.repeat(300),
+    '```md', '> [!note] 不是真评论', '> 示例', '```', '',
+    '> 普通引用', '> [!note] 同样只是引用内容', '',
+    '> [!tip] 💡 尾部评论', '> 保留的评论', '',
+    '> [!warning] 第二条评论', '> 到达评论上限后不再保留', '',
+  ].join('\n')
+  const parsed = parseNote(text, { maxBlocks: 3, maxComments: 1 })
+  assert.deepEqual(parsed.blocks.map((block) => block.kind), ['h', 'p', 'li'])
+  assert.equal(parsed.title, '标题')
+  assert.equal(parsed.comments.length, 1)
+  assert.equal(parsed.comments[0].text, '保留的评论')
+  assert.equal(parsed.comments[0].emoji, '💡')
+})
+
+test('parseNote：首个文字标题在展示上限之外时仍保持原有标题语义', () => {
+  const parsed = parseNote('***\n\n```js\ncode\n```\n\n---\n\n# 较晚的标题\n\n后续正文', { maxBlocks: 1 })
+  assert.equal(parsed.title, '较晚的标题')
+  assert.equal(parsed.blocks.length, 1)
+  assert.equal(parsed.blocks[0].kind, 'hr')
+})

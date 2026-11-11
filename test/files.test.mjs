@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assertPathWithin, isHiddenVaultPath } from '../lib/files.js'
+import { assertPathWithin, isHiddenVaultPath, moveFileExclusive } from '../lib/files.js'
 import { NotesScanner } from '../lib/scan.js'
 
 test('真实路径边界：允许库内未创建的多级目录，拒绝逃逸与悬空链接', async (t) => {
@@ -33,4 +33,19 @@ test('隐藏路径判定：仓库内的 .obsidian/.trash/嵌套隐藏目录为�
   assert.equal(isHiddenVaultPath('/vault', '/vault/附件'), false)
   assert.equal(isHiddenVaultPath('/vault', '/vault'), false)
   assert.equal(isHiddenVaultPath('/vault', '/outside/.hidden'), false)
+})
+
+test('独占移动：并发争用同一目标时仅一个成功，另一源文件和目标内容均保留', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'sticky-exclusive-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const a = join(root, 'a.md'), b = join(root, 'b.md'), target = join(root, 'target.md')
+  await writeFile(a, '甲内容')
+  await writeFile(b, '乙内容')
+  const results = await Promise.allSettled([moveFileExclusive(a, target), moveFileExclusive(b, target)])
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
+  assert.equal(results.find((result) => result.status === 'rejected').reason.code, 'EEXIST')
+  const firstWon = results[0].status === 'fulfilled'
+  assert.equal(await readFile(target, 'utf8'), firstWon ? '甲内容' : '乙内容')
+  assert.equal(await readFile(firstWon ? b : a, 'utf8'), firstWon ? '乙内容' : '甲内容')
+  await assert.rejects(stat(firstWon ? a : b), { code: 'ENOENT' })
 })

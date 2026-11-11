@@ -173,10 +173,11 @@ function hookRunner(t) {
         effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose },
       })
     },
-    render(fn, options) {
+    render(fn, options, beforeEffects) {
       cursor = 0
       effects = []
       const result = fn(options)
+      beforeEffects?.(result)
       for (const effect of effects) effect()
       return result
     },
@@ -730,9 +731,11 @@ test('阅读列表：有序项目显示数字标记，无序项目保留圆点�
 test('图片处理：默认与 Host 对齐，压缩关闭时原文件直通，尺寸保持比例且不放大', async (t) => {
   const api = loadClient(t).mod.__test
   const { normalizeImageCompression, LIMITS } = await import('../lib/shared.js')
-  for (const input of [undefined, {}, { enabled: false, quality: 90, maxDimension: 4096 }, { quality: -1, maxDimension: 99999 }, { quality: '', maxDimension: null }]) {
+  for (const input of [undefined, {}, { enabled: false, quality: 90, maxDimension: 4096 }, { quality: -1, maxDimension: 99999 }, { quality: '', maxDimension: null }, { quality: true, maxDimension: [] }, { quality: '  ', maxDimension: '4096' }]) {
     assert.deepEqual(api.readImageCompression(input), normalizeImageCompression(input))
   }
+  assert.equal(api.readImageCompression({ quality: true }).quality, 70)
+  assert.equal(api.readImageCompression({ maxDimension: [] }).maxDimension, 2048)
   assert.equal(api.CAPTURE_IMAGES, LIMITS.captureImages)
   assert.equal(api.CAPTURE_IMAGE_BYTES, LIMITS.captureImageBytes)
   assert.equal(api.CAPTURE_TOTAL_BYTES, LIMITS.captureTotalBytes)
@@ -950,6 +953,26 @@ test('面板 hook：组合数据、抽屉与设置职责后可以挂载和卸载
   assert.equal(panel.props.className, 'SN_panel')
 })
 
+test('v0.16 顶栏子文件夹开关：保存携带当前配置版本，成功后继续刷新', async (t) => {
+  const runner = hookRunner(t), calls = []
+  const settings = { vaultPath: '/vault', notesDir: '/vault/notes', emojis: [], includeSubfolders: true, configFile: { revision: 'opened-config' } }
+  runner.connect(async (channel, endpoint, payload) => {
+    calls.push({ endpoint, payload })
+    if (endpoint === 'saveSettings') return { ok: true, value: { settings: { ...payload.settings, configFile: { revision: 'saved-config' } } } }
+    return { ok: true, value: { configured: true, revision: 'state-version', settings, notes: [], jobs: [] } }
+  })
+  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
+  render(); await flush()
+  let nodes = render()
+  const toggle = nodes.find((node) => node.props['aria-label'] === 'panel.subfolders')
+  assert.equal(toggle.props.disabled, false)
+  toggle.props.onClick(); await flush()
+  const saved = calls.find((call) => call.endpoint === 'saveSettings')
+  assert.equal(saved.payload.expected, 'opened-config')
+  assert.equal(saved.payload.settings.includeSubfolders, false)
+  assert.ok(calls.filter((call) => call.endpoint === 'state').length >= 2)
+})
+
 test('拖拽放手：空白处接收内部拖放并立即回落，不等待原生 dragend，不拦截外部文件', async (t) => {
   const runner = hookRunner(t), listeners = new Map(), animation = deferred()
   const previousDocument = globalThis.document
@@ -1153,8 +1176,6 @@ function getTestApi(mod) {
     'replaceNoteAtPath',
     'cardImages',
     'drawerWidthBounds',
-    'DRAWER_ACTIONS_NARROW_WIDTH',
-    'drawerActionsNarrow',
     'nextPollDelay',
     'WALL_PAGE_SIZE',
     'nextVisibleCount',
@@ -1214,10 +1235,13 @@ test('版本仅从 Host 下发，locale 与浏览器代码无需手动同步版�
   }
 })
 
-test('client 源码：byline 为 by caven v<state.version> 且只在顶栏（宽松静态检查）', () => {
+test('client 源码：顶栏只显示版本，项目署名归入共享设置页', () => {
   // v0.13：BYLINE 常量已删除，版本从 Host 的 state.version 派生（旧 Host 才回退 APP_VERSION）。
   assert.doesNotMatch(CLIENT_SOURCE, /\bBYLINE\b/, 'BYLINE 常量应已删除（版本改由 state.version 派生）')
-  assert.match(CLIENT_SOURCE, /by caven v/, 'byline 文案应为小写 v 的 by caven v<version>')
+  assert.match(CLIENT_SOURCE, /SN_headByline' }, formatVersionLabel/, '顶栏只显示实际版本')
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_headByline'[^\n]*by caven/)
+  assert.match(CLIENT_SOURCE, /SN_drawerSection SN_about/)
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_settingsCredit/)
   assert.doesNotMatch(CLIENT_SOURCE, /by caven V/, '旧文案 by caven V0.12 不应保留')
   // 只检查代码里的字符串字面量（注释里可以出现版本说明）；写死版本会被这条拦住
   assert.doesNotMatch(CLIENT_SOURCE, /['"]by caven v\d/, 'byline 不应写死版本号，应由 state.version 派生')
@@ -2050,35 +2074,37 @@ test('client 组件 / 0.13.9：NoteCard 无正文时不渲染摘要行，有正�
   assert.ok(filled.texts.includes('一段正文'))
 })
 
-test('client 源码 / 0.13.9：「在 Obsidian 打开」是紫色高亮，右侧抽屉操作条可换行（归档/开档在上、它在下）', () => {
-  // 紫色：文字与 hover 都使用统一的 --sn-accent（暗色主题自动换成 #A78BFA）。
-  assert.match(CLIENT_SOURCE, /\.SN_obsidianBtn\{[^}]*color:var\(--sn-accent\)/, '按钮文字应为紫色高亮')
-  assert.match(
-    CLIENT_SOURCE,
-    /\.SN_obsidianBtn:hover:not\(:disabled\)\{[^}]*color:var\(--sn-accent\)/,
-    'hover 也应保持紫色',
-  )
-  // 空间不足时允许换行：右组 flex-wrap + 右对齐，Obsidian 按钮自然落到下一行。
-  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\{[^}]*flex-wrap:wrap/, '右侧操作组应允许换行')
-  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\{[^}]*justify-content:flex-end/, '换行后仍靠右')
-  // 抽屉窄时右侧组改竖排：归档/开档一组在上，Obsidian 按钮在下一行、靠右。
-  assert.match(CLIENT_SOURCE, /'data-narrow': actionsNarrow \? 'true' : 'false'/, '右侧组应带窄布局标记')
-  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\[data-narrow='true'\]\{[^}]*flex-direction:column/, '窄布局应竖排')
-  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\[data-narrow='true'\] \.SN_drawerActionPair\{[^}]*justify-content:flex-end/, '归档/开档组靠右')
-  assert.match(CLIENT_SOURCE, /actionsNarrow: drawerActionsNarrowFlag/, '面板应把窄布局标记传给抽屉')
-})
-
-test('client __test：0.13.9 抽屉操作条窄布局阈值（「在 Obsidian 打开」换行）', (t) => {
-  const api = getTestApi(loadClient(t).mod)
-  assert.equal(api.DRAWER_ACTIONS_NARROW_WIDTH, 430)
-  assert.equal(api.drawerActionsNarrow(320), true, '320px 窄面板应换行')
-  assert.equal(api.drawerActionsNarrow(429), true)
-  assert.equal(api.drawerActionsNarrow(430), false, '达到阈值按宽布局')
-  assert.equal(api.drawerActionsNarrow(620), false)
-  // 宽度未知 / 非法 → 不换行（首帧 panelWidth=0 时不闪）
-  for (const bad of [0, -1, undefined, null, NaN, Infinity, '400']) {
-    assert.equal(api.drawerActionsNarrow(bad), false, `drawerActionsNarrow(${String(bad)}) 应为 false`)
+test('v0.16 右侧操作：四个线图标依序同排，紫色 Obsidian 文字按钮独占下一行', (t) => {
+  const api = loadClient(t).mod.__test, calls = []
+  const drawerActions = { emojis: [], onToggleArchive: () => calls.push('archive'), onProject: () => calls.push('project'),
+    onCopy: () => calls.push('copy'), onOpenObsidian: () => calls.push('obsidian'), onDelete: () => calls.push('delete') }
+  const props = { t: (key) => key, drawer: { full: { title: '便签', blocks: [] } }, drawerActions }
+  let nodes = captureNodes(api.components.NoteDrawer(props))
+  const buttons = captureNodes(nodes.find((node) => node.props.className === 'SN_drawerActionTop')).filter((node) => node.type === 'button')
+  assert.deepEqual(buttons.map((node) => node.props['aria-label']), ['card.archive', 'card.project', 'card.delete', 'drawer.copy'])
+  assert.deepEqual(buttons.map((node) => node.children[0].props.kind), ['archive', 'project', 'delete', 'copy'])
+  for (const button of buttons) {
+    assert.equal(button.children[0].props.size, 15)
+    assert.equal(button.children[1].props.className, 'SN_aiLabel')
+    assert.equal(button.children[1].props['aria-hidden'], 'true')
+    assert.deepEqual(button.children[1].children, [button.props['aria-label']])
+    assert.equal(button.props.title, undefined)
+    button.props.onClick()
   }
+  const obsidian = nodes.find((node) => node.props.className === 'SN_mini SN_obsidianBtn')
+  assert.ok(obsidian.children[0].type.name.includes('ObsidianIcon'))
+  assert.equal(obsidian.children[1].props.className, 'SN_obsidianText')
+  assert.deepEqual(obsidian.children[1].children, ['card.obsidian'])
+  obsidian.props.onClick()
+  assert.deepEqual(calls, ['archive', 'project', 'delete', 'copy', 'obsidian'])
+  assert.ok(buttons[2].props.className.includes('SN_drawerDeleteBtn'))
+  assert.equal(buttons[0].props['aria-haspopup'], 'menu')
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionRight\{[^}]*flex-direction:column;align-items:flex-end/)
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionTop\{[^}]*flex-wrap:nowrap/)
+  assert.match(CLIENT_SOURCE, /\.SN_drawerActionBtn:hover:not\(:disabled\) \.SN_aiLabel[^}]*opacity:1/)
+  nodes = captureNodes(api.components.NoteDrawer({ ...props, drawerActions: { ...drawerActions, pending: {} } }))
+  const pendingButtons = captureNodes(nodes.find((node) => node.props.className === 'SN_drawerActionTop')).filter((node) => node.type === 'button')
+  assert.deepEqual(pendingButtons.map((node) => Boolean(node.props.disabled)), [true, true, true, false])
 })
 
 test('client 源码 / 0.13.9：锁定按钮改成图钉图标', () => {
@@ -2186,4 +2212,428 @@ test('client 源码：菜单出现就隐藏图片预览，旧 emoji 蒙版逻辑
   )
   // 触屏兜底规则已删除：菜单可见性统一由 data-visible 决定
   assert.doesNotMatch(CLIENT_SOURCE, /@media \(hover:none\)\{\.SN_cardActions/, '触屏也不能强制显示卡片底部菜单')
+})
+
+test('v0.16 设置：四分类与横向 Emoji 标签切换，末尾加号不随列表滚动', (t) => {
+  const runner = hookRunner(t)
+  const draft = { vaultPath: '/vault', notesDir: '/vault/notes', emojis: [
+    { id: 'one', emoji: '😈', label: '甲', prompt: '第一份' }, { id: 'two', emoji: '✨', label: '乙', prompt: '第二份' },
+  ] }
+  const props = { t: (key) => key, draft, picking: null, initialTab: 'ai' }
+  let nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, props))
+  assert.equal(nodes.filter((node) => node.props.className === 'SN_settingsTab').length, 4)
+  assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'folders').props.hidden, true)
+  assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'ai').props.hidden, false)
+  let groups = nodes.filter((node) => node.props.className === 'SN_emojiGroup')
+  assert.deepEqual(groups.map((node) => node.props.hidden), [false, true])
+  nodes.find((node) => node.props.role === 'tab' && node.props['aria-label'] === '乙').props.onClick()
+  nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, props))
+  groups = nodes.filter((node) => node.props.className === 'SN_emojiGroup')
+  assert.deepEqual(groups.map((node) => node.props.hidden), [true, false])
+  assert.equal(nodes.filter((node) => node.props.className === 'SN_emojiTab SN_emojiAdd').length, 1)
+  nodes.find((node) => node.props.className === 'SN_settingsTab' && node.children.includes('settings.tab.config')).props.onClick()
+  nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, props))
+  assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'config').props.hidden, false)
+  assert.equal(nodes.some((node) => node.type === runner.api.components.TrashSettings), true)
+})
+
+test('v0.16 路径：仓库相对路径严格匹配边界，多个字段复用同一选择器', (t) => {
+  const api = loadClient(t).mod.__test
+  assert.equal(api.vaultRelative('/vault', '/vault/folder'), 'folder')
+  assert.equal(api.vaultRelative('/vault', '/vault-other/folder'), '/vault-other/folder')
+  assert.equal(api.vaultRelative('/vault/', '/vault'), '.')
+  const patches = []
+  const nodes = captureNodes(api.components.SettingsPathField({ t: (key) => key, label: '便签', field: 'notesDir',
+    vaultPath: '/vault', value: '/vault/notes', picking: null, onPatch: (patch) => patches.push(patch) }))
+  const shared = nodes.find((node) => node.type === api.components.VaultFolderPicker)
+  assert.ok(shared)
+  shared.props.onChange('新的文件夹')
+  assert.deepEqual(patches, [{ notesDir: '新的文件夹' }])
+})
+
+test('v0.16 目录下拉：新建位于首项，系统选择随后，历史跨字段可选', async (t) => {
+  const runner = hookRunner(t), calls = [], chosen = [], creation = deferred()
+  const previous = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  const props = { t: (key) => key, label: '便签', value: '/vault/notes', vaultPath: '/vault', history: ['/vault/old'],
+    onChange: (path) => chosen.push(path), onPick: async () => '/vault/picked',
+    request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return endpoint === 'listFolders' ? { folders: ['notes', 'old'] } : creation.promise } }
+  const render = () => captureNodes(runner.render(runner.api.components.VaultFolderPicker, props))
+  let nodes = render()
+  nodes.find((node) => node.props.className === 'SN_folderTrigger').props.onClick()
+  render(); await flush(); nodes = render()
+  assert.equal(calls[0].endpoint, 'listFolders')
+  const menu = nodes.filter((node) => node.props.className === 'SN_folderOption')
+  assert.ok(menu[0].children.includes('settings.newFolder'))
+  assert.ok(menu[1].children.includes('settings.browseFolder'))
+  menu[0].props.onClick(); nodes = render()
+  nodes.find((node) => node.props['aria-label'] === 'settings.folderName').props.onChange({ target: { value: 'new' } })
+  nodes = render()
+  assert.ok(nodes.some((node) => node.children.includes('settings.newFolderHint')))
+  assert.ok(nodes.some((node) => node.type === 'code' && node.children.includes('settings.createAt: /vault/new')))
+  nodes.find((node) => node.type === 'form').props.onSubmit({ preventDefault() {} })
+  nodes = render()
+  assert.ok(nodes.find((node) => node.type === 'button' && node.props.type === 'submit').children.includes('settings.creatingFolder'))
+  assert.equal(nodes.find((node) => node.props['aria-label'] === 'settings.folderName').props.disabled, true)
+  creation.resolve({ path: '/vault/new' })
+  await flush(); nodes = render()
+  assert.deepEqual(calls[1], { endpoint: 'createFolder', payload: { vaultPath: '/vault', path: 'new' } })
+  assert.deepEqual(chosen, ['/vault/new'])
+  assert.equal(nodes.find((node) => node.props.className === 'SN_folderTrigger').props['aria-expanded'], false)
+  assert.ok(nodes.find((node) => node.props.className === 'SN_fieldHint SN_folderCreated').children.includes('settings.folderCreated'))
+})
+
+test('v0.16 归档设置：一个外框中仅有文件夹菜单与删除按钮', (t) => {
+  const api = loadClient(t).mod.__test, removed = []
+  const nodes = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft: { vaultPath: '/vault',
+    emojis: [], archiveTargets: [{ id: 'archive', path: '/vault/archive', label: '重复名称' }] }, picking: null, onRemoveArchive: (index) => removed.push(index) }))
+  const row = nodes.find((node) => node.props.className === 'SN_targetRow')
+  assert.deepEqual(row.children.map((node) => node.type), [api.components.VaultFolderPicker, 'button'])
+  assert.equal(captureNodes(row).some((node) => node.props.className === 'SN_targetLabel'), false)
+  row.children[1].props.onClick()
+  assert.deepEqual(removed, [0])
+  assert.equal(nodes.find((node) => node.type === api.components.VaultFolderPicker && node.props.value === '').props.placeholder, 'settings.addArchive')
+})
+
+test('v0.16 卡片标签：不占标题行，仅随菜单激活显示在右上角', (t) => {
+  const api = loadClient(t).mod.__test
+  const note = { path: '/vault/note.md', title: '这是一个很长的标题，显示时不应被文件夹标签挤窄', tag: '一个长度较长的文件夹名称/用于/验证叠加显示', comments: [] }
+  const actions = { current: { t: (key) => key } }
+  const card = api.components.NoteCard({ note, emojis: [], actions, hoverActive: false })
+  let nodes = captureNodes(card)
+  const tag = nodes.find((node) => node.props.className === 'SN_cardTag')
+  const head = nodes.find((node) => node.props.className === 'SN_cardHead')
+  assert.equal(card.props['data-menu'], 'false')
+  assert.equal(tag.children[0], note.tag)
+  assert.deepEqual(head.children.map((node) => node.type), ['h3'])
+  assert.match(CLIENT_SOURCE, /\.SN_card\[data-menu='true'\] \.SN_cardTagLayer\{opacity:1/)
+  const active = api.components.NoteCard({ note, emojis: [], actions, hoverActive: true })
+  assert.equal(active.props['data-menu'], 'true')
+  const layer = nodes.find((node) => node.props.className === 'SN_cardTagLayer')
+  assert.deepEqual(layer.children, [tag])
+  assert.match(CLIENT_SOURCE, /\.SN_cardTagLayer\{[^}]*background:linear-gradient\(to bottom,[^}]*var\(--sn-note-bg\)/)
+  assert.match(CLIENT_SOURCE, /\.SN_cardTag,\.SN_noteDrawerTag\{[^}]*color:var\(--sn-tag-ink\);background:var\(--sn-note-bg\)/)
+  assert.doesNotMatch(CLIENT_SOURCE, /cursor:grabb?ing|cursor:grab[;}]/)
+  assert.match(CLIENT_SOURCE, /\.SN_card\{[^}]*cursor:default/)
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card(?:\[[^\]]*\])?\{[^}]*cursor:pointer/)
+})
+
+test('v0.16 Config：打开与加载为主操作，更多菜单含三个次要操作', async (t) => {
+  const runner = hookRunner(t), calls = [], accepted = []
+  const props = { t: (key) => key, config: { path: '/active/config.json' },
+    request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return endpoint === 'chooseConfigFile'
+      ? { path: '/other/chosen.json' } : { settings: { configFile: { path: payload.path } } } },
+    onSettings: (settings, action) => accepted.push(action) }
+  const render = () => captureNodes(runner.render(runner.api.components.ConfigFileSettings, props))
+  let nodes = render()
+  const primary = nodes.filter((node) => node.type === 'button')
+  assert.deepEqual(primary.map((node) => node.children[0]), ['settings.openConfig', 'settings.loadConfig'])
+  assert.equal(nodes.some((node) => node.type === 'input'), false)
+  const menu = () => nodes.find((node) => node.props['aria-label'] === 'settings.configActions')
+  assert.deepEqual(menu().children.filter((node) => node.type === 'option').map((node) => node.props.value), ['', 'openFile', 'reload', 'relocate'])
+  primary[0].props.onClick(); await flush()
+  assert.deepEqual(calls[0], { endpoint: 'configFile', payload: { action: 'reveal', path: '' } })
+  assert.equal(menu().props.className, primary[0].props.className)
+  primary[1].props.onClick(); nodes = render()
+  assert.deepEqual(calls[1], { endpoint: 'chooseConfigFile', payload: {} })
+  assert.equal(nodes.some((node) => node.type === 'input'), false)
+  assert.equal(nodes.find((node) => node.children.includes('settings.loadConfig')).props.disabled, true)
+  await flush(); nodes = render()
+  assert.deepEqual(calls[2], { endpoint: 'configFile', payload: { action: 'load', path: '/other/chosen.json' } })
+  assert.deepEqual(accepted, ['reveal', 'load'])
+  assert.equal(nodes.some((node) => node.type === 'input'), false)
+  menu().props.onChange({ target: { value: 'relocate' } }); nodes = render()
+  assert.ok(nodes.some((node) => node.children.includes('settings.configCopyHint')))
+  nodes.find((node) => node.props['aria-label'] === 'settings.configPath').props.onChange({ target: { value: '/new/config.json' } })
+  nodes = render(); nodes.find((node) => node.props.className === 'SN_primaryBtn').props.onClick()
+  await flush(); nodes = render()
+  assert.deepEqual(calls.at(-1), { endpoint: 'configFile', payload: { action: 'relocate', path: '/new/config.json' } })
+  menu().props.onChange({ target: { value: 'openFile' } }); await flush(); nodes = render()
+  assert.deepEqual(calls.at(-1), { endpoint: 'configFile', payload: { action: 'open', path: '' } })
+  menu().props.onChange({ target: { value: 'reload' } }); await flush(); nodes = render()
+  assert.equal(calls.at(-1).payload.action, 'reload')
+  const pinned = captureNodes(runner.render(runner.api.components.ConfigFileSettings, { ...props, config: { ...props.config, pinned: true } }))
+  assert.equal(pinned.find((node) => node.children.includes('settings.loadConfig')).props.disabled, true)
+  assert.deepEqual(pinned.find((node) => node.props['aria-label'] === 'settings.configActions')
+    .children.filter((node) => node && node.type === 'option').map((node) => node.props.value), ['', 'openFile', 'reload'])
+})
+
+test('v0.16 阅读标签沿用便签纸色，双击提示仅复用空正文占位', (t) => {
+  const api = loadClient(t).mod.__test
+  let edits = 0
+  const note = { title: '标题', tag: '想法', color: '#F5F9F4', darkColor: '#232B24', blocks: [] }
+  const props = { t: (key) => key, drawer: { summary: note, full: note }, onStartEdit: () => edits++ }
+  let nodes = captureNodes(api.components.NoteDrawer(props))
+  const meta = nodes.find((node) => node.props.className === 'SN_noteDrawerMeta')
+  assert.deepEqual(captureNodes(meta).filter((node) => node.type === 'span').map((node) => node.children[0]), ['想法'])
+  assert.equal(nodes.find((node) => node.props.className === 'SN_noteDrawerTag').props.title, '想法')
+  assert.equal(nodes.find((node) => node.type === 'aside').props.style['--sn-card-bg-dark'], note.darkColor)
+  assert.equal(nodes.find((node) => node.props.className === 'SN_noteViewEmpty').children[0], 'drawer.editHint')
+  nodes.find((node) => node.props.className === 'SN_noteDrawerBody').props.onDoubleClick({ target: { closest: () => null } })
+  assert.equal(edits, 1)
+  for (const drawer of [
+    { full: { ...note, blocks: [{ kind: 'p', text: '正文' }] } },
+    { full: { ...note, blocks: [{ kind: 'image', src: 'image.png' }] } },
+    { summary: note, loading: true },
+    { summary: note, error: '读取失败' },
+  ]) {
+    nodes = captureNodes(api.components.NoteDrawer({ ...props, drawer }))
+    assert.equal(nodes.some((node) => node.children.includes('drawer.editHint')), false)
+  }
+  nodes = captureNodes(api.components.NoteDrawer({ ...props, editing: true }))
+  assert.equal(nodes.some((node) => node.children.includes('drawer.editHint')), false)
+  assert.ok(nodes.find((node) => node.props.className === 'SN_noteEditHint').children.includes('drawer.shortcutHint'))
+})
+
+test('v0.16 右侧复制与删除复用卡片行为：复制完整正文，删除关闭面板且可撤回', async (t) => {
+  const runner = hookRunner(t), requests = [], copied = []
+  const previousDocument = globalThis.document, navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  globalThis.window.addEventListener = () => {}
+  globalThis.window.removeEventListener = () => {}
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async (text) => copied.push(text) } } })
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument
+    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator
+  })
+  const note = { path: '/full-note.md', name: '完整便签', title: '完整便签', excerpt: '截断摘要', comments: [], images: [], created: Date.now() }
+  let notes = [note]
+  const body = '# 完整标题\n\n第一段\n\n- [ ] 正文末尾也需要复制'
+  runner.connect(async (channel, endpoint, payload) => {
+    requests.push({ endpoint, payload })
+    if (endpoint === 'state') return { ok: true, value: { configured: true, notes, revision: String(notes.length), jobs: [], settings: { emojis: [], archiveTargets: [] } } }
+    if (endpoint === 'note') return { ok: true, value: { ...note, body, blocks: [{ kind: 'p', text: body }] } }
+    if (endpoint === 'deleteNote') {
+      notes = []
+      return { ok: true, value: { undoToken: 'drawer-undo', expiresAt: Date.now() + 5000 } }
+    }
+    if (endpoint === 'undoDelete') { notes = [note]; return { ok: true, value: {} } }
+    assert.fail('Unexpected endpoint ' + endpoint)
+  })
+  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
+  render(); await flush()
+  render().find((node) => node.type === runner.api.components.NoteCard).props.actions.current.onOpen(note)
+  await flush()
+  const drawer = render().find((node) => node.type === runner.api.components.NoteDrawer)
+  assert.ok(drawer)
+  await drawer.props.drawerActions.onCopy()
+  assert.deepEqual(copied, [note.title + '\n' + body])
+  await drawer.props.drawerActions.onDelete(); await flush()
+  let nodes = render()
+  assert.equal(nodes.some((node) => node.type === runner.api.components.NoteDrawer), false)
+  assert.equal(nodes.some((node) => node.type === runner.api.components.NoteCard), false)
+  assert.equal(requests.filter((request) => request.endpoint === 'deleteNote').length, 1)
+  const toast = nodes.find((node) => node.type === runner.api.components.ToastStack).props.toasts.find((toast) => toast.action?.label === 'toast.deleteUndo')
+  assert.ok(toast)
+  await toast.action.run(); await flush(); nodes = render()
+  assert.ok(requests.some((request) => request.endpoint === 'undoDelete' && request.payload.undoToken === 'drawer-undo'))
+  assert.equal(nodes.filter((node) => node.type === runner.api.components.NoteCard).length, 1)
+})
+
+test('v0.16 管理与关于：共享设置页包含 GitHub 与作者信息', (t) => {
+  const api = loadClient(t).mod.__test
+  const nodes = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft: { emojis: [] }, initialTab: 'config' }))
+  const page = nodes.find((node) => node.props['data-settings-tab'] === 'config')
+  const about = captureNodes(page).find((node) => node.props.className === 'SN_drawerSection SN_about')
+  const link = captureNodes(about).find((node) => node.type === 'a')
+  assert.equal(link.props.href, PACKAGE_JSON.repository.url.replace(/^git\+|\.git$/g, ''))
+  assert.equal(link.props.rel, 'noopener noreferrer')
+  assert.equal(api.dictionaries.zh['settings.tab.config'], '管理与关于')
+  assert.deepEqual(link.children, ['GitHub'])
+  assert.equal(api.dictionaries.zh['settings.author'], 'by ' + PACKAGE_JSON.author)
+  assert.deepEqual(about.children.map((node) => node.type), ['a', 'p'])
+  assert.match(CLIENT_SOURCE, /\.SN_configActions>select\{appearance:none;-webkit-appearance:none;background-image:none/)
+})
+
+test('v0.16 加载配置：取消选择不加载，失败保留设置并允许重试', async (t) => {
+  const runner = hookRunner(t), calls = [], accepted = []
+  let selected = null, fail = false
+  const props = { t: (key) => key, config: { path: '/original/config.json' }, onSettings: (settings) => accepted.push(settings),
+    request: async (endpoint, payload) => {
+      calls.push({ endpoint, payload })
+      if (endpoint === 'chooseConfigFile') return { path: selected }
+      if (fail) throw new Error('无效的 JSON')
+      return { settings: { configFile: { path: selected } } }
+    } }
+  const render = () => captureNodes(runner.render(runner.api.components.ConfigFileSettings, props))
+  const load = (nodes) => nodes.find((node) => node.type === 'button' && node.children.includes('settings.loadConfig'))
+  load(render()).props.onClick(); await flush()
+  assert.equal(calls.length, 1)
+  assert.equal(accepted.length, 0)
+  assert.equal(load(render()).props.disabled, undefined)
+  selected = '/other/config.json'; fail = true
+  load(render()).props.onClick(); await flush()
+  assert.equal(accepted.length, 0)
+  assert.ok(render().find((node) => node.props.role === 'alert').children.includes('无效的 JSON'))
+  fail = false
+  load(render()).props.onClick(); await flush()
+  assert.equal(accepted.length, 1)
+  assert.equal(render().some((node) => node.props.role === 'alert'), false)
+})
+
+test('v0.16 回收站：入口与确认均使用红色边框按钮，确认后才转移', async (t) => {
+  const runner = hookRunner(t), calls = []
+  const props = { t: (key) => key, request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return { moved: 1 } } }
+  const render = () => captureNodes(runner.render(runner.api.components.TrashSettings, props))
+  let nodes = render()
+  nodes.find((node) => node.props.className === 'SN_ghostBtn SN_dangerBtn').props.onClick()
+  nodes = render()
+  const danger = nodes.filter((node) => node.props.className === 'SN_ghostBtn SN_dangerBtn')
+  assert.equal(danger.length, 2)
+  assert.equal(calls.length, 0)
+  danger[1].props.onClick(); await flush(); nodes = render()
+  assert.deepEqual(calls, [{ endpoint: 'trash', payload: { action: 'empty', confirm: true } }])
+  assert.equal(nodes.some((node) => node.props.className === 'SN_trashConfirm'), false)
+})
+
+test('v0.16 设置草稿：切换仓库保留相对文件夹，保存使用打开时的配置版本', async (t) => {
+  const runner = hookRunner(t), calls = []
+  const settings = { vaultPath: '/old', notesDir: '/old/notes', projectDir: '/old/projects',
+    archiveTargets: [{ id: 'a', path: '/old/archive' }], emojis: [{ id: 'a', emoji: '🙂' }], configFile: { path: '/config.json', revision: 'original' } }
+  const options = { t: (key) => key, tRef: { current: (key) => key }, viewRef: { current: { settings } },
+    updateView() {}, request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return { settings: payload.settings } },
+    refreshNow: async () => {}, aliveRef: { current: true }, panelRef: { current: null }, pushToast() {}, pushErrorToast() {}, onOpen() {} }
+  let controls = runner.render(runner.api.hooks.useSettingsDraft, options)
+  controls.openSettings(); controls = runner.render(runner.api.hooks.useSettingsDraft, options)
+  controls.patchDraft({ vaultPath: '/new' }); controls = runner.render(runner.api.hooks.useSettingsDraft, options)
+  assert.equal(controls.settingsDraft.notesDir, 'notes')
+  assert.equal(controls.settingsDraft.projectDir, 'projects')
+  assert.equal(controls.settingsDraft.archiveTargets[0].path, 'archive')
+  controls.saveSettingsDraft(); await flush()
+  assert.equal(calls[0].payload.expected, 'original')
+})
+
+test('v0.16 官方设置：注册 Plugins 页标签，顶栏无手动刷新按钮', (t) => {
+  const { mod } = loadClient(t), registrations = []
+  mod.apply({ connection: {}, locale: { register() {}, bind: () => (key) => key },
+    slots: { inject(name, fn) { fn() }, register(options, component) { registrations.push({ options, component }); return () => {} } },
+    effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose } })
+  const page = registrations.find((entry) => entry.options.name === 'settings.plugins.tab')
+  assert.equal(page.options.id, 'sticky-notes')
+  assert.equal(page.component, mod.__test.components.OfficialSettingsPage)
+  const nodes = captureNodes(mod.__test.components.StickyNotesPanel({ t: (key) => key }))
+  assert.equal(nodes.some((node) => node.props['aria-label'] === 'panel.refresh'), false)
+})
+
+test('v0.16 官方设置只轮询配置，不请求便签墙数据', async (t) => {
+  const runner = hookRunner(t), calls = []
+  runner.connect(async (channel, endpoint) => {
+    calls.push(endpoint)
+    return { ok: true, value: { configured: true, settings: { vaultPath: '/vault', emojis: [] }, revision: 'settings-only' } }
+  })
+  runner.render(runner.api.components.OfficialSettingsPage)
+  await flush()
+  runner.render(runner.api.components.OfficialSettingsPage)
+  const page = runner.render(runner.api.components.OfficialSettingsPage)
+  assert.deepEqual(calls, ['settings'])
+  assert.ok(captureNodes(page).some((node) => node.type === runner.api.components.SettingsDrawer))
+})
+
+test('v0.16 设置会话：关闭重开后旧选择结果与旧配置回调不能污染新草稿', async (t) => {
+  const runner = hookRunner(t), picked = deferred(), updates = []
+  const options = {
+    t: (key) => key, tRef: { current: (key) => key }, viewRef: { current: { settings: { vaultPath: '/old', notesDir: '/old/notes', emojis: [] } } },
+    updateView: (next) => updates.push(next), request: () => picked.promise, refreshNow: async () => {},
+    aliveRef: { current: true }, panelRef: { current: null }, pushToast() {}, pushErrorToast() {}, onOpen() {},
+  }
+  const render = () => runner.render(runner.api.hooks.useSettingsDraft, options)
+  let controls = render()
+  controls.openSettings(); controls = render()
+  const oldConfigCallback = controls.acceptConfigSettings
+  const pending = controls.systemPick('notesDir')
+  controls.closeSettings(); controls = render()
+  options.viewRef.current.settings = { vaultPath: '/new', notesDir: '/new/notes', emojis: [] }
+  controls.openSettings(); controls = render()
+  picked.resolve({ path: '/old/picked' })
+  assert.equal(await pending, null)
+  oldConfigCallback({ vaultPath: '/stale', emojis: [] }, 'reload')
+  controls = render()
+  assert.equal(controls.settingsDraft.vaultPath, '/new')
+  assert.equal(controls.settingsDraft.notesDir, '/new/notes')
+  assert.equal(updates.length, 0)
+})
+
+test('v0.16 目录新建：切换仓库后忽略旧结果并恢复可操作状态', async (t) => {
+  const runner = hookRunner(t), creation = deferred(), chosen = []
+  const previous = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  let props = { t: (key) => key, label: '便签', vaultPath: '/old', history: [], onChange: (path) => chosen.push(path),
+    request: (endpoint) => endpoint === 'listFolders' ? Promise.resolve({ folders: [] }) : creation.promise }
+  const render = () => captureNodes(runner.render(runner.api.components.VaultFolderPicker, props))
+  let nodes = render()
+  nodes.find((node) => node.props.className === 'SN_folderTrigger').props.onClick()
+  render(); await flush(); nodes = render()
+  nodes.find((node) => node.props.className === 'SN_folderOption').props.onClick(); nodes = render()
+  nodes.find((node) => node.props['aria-label'] === 'settings.folderName').props.onChange({ target: { value: 'child' } })
+  nodes = render(); nodes.find((node) => node.type === 'form').props.onSubmit({ preventDefault() {} })
+  props = { ...props, vaultPath: '/new' }; render()
+  creation.resolve({ path: '/old/child' }); await flush(); nodes = render()
+  assert.deepEqual(chosen, [])
+  const trigger = nodes.find((node) => node.props.className === 'SN_folderTrigger')
+  assert.equal(trigger.props['aria-expanded'], false)
+  trigger.props.onClick(); render(); await flush(); nodes = render()
+  assert.equal(nodes.find((node) => node.props.className === 'SN_folderOption').props.disabled, false)
+})
+
+test('v0.16 输入岛停用时释放附件对象 URL，重新启用仍保留文字草稿', (t) => {
+  const runner = hookRunner(t), revoked = []
+  t.mock.method(URL, 'createObjectURL', () => 'blob:memo-image')
+  t.mock.method(URL, 'revokeObjectURL', (url) => revoked.push(url))
+  const props = { enabled: true, t: (key) => key, onError() {} }
+  let nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '文字草稿' } })
+  nodes.find((node) => node.props.type === 'file').props.onChange({ target: { files: [{ type: 'image/png', size: 1 }], value: 'image.png' } })
+  nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  assert.ok(nodes.some((node) => node.props.className === 'SN_captureThumb'))
+  runner.render(runner.api.components.CaptureComposer, { ...props, enabled: false })
+  assert.deepEqual(revoked, ['blob:memo-image'])
+  nodes = captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  assert.equal(nodes.some((node) => node.props.className === 'SN_captureThumb'), false)
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').props.value, '文字草稿')
+})
+
+test('v0.16 阅读图片按视口懒加载，并与卡片共用最多三个并发请求', async (t) => {
+  const runner = hookRunner(t), observers = [], requests = [], root = {}
+  const previous = globalThis.IntersectionObserver
+  globalThis.IntersectionObserver = class {
+    constructor(callback, options) { this.callback = callback; this.options = options; observers.push(this) }
+    observe() {}
+    disconnect() {}
+  }
+  t.after(() => { if (previous === undefined) delete globalThis.IntersectionObserver; else globalThis.IntersectionObserver = previous })
+  runner.connect((channel, endpoint, payload) => {
+    const pending = deferred(); requests.push({ endpoint, payload, ...pending }); return pending.promise
+  })
+  const render = () => runner.render(() => Array.from({ length: 5 }, (_, i) => runner.api.components.NoteImage({ path: '/note.md', source: `${i}.png` })), undefined,
+    (nodes) => nodes.forEach((node) => { node.props.ref.current = { closest: () => root } }))
+  render(); await flush()
+  assert.equal(requests.length, 0)
+  assert.equal(observers.length, 5)
+  assert.ok(observers.every((observer) => observer.options.root === root))
+  for (const observer of observers) observer.callback([{ isIntersecting: true }])
+  await flush()
+  assert.equal(requests.length, 3)
+  assert.ok(requests.every((item) => item.endpoint === 'readImage' && item.payload.maxBytes === undefined))
+  requests[0].resolve({ ok: true, value: { dataUrl: 'data:image/png;base64,first' } }); await flush()
+  assert.equal(requests.length, 4)
+  for (const item of requests.slice(1)) item.resolve({ ok: true, value: { dataUrl: 'data:image/png;base64,next' } })
+  await flush()
+  assert.equal(requests.length, 5)
+  requests[4].resolve({ ok: true, value: { dataUrl: 'data:image/png;base64,last' } }); await flush()
+  assert.equal(render().filter((node) => node.type === 'img').length, 5)
+  assert.equal(runner.api.imageQueueStats().active, 0)
+})
+
+test('v0.16 阅读图片复用卡片已读取的原图缓存', async (t) => {
+  const runner = hookRunner(t), requests = []
+  runner.connect(async (...args) => { requests.push(args); return { ok: true, value: {} } })
+  runner.api.writeImageCache(runner.api.imageCacheKey('/note.md', 'image.png'), 'data:image/png;base64,cached')
+  const props = { path: '/note.md', source: 'image.png' }
+  runner.render(runner.api.components.NoteImage, props); await flush()
+  const node = runner.render(runner.api.components.NoteImage, props)
+  assert.equal(node.type, 'img')
+  assert.equal(node.props.src, 'data:image/png;base64,cached')
+  assert.equal(requests.length, 0)
 })

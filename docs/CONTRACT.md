@@ -16,6 +16,17 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 
 0.15.0 新增卡片拖拽与库内回收站删除（见下）；卡片操作区在 AI 评论下方仅提供复制与「在 Obsidian 打开」，归档和「到项目」迁至拖拽栏，阅读面板保留原有入口。Enter 统一聚焦输入岛，输入岛内输入和右侧正文编辑保留原行为，输入法组合态不拦截；Esc 失焦、空正文 Backspace/失焦收起、标题自动折行；滚动超过一屏时显示返回顶部按钮。
 
+### 0.16 设置与配置约定
+
+- 设置抽屉分文件夹 / AI / 图片 / 管理与关于；通过官方 settings.plugins.tab 注册 Obsidian MEMO 页，复用相同组件与设置草稿。顶栏只显示版本，「管理与关于」以单行淡色小字显示 GitHub 文字超链接与 by cavenzhong。
+- 仓库路径只显示一次；notesDir、projectDir、attachmentDir 和 archiveTargets 共用 VaultFolderPicker，显示仓库相对路径。菜单提供新建、系统选择、过滤与共享 folderHistory（上限 40）；隐藏目录和符号链接越界拒绝，库内浏览上限 1500 个文件夹。
+- config.json 为唯一设置来源，默认 ~/.config/dsh-obsidian-memo/config.json，Windows 使用 APPDATA，支持 XDG_CONFIG_HOME 与 DSH_STICKY_NOTES_SETTINGS。旧 data/settings.json 首次迁移，原文件保留；JSON 内子文件夹均保存相对路径。location.json 只记住外部配置位置，不包含业务设置。
+- state 与 settings 检查配置文件指纹并加载有效外部修改；无效 JSON 不覆盖文件或上次有效值，错误通过 settings.configFile.error 显示。saveSettings 接受 expected 配置版本，旧草稿拒绝覆盖；configFile.path / pinned / revision 为只读运行时元数据，不落盘。仅配置读取和变更串行，state 的全库扫描不占用配置队列；并发 state 复用扫描。官方设置页只轮询 settings，不扫描或传输便签。
+- configFile({action: open | reveal | reload | load | relocate, path?})：打开、显示父文件夹、重载、加载已有文件、独占另存并使用新位置；环境变量固定时禁止切换。另存保存已提交设置，加载/重载替换草稿；原文件不删除。chooseConfigFile 直接弹出原生 JSON 文件选择窗，选中即走现有 load，取消不切换；macOS 使用 osascript，Windows 使用 OpenFileDialog，Linux 使用 zenity（需系统已安装）。chooseConfigDirectory 仍供另存操作选择目录。
+- listFolders({vaultPath}) → {folders, truncated}；createFolder({vaultPath, path}) → {path}；新建仅允许仓库内非隐藏真实路径。pickDirectory 可传 vaultPath，在 Host 校验选择结果边界。
+- trash({action: info | reveal | empty, confirm?})：只在设置暴露额外的管理入口；日常 deleteNote / undoDelete 不变。empty 必须 confirm=true 且无生效撤回窗口，整体 .trash 转交系统回收 API，失败无永久删除兜底，不清空系统垃圾桶；与删除及撤回串行。macOS 使用 Foundation NSFileManager.trashItemAtURL，Windows 使用 RecycleOption，Linux 使用 gio trash。
+- Emoji 为横向单行标签，溢出横向滚动，右侧固定加号；仅当前角色编辑器显示。输入岛标题按实际文字宽度布局，提示右对齐，空间不足时折到标题下方；正文上方保留分割线。顶栏移除刷新，自动轮询与异常重试保留。
+
 ### 0.15 删除与拖拽约定
 
 - 归档目录菜单固定在操作栏归档区上方，带柔和阴影。放到归档主区但未选目录时，缩略预览停在归档区中心并暂时隐藏图标与文字；原位保留虚线框。直接拖到目录或点击目录执行归档；点击外部、焦点移出、窗口失焦或 Esc 取消回落，Enter 取消后聚焦输入岛。待选期间停止监听鼠标移动，只在窗口缩放时重新定位；不再使用卡片内归档菜单及其状态。
@@ -35,7 +46,7 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 - 包名：`dsh-obsidian-memo`，ESM，零运行时依赖，`package.json` 为唯一运行时版本来源。
 - Host 半：`lib/index.js`（Cordis 插件，`export function apply(ctx, config)`）；`lib/files.js`（真实路径校验、内容版本、原子写入）；`lib/capture.js`（快速新建便签：模板 meta、附件写入、独占发布）；`lib/obsidian.js`（在 Obsidian 打开：URI 构造 + 系统打开器）。
 - Client 半：`lib/client.js`，单文件浏览器 bundle（`window.__ModuleLoader__.load({ id: 'dsh-obsidian-memo', factory(require) { ... } })`）。
-- 设置：`data/settings.json`（插件目录内，运行时生成，HMR 已忽略 `data`）。绝不写 Obsidian 仓库里的配置文件。
+- 设置：独立用户目录 config.json；旧 data/settings.json 首次迁移并保留。绝不写 Obsidian 仓库里的配置文件。
 
 ## 2. 通信通道
 
@@ -198,8 +209,9 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 | `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档 |
 | `openProject` | `{ path: string, name: string }` | `{ jobId: string, projectPath: string }` | 建目录 + 生成项目 md（异步） |
 | `openInObsidian` | `{ path: string }` | `{ url: string }` | **0.13.8**：用系统打开器打开 `obsidian://open?path=<绝对路径>`（macOS `open` / Windows `cmd start` / Linux `xdg-open`）；只允许仓库内已存在的文件；失败 `open-failed` |
-| `saveSettings` | `{ settings: Settings }` | `{ settings: Settings }` | 规范化后落盘并重扫 |
-| `pickDirectory` | `{ initial?: string }` | `{ path: string \| null }` | 系统目录选择器（桌面原生，可能选不到 iCloud，作为兜底） |
+| `settings` | `{ knownRevision?: string }` | `{ configured, version, revision, settings, unchanged? }` | 官方设置页专用的轻量读取，不含 notes/jobs |
+| `saveSettings` | `{ settings: Settings, expected?: string }` | `{ settings: Settings }` | 规范化后落盘；仅扫描范围变化清空扫描缓存 |
+| `pickDirectory` | `{ vaultPath?: string }` | `{ path: string \| null }` | 系统目录选择器；可限制到仓库内，当前不提供初始目录参数 |
 | `rescan` | `{}` | `{ revision: string }` | 手动刷新 |
 
 `state` 的 value：
@@ -247,7 +259,7 @@ interface StateValue {
 - **在 Obsidian 打开（0.13.8）**：校验 `path` 在仓库内且是已存在的文件后，构造 `obsidian://open?path=<encodeURIComponent(绝对路径)>`，用 argv 形式调系统打开器（darwin `open` / win32 `cmd /c start "" <url>` / 其他 `xdg-open`；5s 超时）；成功返回 `{ url }`，失败 `open-failed`。不写任何文件。
 - **开档**：`<projectDir>/<项目名>/<项目名>.md`；生成结构化文档；源便签 frontmatter 的 `PROJECTS` 为空时写回项目 wikilink（已有值不覆盖，value 里会有说明）。
 - **标题 = md 文件名**（去掉 `.md`）：卡片和阅读视图都用文件名，不再取第一段；第一段属于正文。
-- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。0.13 起，仅大小写不同的改名（macOS/Windows 大小写不敏感文件系统上 `fileExists` 会命中自己）如果 `realpath` 指向同一文件则允许，不再误报 `exists`。
+- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。新建、改名、归档、归档撤回与删除恢复共用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
 - **不渲染 meta**：frontmatter 不进卡片内容。
 - **Obsidian block id（0.13.9）**：`^qa-daily-preview-1e5t8lm` 这类 block id 只出现在**行尾**，由 `lib/notes.js` 的 `stripBlockIds()` / `stripInline()` 去掉：先在原始行上按「行尾锚点」删除，再把段落拼成一行，因此**只删锚点本身、保留锚点后面的文字**（下一行内容不受影响）；同时不会误删行中/行内代码里的 `^`（行中的上标 `x ^2`、行内代码 `` `^abc` `` 原样保留）。0.13.8 之前只匹配字符串末尾，段落拼接后中间的 block id 会漏出来。
 - **文件监听**：Client 轮询 `state`（默认 4 秒，页面隐藏时暂停）；Obsidian 编辑会在数秒内反映。
@@ -279,9 +291,10 @@ window.__ModuleLoader__.load({
 
 Client 仍发布为一个文件，不引入构建工具或状态管理库：
 
-- `useNotesData`：唯一的 state 请求协调器、响应代次、轮询、取消与错误处理；乐观写入也会使旧请求失效。
+- `useNotesData`：state/settings 请求协调器、响应代次、轮询、取消与错误处理；官方设置页使用 settingsOnly 模式。乐观写入也会使旧请求失效。
 - `useNoteEditor`：抽屉读取、编辑草稿、内容版本与保存。切换或重开抽屉后的旧请求不能影响新草稿。
-- `useSettingsDraft`：设置草稿、选择目录和保存；实时设置刷新不覆盖草稿。
+- `useSettingsDraft`：设置草稿、选择目录和保存；实时设置刷新不覆盖草稿。关闭重开、切换仓库或加载另一份配置后，旧异步结果不能写入新草稿。
+- `useNoteImage`：卡片与阅读图片共享视口懒加载、最多三个并发的可取消队列；阅读可复用卡片已读取的原图，卡片沿用 1.5 MB 上限与 LRU，阅读沿用 8 MB 上限。
 - 面板本身管理筛选、布局、菜单与操作入口。
 
 ### 6.3 注册
@@ -314,7 +327,7 @@ function apply(ctx) {
   - 正文/控件：`"PingFang SC", "Heiti SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`
 - 尺寸对比要明显：标题 19–21px / 600；正文 12.5–13px / 400、行高 1.55–1.65；评论 11.5–12px；tag 10.5px、字距 .04em。
 - 0.13 正文透明度：卡片摘要与抽屉正文文字统一 80% 不透明度（见 3.5）；标题保持 100%。
-- **署名**：仅在面板顶栏显示 `by caven v<Host 版本>`；Host 从 `package.json` 下发版本，Client 不保留版本常量。版本缺失时只显示 `by caven`，locale 描述也不带版本。
+- **署名**：面板顶栏只显示 `v<Host 版本>`；Host 从 `package.json` 下发版本，Client 不保留版本常量。GitHub 与作者 cavenzhong 在抽屉和官方设置共用的「管理与关于」中以淡色小字显示，locale 描述不带版本。
 - 整体简约、留白足；圆角 10–12px；卡片阴影很轻（`0 1px 2px rgba(0,0,0,.04)`）。
 
 ## 7. UX 规格
@@ -322,7 +335,7 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；便签墙占满剩余高度，0.14 起底部浮岛 `CaptureComposer` 绝对定位在墙下方（不占 flex 高度），由 `.SN_wallWrap[data-capture='true']` 给墙/空态补底部 padding，`--sn-capture-height` 由 `ResizeObserver` 按实际高度更新。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `by caven v0.15.0`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、刷新按钮、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.16.2`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
@@ -330,7 +343,7 @@ function apply(ctx) {
 
 ### 7.2 卡片（0.13 版）
 
-- 结构（从上到下）：tag（浮在标题右上）→ 标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**；0.13.9 起**没有正文就不渲染摘要行**，不再显示「（暂无正文）」）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
+- 结构（从上到下）：标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**；0.13.9 起**没有正文就不渲染摘要行**，不再显示「（暂无正文）」）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。文件夹 tag 只在卡片菜单激活时出现，绝对定位于右上角覆盖标题、不占标题宽度，背后加同纸色的半透明渐变蒙层，标签与右侧预览共用同纸色胶囊样式，底色直接取当前纸色，浅色主题文字取对应深纸色；深色主题反用对应浅纸色保证可读。便签 hover 保持普通箭头（cursor:default），不使用手指或抓手光标；按钮和链接保留各自交互样式。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
 - **图片条（第 3 轮修正）**：`note.images` 前 3 张正方形缩略图（**64×64**、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
   - 懒加载：卡片接近视口（IntersectionObserver，root 为便签墙，提前约 200px）才请求 `readImage { path, source, wiki, maxBytes: 1500000 }`；失败/超限/非图渲染同色系淡占位，不出错误文案、不打断卡片。
   - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，**按字节预算 ~24MB 的 LRU**，条目上限兜底，面板卸载清空），切走再回来不重复请求。
@@ -372,10 +385,11 @@ function apply(ctx) {
 
 ### 7.3.2 抽屉操作条（第 3 轮新增）
 
-- 阅读态抽屉在 header 分割线正下方渲染一行 `.SN_drawerActions`，**锁定与否都显示**；编辑态隐藏整条。
-- 一行两段；空间不足时允许换行（0.13.9：右侧第三枚按钮可落到下一行）：
+- 阅读态抽屉在 header 分割线正下方渲染 `.SN_drawerActions`，**锁定与否都显示**；编辑态隐藏整条。
+- 左右两段，右侧固定分为两行；整段在空间不足时允许换行：
   - **左侧**：所有 AI emoji 评论按钮（与卡片同款 27×27 `.SN_aiBtn`，hover/focus 时按钮上方浮出 label 小标签）。点击 = 对当前打开的便签生成评论（同 emoji 已有评论先确认，见 §7.7）；pending 时左侧替换为 `✍️ 正在写评论…`。
-  - **右侧**：`归档`（点击弹出归档目标下拉，选目标后执行归档，成功后关闭抽屉）与 `开档`（打开开档对话框），**最右是「在 Obsidian 打开」**（0.13.8，同款 forwarding icon + 紫色高亮粗体文字，调 `openInObsidian`）。为容纳第三个按钮，`.SN_drawerActions` 允许换行（`row-gap:6px`）；0.13.9 起 `.SN_drawerActionRight` 也允许换行（`flex-wrap:wrap; justify-content:flex-end`），空间不足时「归档 / 开档」留在上一行、「在 Obsidian 打开」落到下一行并靠右，不再强制挤成一行。窄布局由抽屉实际宽度判定：`drawerActionsNarrow(width)` = 宽度已知且 `< 430px`（`DRAWER_ACTIONS_NARROW_WIDTH`）；右侧组结构 = `.SN_drawerActionPair`（归档 / 开档）+ Obsidian 按钮，窄布局时右侧组 `flex-direction:column`、Obsidian 按钮落到下一行并靠右（`data-narrow="true"`）。
+  - **右侧第一行**：按归档、到项目、删除、复制全文排列四枚统一线条图标（27×27 按钮、15px 图标），悬停或键盘聚焦时在上方显示文字提示，不保留按钮文字或重复原生 title。删除为浅警示色，复用 runDelete 与 5 秒撤回；复制复用 copyNote，读取完整 Markdown 正文并包含标题。归档菜单与项目对话框沿用现有逻辑；AI 生成时禁用归档、到项目和删除。
+  - **右侧第二行**：「在 Obsidian 打开」保留原有转发 icon、文字与紫色高亮，靠右显示；320px 面板也维持四个图标同排、Obsidian 在下一行，不再使用宽度阈值切换不同布局。
 - 归档目标下拉锚定在操作条下方、右对齐；点外部 / `Esc` 关闭。不要复用卡片内的 `.SN_menu` 定位。
 - 抽屉打开时卡片 hover 操作区仍不出现（避免重复入口）。
 
@@ -405,21 +419,14 @@ function apply(ctx) {
 
 ### 7.4 设置抽屉
 
-- 从右侧滑入/覆盖面板的抽屉，宽 380–440px，带半透明遮罩；Esc/点遮罩取消（有未保存改动时可不拦，简单点）。
-- 字段：
-  1. 仓库根目录：文本框 + `选择…`（系统目录选择器 `pickDirectory`，macOS 原生对话框可直接选 iCloud）
-  2. 便签目录：同上；旁边显示解析后的绝对路径提示
-  3. 开档目录：同上
-  4. 归档目录：列表（label + path），每行可删除；`添加归档目录` 同样走系统选择器，选完自动用 basename 作为 label
-  5. 图片处理 / 图片文件夹（0.14）：压缩开关 + 质量 1–100 + 最大边长 256–8192px；图片文件夹可手填或系统选择，相对路径按仓库解析，必须在仓库内且不能是隐藏目录（以 `.` 开头），留空 = `notesDir/_attachments`，不存在时首次写图自动创建。
-  6. 手动输入框始终可编辑（支持 `~` 展开）；系统选择器取消返回 null 时什么都不改。
-  7. Emoji 与提示词（0.13.8 重排）：每枚 AI 角色一行 = `emoji 输入`（54×34）+ `名称输入`（flex:1，占剩余宽度）+ **`callout 样式按钮`** + `删除`；callout 样式按钮与 emoji 输入同高（34px），文字固定写成 `callout样式-<样式名>`（如 `callout样式-引用`，10.5px，超宽省略)，点开是一枚 13 项菜单（`role="menu"` + `menuitemradio`）：当前项打勾并高亮，点选后关闭并回写 `callout`；点外部关闭。提示词 textarea 在下一行；底部 `添加 emoji`。
-  8. AI 预算（0.13）：每枚 emoji 组内多一行紧凑控件——`AI 预算` 下拉（低 / 中 / 高 / 自定义）；选「自定义」时再露出「思考档位」下拉（不思考/低/高/最高）+「输出上限」数字框（256–65536，失焦或回车提交）。三档固定映射 `low=off/2048`、`medium=low/4096`、`high=high/8192`；默认高。建档提示词下方放同款控件（`projectAi`）。
-  9. 建档提示词：多行 textarea（默认值来自 Host，可改）
-  10. 底部：`保存`（主按钮）/ `取消`
-- `保存` → `saveSettings`；成功 toast「设置已保存」；`configured` 变化后重新取 state。
-- 保存前做轻量校验：仓库/便签目录为空时允许保存但提示「尚未配置，面板不可用」；emoji 至少保留 1 枚，否则阻止保存。
-- 目录选择走 `pickDirectory`；用户取消（path null）什么都不做。
+- 右侧抽屉与官方设置 → 插件 → Obsidian MEMO 共用同一设置组件和 JSON；分类为「文件夹」「AI」「图片」「管理与关于」。底部保存 / 取消；Esc 或遮罩关闭抽屉。
+- 仓库根目录保留文本框和系统目录选择；其他文件夹统一显示仓库相对路径，使用共享下拉组件：顶部加号在当前仓库新建文件夹，其下为系统选择、搜索、最近使用和仓库文件夹列表。所有字段共享选择历史；系统取消不修改草稿。
+- 便签文件夹、项目文件夹、图片文件夹和归档文件夹均使用该组件。禁止选择仓库外、隐藏目录或通过符号链接越界的文件夹；图片文件夹为空仍默认便签目录下的 _attachments。
+- Emoji 为横向标签，末尾固定加号（最多 12 个）；一次编辑当前角色的 emoji、名称、callout、提示词及 AI 预算，至少保留一个。callout 仍为 13 项单选菜单，AI 预算保持原映射与范围。项目提示词及预算折叠在同一 AI 分类。
+- 图片分类包含压缩开关、质量和最大边长，沿用既有范围。
+- 配置分类显示当前 JSON 路径，主操作为「打开配置」（打开所在文件夹）和「加载配置」；更多菜单提供打开 JSON 文件、重载、另存并使用三项。加载直接弹出原生文件选择窗，选中 JSON 即加载；三个主控件等宽等高，「更多」隐藏原生下拉箭头，另存目标已存在时拒绝覆盖；加载和重载替换草稿；配置损坏保留原文件与上次有效值；旧草稿保存按配置版本拒绝覆盖更新。
+- 回收站分类单独提供 Finder 入口与「移至系统垃圾桶」确认操作，将仓库 .trash 整体移入系统垃圾桶，5 秒撤回窗口内禁止清理；普通删除和撤回逻辑不变。
+- 保存走 saveSettings；成功刷新状态。仓库或便签文件夹为空允许保存为未配置状态。
 
 ### 7.5 Toast / 撤销
 
@@ -454,6 +461,8 @@ function apply(ctx) {
 - **卡片 memo**：`NoteCard` 用 `React.memo`；`t` 与全部回调收进稳定 `actionsRef`（卡片调用 `props.actions.current.xxx`），面板因 toast/菜单/轮询重渲染时未变化的卡片跳过重渲染。
 - **图片加载**：并发 ≤3 的模块级队列 + 按字节预算的 LRU 缓存（~24MB，条目上限兜底），卸载/abort 清理。
 - **Host 侧配套**：扫描单飞（同一设置指纹下并发请求复用同一个 scan，scanEpoch 防止写后旧结果回写）；`readImage` wiki 附件名 miss 负缓存 60s；`DSH_STICKY_NOTES_DEBUG=1` 时输出 scan/readImage/state 计时日志（默认静默）。
+- **扫描缓存**：整库只保留摘要，全文按需读取并最多保留最近四篇；单文件失效不清空其他便签。指纹包含完整 mtime/ctime、大小、inode 和 birthtime，识别同大小同 mtime 的文件替换。Markdown 展示块满额后跳过多余块的解析，仍读取尾部评论并正确跳过代码示例。
+- **其他资源边界**：AI/图片参数变化保留扫描缓存；未变化的 state 不复制整库摘要。排序复用 Intl.Collator；过期归档/删除撤回 token 随轮询及后续操作清理，不长期积累。配置写入共用原子写入原语，失败清理临时文件。
 
 ## 8. 维护边界
 
@@ -462,13 +471,13 @@ function apply(ctx) {
 ## 9. 验收清单（Client）
 
 - [ ] 侧栏出现便签图标，点击切到面板，选中态正确
-- [ ] 顶栏显示 Host 下发的完整版本；版本缺失时只显示署名；卡片与抽屉不带署名。
+- [ ] 顶栏显示 Host 下发的完整版本；版本缺失时不显示版本；管理与关于显示一行 GitHub 文字链接与 by cavenzhong。
 - [ ] 便签墙渲染 title/excerpt/comments/tag/color，meta 不出现；日间卡片色很淡（#FDFAF4 系）
 - [ ] 正文与卡片摘要是 80% 墨色
 - [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px
 - [ ] 卡片 hover：所有 AI emoji 平铺一行，悬停某枚时上方浮出文字标题；分割线下仅有复制与在 Obsidian 打开；**hover/聚焦整张卡（菜单出现）且有图预览时统一隐藏图片条**，移出恢复
 - [ ] 卡片图片 64×64，贴在卡片左下角；有图卡片 208px 不溢出
-- [ ] 抽屉 header 分割线下有操作条：左 emoji 评论、右 归档/开档；锁定/未锁定都在
+- [ ] 抽屉 header 分割线下有操作条：左 emoji 评论，右上归档 / 到项目 / 删除 / 复制全文四个同排线图标，提示在上方；右下保留紫色 Obsidian 图标与文字；锁定与未锁定保持一致。
 - [ ] 锁定态没有关闭按钮，只能解锁后关闭或 Esc；解锁恢复关闭按钮；锁定按钮是图钉（钉住实心 / 未钉住空心）
 - [ ] 日期筛选/子文件夹/锁定/排序/设置五个 icon 激活态统一为紫色高亮（浅紫底+紫图标）
 - [ ] 空闲轮询会退避（4s→最长 30s），面板不可见时不请求；无变化时不整墙重渲染
@@ -491,14 +500,14 @@ function apply(ctx) {
 - [ ] 阅读视图有序列表显示原始数字；有序任务显示「编号 + 复选框」；无序列表圆点、任务勾选与代码块行为不变
 - [ ] 锁定面板重进不隐藏：恢复上次打开的便签；它不在当前筛选里时自动打开筛选排序后的第一篇
 - [ ] 菜单出现时图片预览统一隐藏（不再只在 emoji 上才隐藏）
-- [ ] 卡片 hover 操作行仅有「复制 / 在 Obsidian 打开」（转发 icon + 紫色高亮粗体文字、行内靠右）；右侧抽屉操作条窄到放不下时归档/开档在上、它换到下一行并靠右；点它系统打开 Obsidian 对应笔记，失败 toast
+- [ ] 卡片 hover 操作行仅有「复制 / 在 Obsidian 打开」；右侧操作条第一行四个纯图标依序为归档 / 到项目 / 删除 / 复制全文，第二行是紫色 Obsidian 图文按钮；窄面板保持同样顺序。Obsidian 入口打开对应笔记，失败 toast。
 - [ ] 没有正文的卡片不显示「（暂无正文）」占位
 - [ ] 正文/摘要里的 `^qa-daily-preview-…` block id 不显示，且不影响锚点后面的文字
 - [ ] 桌面版 DSH 里按住顶栏「Obsidian MEMO」标题区可以拖动整个窗口，右侧按钮/菜单仍可点击（Web GUI 不受影响）
 - [ ] 便签墙首屏 50 张；滚到底自动补 50 张；补批时墙底出现三点加载动画 + 「加载中…」；排序/日期筛选变化回到 50 张
-- [ ] 设置里每枚 emoji 一行：emoji + 名称 + callout 样式按钮 + 删除；样式按钮显示「callout样式-xx」，点开 13 项菜单、当前项打勾
-- [ ] 顶栏显示 Host 下发的完整版本（当前 0.15.1），locale 描述不写版本
-- [ ] 设置里目录字段走系统选择器，能直接选 iCloud 里的 Obsidian 库（也可手动输入 `~` 路径）
+- [ ] 设置里横向 emoji 标签切换；当前角色编辑 emoji + 名称 + callout 样式按钮 + 删除；样式按钮显示「callout样式-xx」，点开 13 项菜单、当前项打勾
+- [ ] 顶栏显示 Host 下发的完整版本；版本缺失时不显示版本；管理与关于显示一行 GitHub 文字链接与 by cavenzhong。
+- [ ] 仓库字段支持系统选择器和手填；库内文件夹共用含新建、选择与历史的下拉菜单
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
 - [ ] 归档 → toast + 撤销 → 文件移动/恢复
 - [ ] 开档 → 对话框 → 进度 → 生成 md 与 PROJECTS 链接（Host 侧完成，Client 展示结果）
@@ -517,12 +526,12 @@ AI 输入使用去掉 frontmatter 后的原始 Markdown（含已有评论），�
 - `CaptureComposer` 放在 `.SN_wallWrap` 内，底部浮岛不覆盖右侧锁定面板；`ResizeObserver` 根据实际高度给便签墙预留滚动空间。背景蒙层不接收指针，只有胶囊本体接收输入。
 - 标题即新建文件名，不写入正文；新建与编辑改名共用 `lib/filename.js`（路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符、NFC 归一、首尾点/空格、Windows 保留设备名、240 UTF-8 字节上限）。不截断内容；提示将细节放入正文。
 - Tab 从标题进入正文，正文 Shift+Tab 返回标题修改并保留正文；正文被删空（输入法合成中除外）立即收起回标题态并聚焦标题，之后仍可再按 Tab 展开；分割线与小字区分正文。中文输入法确认键不触发提交；标题 Enter、正文 Cmd/Ctrl+Enter 提交，正文 Enter 换行。提交使用同步 ref 锁防止连按重复请求，失败保留草稿与附件。
-- 图片支持 PNG／JPEG／GIF／WebP，多选或粘贴即在左侧显示方形叠放缩略图；悬停／聚焦展开，600ms 后显示完整图小浮窗（最大约 260×220px），移出取消。对象 URL 在删除、提交成功和卸载时释放。
-- `Settings.imageCompression` 缺失时补 `{ enabled: true, quality: 70, maxDimension: 2048 }`。质量取整并限制 1–100，最大边长取整并限制 256–8192px；取消勾选仍保留已设定的参数。
+- 图片支持 PNG／JPEG／GIF／WebP，多选或粘贴即在左侧显示方形叠放缩略图；悬停／聚焦展开，600ms 后显示完整图小浮窗（最大约 260×220px），移出取消。对象 URL 在删除、提交成功、卸载或输入岛停用且提交结束时释放。
+- `Settings.imageCompression` 缺失时补 `{ enabled: true, quality: 70, maxDimension: 2048 }`。质量取整并限制 1–100，最大边长取整并限制 256–8192px；JSON 数值只接受有限 number，非法类型回默认，界面输入在提交时显式转换。取消勾选仍保留已设定的参数。
 - Client 创建时串行解码并通过 Canvas 生成 WebP（`quality / 100`），按最大边长等比缩小，不放大；转换成静态图并保留透明背景。关闭时直接读取原文件字节。WebP 编码不可用或图片解码失败时明确报错，不默默换格式。设置对待提交图片生效。
 - 原图选择限制：压缩开启时单张 32 MB／合计 64 MB，关闭时单张 8 MB／合计 16 MB；最多 8 张。处理后统一执行 8 MB／16 MB 上限。Host 校验 data URL、图片签名、数量和字节预算；不信任 Client 扩展名，附件用 UUID 命名。
-- 仅 `POST /sticky-notes/createNote` 允许最多 25 MB 的 RPC 请求体（16 MB 图片的 base64 + 正文与信封）；其他路由继续 2 MB，读取请求流时即执行上限。
-- 「图片处理」设置可手填或选择图片文件夹。`Settings.attachmentDir` 缺省／留空时，`capture.js` 沿用 `notesDir/_attachments`；自定义相对路径按仓库解析，目标必须在仓库内且不能位于以 `.` 开头的隐藏目录（`.obsidian` / `.trash` 等 Obsidian 不索引的目录，会产生坏链），首次保存图片时自动创建缺失目录。修改仅影响后续保存的图片。用仓库相对 wikilink 引用，归档移动 Markdown 后图片仍有效；目录与符号链接必须在仓库内。最后将完整临时 Markdown 独占 `link` 到目标，跨请求也不覆盖同名文件；失败清理本次写入的附件。创建成功后刷新失败仍返回提交成功，避免误导用户重复创建。
+- 请求上限和分发共用一次归一化后的 pathname。saveNote/toggleTask 的预算为 `maxFileBytes * 6 + 64 KiB`，覆盖 JSON 最坏转义和信封；createNote 再加 `ceil(captureTotalBytes / 3) * 4` 的图片 base64 预算，其余路由仍为 2 MiB。读取请求流时执行上限；文件落盘上限仍为 2 MiB，图片限额不变。
+- 「图片处理」设置可手填或选择图片文件夹。`Settings.attachmentDir` 缺省／留空时，`capture.js` 沿用 `notesDir/_attachments`；自定义相对路径按仓库解析，目标必须在仓库内且不能位于以 `.` 开头的隐藏目录（`.obsidian` / `.trash` 等 Obsidian 不索引的目录，会产生坏链），首次保存图片时自动创建缺失目录。修改仅影响后续保存的图片。用仓库相对 wikilink 引用，归档移动 Markdown 后图片仍有效；目录与符号链接必须在仓库内。最后将完整临时 Markdown 独占发布到目标，不支持硬链接时回退独占复制，跨请求不覆盖同名文件；失败清理本次写入的附件。创建成功后刷新失败仍返回提交成功，避免误导用户重复创建。
 - 日期按钮与子文件夹按钮等宽，点击切换筛选，悬停打开范围菜单；菜单与按钮之间有可移入区域，移出关闭。键盘 ↓ 聚焦菜单第一项，Esc 关闭；右键也可打开，不再有单独三角按钮。
 
 ### 11.1 输入交互与模板修正

@@ -3,8 +3,8 @@
 # 以本地 link 方式安装（开发用）：
 #   plugin_manager install_bundle  target=link:/absolute/path/to/dsh-obsidian-memo
 #
-# 用户设置写在插件自己的 data/settings.json（面板内齿轮抽屉编辑），
-# 不写 profile patch，也不会往 Obsidian 仓库里塞配置文件。
+# 用户设置保存在独立用户配置目录中的 config.json；
+# 面板齿轮和官方设置插件共用同一份 JSON，不写 Obsidian 配置。
 - insert:
     - id: sticky-notes
       name: 'dsh-obsidian-memo'

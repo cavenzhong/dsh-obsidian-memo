@@ -5,7 +5,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { appendFile, mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, rename, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -445,4 +445,53 @@ test('scan：notesDir 变化时清空缓存重新扫描', async (t) => {
   const scanB = await scanner.scan({ vaultPath: vault, notesDir: dirB })
   assert.deepEqual(scanB.notes.map((note) => note.name), ['b'])
   assert.equal(await scanner.readFull(join(dirA, 'a.md')), null)
+})
+
+test('scan：单文件失效只重建该摘要，保留其他摘要与全文缓存', async (t) => {
+  const vault = await makeRoot(t)
+  const a = join(vault, 'a.md'), b = join(vault, 'b.md')
+  await writeNote(a, '原始正文\n')
+  await writeNote(b, '保持不变\n')
+  const scanner = new NotesScanner(), settings = { vaultPath: vault, notesDir: vault }
+  const first = await scanner.scan(settings)
+  const fullB = await scanner.readFull(b)
+  await writeNote(a, '已修改的正文\n')
+  scanner.invalidate(a)
+  const second = await scanner.scan(settings)
+  assert.equal(second.notes.find((note) => note.path === b), first.notes.find((note) => note.path === b))
+  assert.equal(await scanner.readFull(b), fullB)
+  assert.match(second.notes.find((note) => note.path === a).excerpt, /已修改/)
+})
+
+test('scan：相同大小与 mtime 的原子替换仍使摘要和全文失效', async (t) => {
+  const vault = await makeRoot(t), file = join(vault, 'a.md'), temp = join(vault, 'replacement.tmp')
+  await writeNote(file, '旧正文\n')
+  const scanner = new NotesScanner(), settings = { vaultPath: vault, notesDir: vault }
+  const first = await scanner.scan(settings)
+  const full = await scanner.readFull(file), info = await stat(file)
+  await writeNote(temp, '新正文\n')
+  await utimes(temp, info.atime, info.mtime)
+  await rename(temp, file)
+  const next = await scanner.scan(settings)
+  assert.notEqual(next.revision, first.revision)
+  assert.match(next.notes[0].excerpt, /新正文/)
+  assert.notEqual(await scanner.readFull(file), full)
+  assert.equal((await scanner.readFull(file)).body, '新正文\n')
+})
+
+test('scan：整库只缓存摘要，全文按需读取并限制为最近四篇', async (t) => {
+  const vault = await makeRoot(t)
+  for (let i = 0; i < 7; i++) await writeNote(join(vault, `${i}.md`), `正文 ${i}\n`)
+  const scanner = new NotesScanner()
+  await scanner.scan({ vaultPath: vault, notesDir: vault })
+  assert.equal(scanner.fullNotes.size, 0)
+  for (const entry of scanner.entries.values()) {
+    assert.equal(entry.body, undefined)
+    assert.equal(entry.parsed, undefined)
+  }
+  for (let i = 0; i < 7; i++) assert.equal((await scanner.readFull(join(vault, `${i}.md`))).body, `正文 ${i}\n`)
+  assert.equal(scanner.fullNotes.size, 4)
+  assert.equal(scanner.fullNotes.has(join(vault, '0.md')), false)
+  scanner.reset()
+  assert.equal(scanner.fullNotes.size, 0)
 })

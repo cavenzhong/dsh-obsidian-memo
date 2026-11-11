@@ -1,8 +1,9 @@
-# 已知问题与暂缓项（0.15.0 之后）
+# 已知问题与暂缓项（0.16.2）
 
 > 用途：记录 0.14 审查中确认但**本轮未修**的问题，方便之后快速查阅、按文件定位并批量修复。
-> 状态基准：`v0.15.1`。行号会随代码改动漂移，检索时优先搜符号名/关键词。
+> 状态基准：`v0.16.2`。行号会随代码改动漂移，检索时优先搜符号名/关键词。
 > 原则：每条包含「位置 / 现象与影响 / 建议修法 / 优先级 / 触发条件」，优先级 P1 > P2 > P3。
+> 0.16 发版前排查、性能对比和修复范围见 [排查报告](AUDIT-0.16.md)。
 
 ## 已明确暂缓（产品/环境决定，不是遗漏）
 
@@ -38,20 +39,15 @@
 - 优先级：P1（取决于是否使用带正文的 Default Template）。
 - 触发：使用带正文/占位内容的 Default Template，尤其模板没有 frontmatter 时。
 
-### KI-06 请求体上限与 URL 解析不一致
-- 位置：`lib/index.js` 路由 `req.url?.split('?')[0] === .../createNote` 选 limit；后面又用 `new URL().pathname` 算 pathEndpoint。
-- 现象：`/sticky-notes/x/../createNote` 会按 2MB 判；method/path 不匹配时会先缓冲最多 25MB 再拒；默认 2MB 未给 JSON 转义留余量，极端正文可能接近上限时被 400（裸 `unreadable body`，客户端变 transport 错误）。
-- 建议：读 body 前统一算一次 `pathname` 并据它选 limit；默认 limit 改为 `maxFileBytes * 2`；createNote 用 `ceil(captureTotalBytes*4/3) + maxFileBytes*2 + 1MB` 推导；Client 提交前先估算大小给本地化提示；补路径形态/边界测试。
-- 优先级：P2。
+### KI-06 合法正文的传输预算与 URL 解析（0.16 已修）
+- 预算与分发共用归一化 pathname；正文写入预算包含 JSON 最坏六倍转义，新建再叠加图片 base64 预算，补充接近 2 MiB 正文与带点段路径的集成测试。
+- 超出传输预算或连接断流仍返回 HTTP 400；错误信封进一步统一可单独处理，不影响合法大小正文的提交。
 
-### KI-07 硬链接发布的环境兼容、孤儿附件与改名覆盖窗口
-- 位置：`lib/capture.js` `await link(temp, target)`；`lib/index.js` `endpointSaveNote` 的 `rename(filePath, target)`。
-- 现象：
-  1. `link()` 在 exFAT/SMB/NAS/部分虚拟 FS 可能返回 EPERM/ENOTSUP，新建整条失败；
-  2. 附件先落盘、崩溃/SIGKILL 会留无引用孤儿图片；
-  3. `saveNote` 改名用 `rename` 会静默覆盖同名目标（TOCTOU），与 createNote「绝不覆盖」语义不一致。
-- 建议：`link` 捕获 EPERM/ENOTSUP/EACCES/EXDEV 后回退 `open(target,'wx')` + 写入；附件用插件数据目录 journal（发布前记录、成功后移除、启动时清理未发布项）；改名统一改成 `link`+unlink 的 no-overwrite 发布（大小写不敏感同文件特殊处理）。
-- 优先级：P2（仅当 vault 可能放网络盘/移动盘时提前）。
+### KI-07 硬链接兼容与并发覆盖已修，崩溃后的孤儿附件仍待处理
+- 0.16：新建、改名、归档、撤回共用 `moveFileExclusive`；链接不受支持时回退独占复制，目标存在不覆盖。大小写改名保留同文件特例，补充原语竞争与并发改名测试。网络盘/移动盘仍需真实文件系统兼容验证。
+- 剩余位置：`lib/capture.js` 附件先于 Markdown 发布；崩溃/SIGKILL 可能留下无引用图片，普通异常仍执行清理。
+- 建议：为创建流程增加 journal，启动时识别未发布事务，处理孤儿附件。
+- 优先级：P2，触发条件为写入中途进程崩溃或被强制结束。
 
 ### KI-08 Obsidian 自定义配置目录未支持
 - 位置：`lib/capture.js` 硬编码 `.obsidian`；`community-plugins.json` 的启用判断已在本轮改为保守（缺失/损坏/非数组 = 未启用）。
@@ -70,11 +66,8 @@
 - 建议：字段级 focus 样式；缩略图加 `role="group"`/`aria-label`；tooltip 关联；日期按钮语义二选一（点击打开菜单或去掉 haspopup）；按平台显示 Ctrl/⌘。
 - 优先级：P2（与后续交互修改一起做）。
 
-### KI-11 `normalizeImageCompression` 类型强制
-- 位置：`lib/shared.js` `normalizeImageCompression`；`lib/client.js` 的同名副本。
-- 现象：`'  '`、`true`、`[]` 会被转成 quality=1；`'false'` 字符串会让 enabled=true；手改 settings.json 可得到奇怪值。
-- 建议：数值只接受 `typeof value === 'number' && Number.isFinite(value)`；`enabled` 只接受严格 boolean；Host/Client 两份同步，补边界测试。
-- 优先级：P3。
+### KI-11 图片压缩参数类型强制（0.16 已修）
+Host/Client 数值只接受有限 number；布尔、数组和字符串不再被隐式转为质量或分辨率。输入框在提交时显式转换，非法 JSON 类型回默认；补 Host/Client parity 边界测试。
 
 ### KI-12 正文总大小的 off-by-one
 - 位置：`lib/capture.js`（`text = content + "\n"` 后与 `LIMITS.maxFileBytes` 比较）。
@@ -88,16 +81,11 @@
 - 建议：先完成模板读取与正文大小校验再 mkdir；记录本次创建的目录，失败时尝试删空目录；清理失败 catch + debugLog。
 - 优先级：P3。
 
-### KI-14 `pickDirectory` 的 `initial` 参数是死参数
-- 位置：`lib/client.js` `systemPick` 发 `{ initial }`；`lib/index.js` `endpointPickDirectory` 未使用 payload.initial。
-- 现象：选择器不会定位到当前目录。
-- 建议：确认 DSH 选择器 API 是否支持初始目录；支持则透传，不支持则删掉 client 侧未使用的 payload，避免假参数。
-- 优先级：P3。
+### KI-14 `pickDirectory` 的 `initial` 死参数（0.16 已清理）
+Client 已停止发送 Host 不使用的 initial，删除失去调用方的旧归档系统选择函数及其 props；当前目录选择器仍不提供初始定位。
 
-### KI-15 配置清空时已附加图片的 objectURL 未释放
-- 位置：`lib/client.js` `CaptureComposer` 在 `enabled=false` 时 `return null` 但仍挂载，图片 URL 只在卸载时 revoke。
-- 建议：`enabled` 变 false 时清空图片并 revoke URL；或把对象 URL 生命周期抽成 effect 统一管理。
-- 优先级：P3。
+### KI-15 输入岛停用后的对象 URL（0.16 已修）
+输入岛停用且无运行中的提交时释放附件 URL、预览计时器与图片状态，文字草稿保留；补停用与重新启用的行为测试。
 
 ### KI-16 浮岛视觉小问题
 - 位置：`lib/client.js` `.SN_captureDock::before` 浅色渐变写死 `#fff`，覆盖墙底滚动条一段；展开正文改变 wall `padding-bottom` 时滚到底的内容会跳动。
@@ -112,13 +100,14 @@
 
 ## 建议的后续修复顺序
 
-1. KI-05（模板正文方案，先定产品规则）或 KI-06（请求上限）——按实际使用场景二选一先做。
+1. KI-05（模板正文方案，先定产品规则）。
 2. KI-09 / KI-10（压缩关闭时卡片缩略图、与 Tab 同批的 a11y）。
 3. KI-07（网络盘环境才提前；journal 可拆开做）。
-4. KI-11 ~ KI-16 作为同一批“清理批”处理，避免反复改同一片文件。
+4. 剩余 KI-12 / KI-13 / KI-16 按实际影响安排；KI-11 / KI-14 / KI-15 已修。
 5. KI-17 先实测，确认后再修。
 
 ## 已修记录（避免重复排查）
 
 - 0.14.1：RPC 失败信封 `details`、Tab 焦点范围、模板变量替换与容错、图片文件夹隐藏目录、限额单源化、正文删空自动收起、文档同步。
 - 0.14.2：文件名规范化统一（`lib/filename.js`）、提交失败焦点恢复、标题 Enter/Tab 阻止冒泡、模板插件启用判断保守化、有序任务显示编号。
+- 0.16：扫描局部失效、摘要与全文缓存分离、Markdown 展示限额生效、轻量设置读取与扫描单飞、图片共用限流队列、设置会话隔离、排序与配置写入收敛、并发文件移动保护、JSON 转义预算及资源过期清理；见排查报告。

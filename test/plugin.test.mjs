@@ -19,9 +19,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { writeSettingsFile } from '../lib/settings.js'
+import { NotesScanner } from '../lib/scan.js'
 import { CARD_PALETTE, LEGACY_EMOJIS, LIMITS, colorForTag } from '../lib/shared.js'
 import { setOpenExternalUrlForTests } from '../lib/obsidian.js'
-import { DELETE_UNDO_MS, noteAttachments } from '../lib/trash.js'
+import { setConfigFilePickerForTests } from '../lib/config-picker.js'
+import { DELETE_UNDO_MS, noteAttachments, setSystemTrashForTests } from '../lib/trash.js'
 
 const ROOT = await mkdtemp(join(tmpdir(), 'sticky-plugin-'))
 const SETTINGS_FILE = join(ROOT, 'settings.json')
@@ -519,7 +521,7 @@ test('图片文件夹设置：保存后新建图片使用指定目录，清空�
   const saved = await c.call('saveSettings', { settings: { ...settings, attachmentDir: '附件/图片' } })
   assert.equal(saved.ok, true, JSON.stringify(saved))
   assert.equal(saved.value.settings.attachmentDir, join(c.vault, '附件/图片'))
-  assert.equal(JSON.parse(await readFile(c.settingsPath, 'utf8')).attachmentDir, saved.value.settings.attachmentDir)
+  assert.equal(JSON.parse(await readFile(c.settingsPath, 'utf8')).attachmentDir, '附件/图片')
   const image = { dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=' }
   const created = await c.call('createNote', { title: '自定义图片', body: '', images: [image] })
   assert.equal(created.ok, true, JSON.stringify(created))
@@ -1065,8 +1067,10 @@ test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', a
     assert.equal(result.error.code, 'bad-request')
   }
 
-  // 注：saveNote 的「正文过大」分支在 RPC 层不可达——webServer 路由先以
-  // raw body > 2MB 返回 400 unreadable body（已有专门用例覆盖）。
+  const full = (await c.call('note', { path: c.seeded['甲.md'] })).value
+  const oversized = await c.call('saveNote', { path: full.path, body: 'x'.repeat(LIMITS.maxFileBytes + 1), expectedRevision: full.contentRevision })
+  assert.equal(oversized.ok, false)
+  assert.equal(oversized.error.code, 'bad-request')
   assert.equal(await readFile(notePath, 'utf8'), before)
 })
 
@@ -1439,7 +1443,7 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
   assert.equal(result.value.settings.projectPrompt, '新的建档提示词')
 
   const onDisk = JSON.parse(await readFile(SETTINGS_FILE, 'utf8'))
-  assert.equal(onDisk.notesDir, notesDir2)
+  assert.equal(onDisk.notesDir, '进行时2')
   assert.equal(onDisk.emojis[0].id, 'brain')
 
   const state = await c.call('state')
@@ -1849,4 +1853,226 @@ test('openInObsidian：仓库内文件交给系统打开 obsidian:// URI；越�
     setOpenExternalUrlForTests(null)
     await c.disposeAll()
   }
+})
+
+test('v0.16 文件夹：共享浏览排除隐藏与符号链接，新建仅允许仓库内路径', async () => {
+  const c = await makeCase()
+  await mkdir(join(c.vault, '附件', '图片'), { recursive: true })
+  await mkdir(join(c.vault, '.obsidian'))
+  await mkdir(join(c.dir, 'outside'))
+  await symlink(join(c.dir, 'outside'), join(c.vault, 'link'), 'dir')
+  const folders = await c.call('listFolders', { vaultPath: c.vault })
+  assert.equal(folders.ok, true)
+  assert.ok(folders.value.folders.includes('附件/图片'))
+  assert.ok(!folders.value.folders.some((path) => path.startsWith('.') && path !== '.'))
+  assert.ok(!folders.value.folders.includes('link'))
+  const created = await c.call('createFolder', { vaultPath: c.vault, path: '新建/多级' })
+  assert.equal(created.ok, true)
+  assert.ok((await stat(join(c.vault, '新建/多级'))).isDirectory())
+  for (const path of ['../outside/new', '.trash/new', 'link/new']) {
+    assert.equal((await c.call('createFolder', { vaultPath: c.vault, path })).ok, false, path)
+  }
+})
+
+test('v0.16 配置：外部修改自动加载，旧草稿拒绝覆盖，损坏 JSON 保留且可恢复', async () => {
+  const c = await makeCase()
+  const first = (await c.call('state')).value.settings
+  await writeFile(c.settingsPath, JSON.stringify({ ...first, includeSubfolders: false }))
+  const next = (await c.call('state')).value.settings
+  assert.equal(next.includeSubfolders, false)
+  assert.equal((await c.call('saveSettings', { settings: first, expected: first.configFile.revision })).error.code, 'conflict')
+  await writeFile(c.settingsPath, '{ malformed json')
+  const malformed = await c.call('state')
+  assert.equal(malformed.value.settings.includeSubfolders, false)
+  assert.ok(malformed.value.settings.configFile.error)
+  assert.equal((await c.call('saveSettings', { settings: next })).ok, false)
+  assert.equal(await readFile(c.settingsPath, 'utf8'), '{ malformed json')
+  await writeFile(c.settingsPath, JSON.stringify(next))
+  assert.equal((await c.call('configFile', { action: 'reload' })).ok, true)
+  assert.equal((await c.call('state')).value.settings.configFile.error, '')
+})
+
+test('v0.16 配置：环境变量固定位置，JSON 打开与显示只使用已知路径', async () => {
+  const c = await makeCase()
+  const opened = []
+  setOpenExternalUrlForTests(async (path) => { opened.push(path); return { ok: true } })
+  try {
+    assert.equal((await c.call('configFile', { action: 'open', path: '/ignored' })).ok, true)
+    assert.equal((await c.call('configFile', { action: 'reveal' })).ok, true)
+    assert.deepEqual(opened, [c.settingsPath, dirname(c.settingsPath)])
+    assert.equal((await c.call('configFile', { action: 'relocate', path: join(c.dir, 'config.json') })).ok, false)
+    assert.equal((await c.call('state')).value.settings.configFile.pinned, true)
+  } finally { setOpenExternalUrlForTests(null) }
+})
+
+test('v0.16 系统垃圾桶：与日常删除分开，需确认，失败保留文件，移出后允许新删除', async (t) => {
+  const c = await makeCase({ notes: { '便签.md': '保留原内容' } })
+  await c.call('deleteNote', { path: c.seeded['便签.md'] })
+  assert.equal((await c.call('trash', { action: 'empty' })).ok, false)
+  assert.equal((await c.call('trash', { action: 'empty', confirm: true })).error.code, 'busy')
+  const clock = Date.now()
+  t.mock.method(Date, 'now', () => clock + DELETE_UNDO_MS + 1)
+  setSystemTrashForTests(async () => { throw new Error('模拟权限失败') })
+  try {
+    assert.equal((await c.call('trash', { action: 'empty', confirm: true })).error.code, 'trash-failed')
+    assert.equal((await c.call('trash', { action: 'info' })).value.count, 1)
+    const systemTrash = join(c.dir, 'fake-system-trash')
+    setSystemTrashForTests(async (path) => { await rename(path, systemTrash) })
+    const result = await c.call('trash', { action: 'empty', confirm: true })
+    assert.equal(result.ok, true)
+    assert.equal(result.value.moved, 1)
+    assert.equal((await c.call('trash', { action: 'info' })).value.count, 0)
+    await writeFile(c.seeded['便签.md'], '新的便签')
+    assert.equal((await c.call('deleteNote', { path: c.seeded['便签.md'] })).ok, true)
+    assert.equal((await readdir(systemTrash)).length, 1)
+  } finally { setSystemTrashForTests(null) }
+})
+
+test('v0.16 配置切换：加载外部文件，另存拒绝覆盖，重启记住位置，旧文件保留', async () => {
+  const dir = await mkdtemp(join(ROOT, 'config-switch-'))
+  const vault = join(dir, 'vault'), notesDir = join(vault, '便签')
+  await mkdir(notesDir, { recursive: true })
+  const userHome = join(dir, 'user'), currentPath = join(userHome, 'dsh-obsidian-memo', 'config.json')
+  const selectedPath = join(dir, 'selected.json'), copiedPath = join(dir, 'copied.json')
+  const saved = { vaultPath: vault, notesDir, emojis: [{ id: 'one', emoji: '🙂', prompt: '保持原设置' }] }
+  await writeSettingsFile(currentPath, saved)
+  await writeSettingsFile(selectedPath, { ...saved, includeSubfolders: false })
+  const originalOverride = process.env.DSH_STICKY_NOTES_SETTINGS
+  const originalHome = process.env.XDG_CONFIG_HOME
+  async function start() {
+    delete process.env.DSH_STICKY_NOTES_SETTINGS
+    process.env.XDG_CONFIG_HOME = userHome
+    const made = makeCtx()
+    try { await apply(made.ctx, {}) } finally {
+      if (originalOverride === undefined) delete process.env.DSH_STICKY_NOTES_SETTINGS
+      else process.env.DSH_STICKY_NOTES_SETTINGS = originalOverride
+      if (originalHome === undefined) delete process.env.XDG_CONFIG_HOME
+      else process.env.XDG_CONFIG_HOME = originalHome
+    }
+    return { made, call: makeCall(made.route()) }
+  }
+  const first = await start()
+  try {
+    const oldDraft = (await first.call('state')).value.settings
+    setConfigFilePickerForTests(async () => null)
+    assert.deepEqual((await first.call('chooseConfigFile')).value, { path: null })
+    setConfigFilePickerForTests(async () => selectedPath)
+    assert.deepEqual((await first.call('chooseConfigFile')).value, { path: selectedPath })
+    assert.equal((await first.call('state')).value.settings.configFile.path, currentPath)
+    const loaded = await first.call('configFile', { action: 'load', path: selectedPath })
+    assert.equal(loaded.ok, true)
+    assert.equal(loaded.value.settings.includeSubfolders, false)
+    assert.equal(loaded.value.settings.configFile.path, selectedPath)
+    assert.equal((await first.call('configFile', { action: 'relocate', path: currentPath })).error.code, 'EEXIST')
+    assert.equal((await first.call('saveSettings', { settings: oldDraft, expected: oldDraft.configFile.revision })).error.code, 'conflict')
+    assert.equal((await first.call('configFile', { action: 'relocate', path: copiedPath })).ok, true)
+    const disk = JSON.parse(await readFile(copiedPath, 'utf8'))
+    assert.equal(disk.notesDir, '便签')
+    assert.equal(disk.configFile, undefined)
+    assert.equal(JSON.parse(await readFile(currentPath, 'utf8')).includeSubfolders, true)
+    assert.equal(JSON.parse(await readFile(selectedPath, 'utf8')).includeSubfolders, false)
+  } finally { setConfigFilePickerForTests(null); await first.made.disposeAll() }
+  const second = await start()
+  try {
+    const state = await second.call('state')
+    assert.equal(state.value.settings.configFile.path, copiedPath)
+    assert.equal(state.value.settings.includeSubfolders, false)
+  } finally { await second.made.disposeAll() }
+})
+
+test('v0.16 设置读取不扫描便签，仍检测外部配置修改和版本变化', async (t) => {
+  const c = await makeCase({ notes: { '甲.md': '正文' } })
+  const scan = t.mock.method(NotesScanner.prototype, 'scan', () => { throw new Error('设置页不应扫描便签') })
+  const first = await c.call('settings')
+  assert.equal(first.ok, true)
+  assert.equal(first.value.notes, undefined)
+  assert.equal((await c.call('settings', { knownRevision: first.value.revision })).value.unchanged, true)
+  await writeFile(c.settingsPath, JSON.stringify({ ...first.value.settings, projectPrompt: '外部更新' }))
+  const next = await c.call('settings', { knownRevision: first.value.revision })
+  assert.equal(next.value.settings.projectPrompt, '外部更新')
+  assert.notEqual(next.value.revision, first.value.revision)
+  assert.equal(scan.mock.callCount(), 0)
+})
+
+test('v0.16 并发 state 复用扫描，慢扫描不阻塞设置读取和保存', { timeout: 3000 }, async (t) => {
+  const c = await makeCase({ notes: { '甲.md': '正文' } })
+  let release, entered
+  const gate = new Promise((resolve) => { release = resolve })
+  const started = new Promise((resolve) => { entered = resolve })
+  t.after(() => release())
+  const original = NotesScanner.prototype.scan
+  const scan = t.mock.method(NotesScanner.prototype, 'scan', async function (...args) {
+    entered()
+    await gate
+    return original.apply(this, args)
+  })
+  const first = c.call('state')
+  await started
+  const second = c.call('state')
+  const settings = (await c.call('settings')).value.settings
+  const saved = await c.call('saveSettings', { settings: { ...settings, projectPrompt: '扫描期间保存' }, expected: settings.configFile.revision })
+  assert.equal(saved.ok, true)
+  release()
+  const results = await Promise.all([first, second])
+  assert.ok(results.every((result) => result.ok))
+  assert.equal(scan.mock.callCount(), 1)
+})
+
+test('v0.16 仅 AI 或图片参数变化时保留扫描缓存，扫描范围变化才重置', async (t) => {
+  const c = await makeCase({ notes: { '甲.md': '正文' } })
+  const settings = (await c.call('state')).value.settings
+  const original = NotesScanner.prototype.reset
+  const reset = t.mock.method(NotesScanner.prototype, 'reset', function () { return original.call(this) })
+  assert.equal((await c.call('saveSettings', { settings: { ...settings, projectPrompt: '新提示词', imageCompression: { enabled: false } } })).ok, true)
+  await c.call('state')
+  assert.equal(reset.mock.callCount(), 0)
+  assert.equal((await c.call('saveSettings', { settings: { ...settings, includeSubfolders: false } })).ok, true)
+  assert.equal(reset.mock.callCount(), 1)
+})
+
+test('v0.16 请求预算包含 JSON 转义，归一化路径使用同一份路由上限', async () => {
+  const c = await makeCase({ notes: { '甲.md': '原文' } })
+  const full = (await c.call('note', { path: c.seeded['甲.md'] })).value
+  const body = '"'.repeat(LIMITS.maxFileBytes - 64)
+  const saved = await c.call('saveNote', { path: full.path, body, expectedRevision: full.contentRevision })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  assert.equal(await readFile(full.path, 'utf8'), body + '\n')
+  const created = await c.call('createNote', { title: '转义正文', body: '\u0001'.repeat(512 * 1024) }, { url: '/sticky-notes/nested/../createNote' })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.equal((await stat(created.value.path)).size, 512 * 1024 + 1)
+})
+
+test('v0.16 并发改名：两张便签争用同名目标时不覆盖任何一张', async () => {
+  const c = await makeCase({ notes: { '甲.md': '甲原文', '乙.md': '乙原文' } })
+  const originals = await Promise.all(['甲.md', '乙.md'].map(async (name) => (await c.call('note', { path: c.seeded[name] })).value))
+  const results = await Promise.all(originals.map((note, index) => c.call('saveNote', { path: note.path, name: '共同目标', body: `正文 ${index}`, expectedRevision: note.contentRevision })))
+  assert.equal(results.filter((result) => result.ok).length, 1)
+  assert.equal(results.find((result) => !result.ok).error.code, 'exists')
+  const winner = results.findIndex((result) => result.ok), loser = 1 - winner
+  assert.equal(await readFile(join(c.notesDir, '共同目标.md'), 'utf8'), `正文 ${winner}\n`)
+  assert.ok((await stat(originals[loser].path)).isFile())
+})
+
+test('v0.16 扫描期间切换便签目录：旧扫描重试后只返回新目录', { timeout: 3000 }, async (t) => {
+  const c = await makeCase({ notes: { '旧.md': '旧正文' } }), other = join(c.vault, '其他便签')
+  await mkdir(other)
+  await writeFile(join(other, '新.md'), '新正文')
+  const settings = (await c.call('settings')).value.settings
+  let release, entered, scans = 0
+  const gate = new Promise((resolve) => { release = resolve }), started = new Promise((resolve) => { entered = resolve })
+  t.after(() => release())
+  const original = NotesScanner.prototype.scan
+  t.mock.method(NotesScanner.prototype, 'scan', async function (...args) {
+    scans++
+    if (scans === 1) { entered(); await gate }
+    return original.apply(this, args)
+  })
+  const pending = c.call('state')
+  await started
+  assert.equal((await c.call('saveSettings', { settings: { ...settings, notesDir: other } })).ok, true)
+  release()
+  const result = await pending
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.value.notes.map((note) => note.name), ['新'])
+  assert.equal(scans, 2)
 })

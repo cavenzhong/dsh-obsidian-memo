@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.15.1](https://img.shields.io/badge/version-0.15.1-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.2](https://img.shields.io/badge/version-0.16.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -86,7 +86,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 **3. 选好目录，开始记录**
 
-点右上角齿轮，先设置「仓库根目录」和「便签目录」，保存后就能看到便签墙。需要开档或归档时，再补上对应目录。
+点右上角齿轮，或到官方「设置 → 插件 → Obsidian MEMO」。先选仓库和便签文件夹；其余文件夹只显示仓库相对路径，共用支持新建、系统选择、搜索和最近记录的下拉菜单。设置分为「文件夹 / AI / 图片 / 管理与关于」，AI 角色通过横向 Emoji 标签切换，末尾加号添加角色。
 
 | 设置 | 必填 | 说明 |
 | --- | --- | --- |
@@ -102,9 +102,11 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 **更新、停用与卸载**
 
+配置默认保存在 `~/.config/dsh-obsidian-memo/config.json`（Windows 为 `%APPDATA%/dsh-obsidian-memo/config.json`；支持 `XDG_CONFIG_HOME`）。首次运行自动迁移旧 `data/settings.json` 并保留原文件。「加载配置」直接弹出系统 JSON 文件选择窗，选中即加载，取消则保留当前配置。「打开配置 / 加载配置 / 更多」按钮等宽；「更多」收纳打开文件、重新加载与另存并使用。管理页底部以一行淡色小字显示 GitHub 文字链接与 `by cavenzhong`；外部编辑自动加载，损坏文件不会被覆盖。`DSH_STICKY_NOTES_SETTINGS` 仍可固定配置位置。
+
 - **更新**：`git pull` 后重新执行一次上面的安装命令，或在插件页停用再启用。
 - **停用**：在插件页关闭开关即可，笔记与设置都不受影响。
-- **卸载**：在插件页移除插件。`link:` 安装时源码目录不会被删除，插件设置（`data/settings.json`）仍留在源码目录里，已由 `.gitignore` 忽略，可手动清理；**Obsidian 里的笔记和附件不会被删除**。
+- **卸载**：在插件页移除插件。`link:` 安装时源码目录不会被删除，独立用户配置仍保留，可从「管理与关于」查看位置并手动清理；**Obsidian 里的笔记和附件不会被删除**。
 
 ## 用法
 
@@ -117,6 +119,8 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 ### 阅读、编辑与整理
 
 - 单击卡片从右侧打开阅读面板；双击标题或正文进入编辑，`⌘ / Ctrl + S` 保存。
+- 便签保持普通箭头光标；文件夹标签叠在右上方，使用同纸色渐变蒙层。卡片与阅读面板共用同纸色标签和对应深色文字，深色主题自动调整对比度。
+- 阅读面板右上操作依次为「归档 / 到项目 / 删除 / 复制全文」四个线图标，悬停或聚焦显示上方提示；第二行保留紫色图标与文字的「在 Obsidian 打开」。仅空正文显示「双击正文编辑」。
 - 编辑保存带打开时的内容版本；期间若被 Obsidian、AI 评论或其他编辑改动过，会拒绝覆盖并保留草稿。
 - 阅读模式可直接勾选任务，写回原 Markdown 的 `[ ]` / `[x]`，保留换行与 frontmatter。
 - 点图钉把面板固定在右侧；再次进入会恢复上次打开的便签。
@@ -142,8 +146,8 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 拖动卡片时，输入岛切换为「归档 / 到项目 / 删除」操作栏；拖到归档时可继续选择已配置的归档目录，拖到项目会打开项目名确认框，拖到删除即执行。原位置保留空虚线框，跟随光标的卡片宽高缩为原来的 1/3，实色动作提示固定在预览上方且层级更高；底部渐变按操作变色，操作栏避开右侧面板。卡片菜单的 AI 评论区下方仅保留「复制 / 在 Obsidian 打开」。
 拖动只更新跟随浮层；输入岛与操作栏切换保持布局稳定。取消放手时短动画回落，归档或删除时淡出，操作完成后再清理占位，避免原卡片闪回。系统开启减弱动态效果时直接完成动画。
 
-- **复制**：卡片底部的复制按钮将标题单独一行、换行后完整 Markdown 正文复制到剪贴板，成功显示提示。
-- **删除**：拖到删除区，或在卡片/阅读面板按 `⌘ / Ctrl + Backspace`。Markdown 与独占本地图片成组进入笔记库内的 `.trash/MEMO-…` 文件夹，5 秒内可撤回；共享图片保留，避免影响其他笔记。过期后保留文件，不自动清空，可按组内 `restore.json` 的原路径手动移回。使用已有的 `.trash` 时不会清理其他回收文件。macOS Finder 可按 `⌘ + Shift + .` 显示隐藏文件夹。
+- **复制**：卡片底部或阅读面板的复制按钮将标题单独一行、换行后完整 Markdown 正文复制到剪贴板，成功显示提示。
+- **删除**：阅读面板点浅警示色删除图标、拖到删除区，或在卡片/阅读面板按 `⌘ / Ctrl + Backspace`。Markdown 与独占本地图片成组进入笔记库内的 `.trash/MEMO-…` 文件夹，5 秒内可撤回；共享图片保留，避免影响其他笔记。过期后保留文件，不自动清空，可按组内 `restore.json` 的原路径手动移回。使用已有的 `.trash` 时不会清理其他回收文件。设置里的「管理与关于」另有 Finder 入口与「移至系统垃圾桶」：确认后将整个仓库 .trash 移到系统垃圾桶，包括 Obsidian 回收的内容；之后从系统垃圾桶恢复，不会清空系统已有垃圾。macOS Finder 可按 `⌘ + Shift + .` 显示隐藏文件夹。
 - **返回顶部**：向下滚动超过一屏后，输入岛上方出现圆形 ↑ 按钮。
 
 ### 到项目、归档、在 Obsidian 打开
@@ -170,7 +174,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 ## 数据与隐私
 
 - **笔记与图片都在你的仓库里，删除后保留在库内 `.trash` 回收站。** 插件直接读写你选定的 Obsidian 目录，不导入、不复制到别处，也不维护第二套笔记库。
-- **设置只存在插件自己的 `data/settings.json`。** 不写 DSH profile 配置，也不往 Obsidian 仓库里放配置文件。
+- **设置保存在独立用户配置目录的 `config.json`，也可自定义位置。** 官方设置页与面板共用该文件，不往 Obsidian 仓库里放配置文件。
 - **不为插件单独配置 API Key。** AI 复用 Harness 当前默认模型；只有你主动点评论或开档时才调用，不新开会话、不写对话记录。
 - **除模型调用外不主动外联。** 没有遥测或统计上报；笔记里的网络图片由浏览器按需加载，这是普通 Markdown 的行为。
 - **模型调用会把相关笔记内容发给所配置的模型服务。** 这是生成评论与项目文档的必要输入，内容范围限于当前便签。
@@ -222,7 +226,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 **卸载会删掉我的笔记吗？**
 
-不会。笔记和附件始终在 Obsidian 仓库里。卸载只移除插件注册；`link:` 安装的源码目录和其中的 `data/settings.json` 会保留，可手动清理。
+不会。笔记和附件始终在 Obsidian 仓库里。卸载只移除插件注册；`link:` 安装的源码目录、独立用户配置文件和迁移前的 `data/settings.json` 都会保留，可手动清理。
 
 **这是官方的 Obsidian 插件吗？**
 
@@ -238,7 +242,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 ```bash
 cd dsh-obsidian-memo
-pnpm test        # 单元测试 + mock-ctx 集成测试 + client 纯函数测试（当前 281 个）
+pnpm test        # 单元测试 + mock-ctx 集成测试 + client 纯函数测试（当前 354 个）
 ```
 
 | 目录 | 内容 |
@@ -250,6 +254,8 @@ pnpm test        # 单元测试 + mock-ctx 集成测试 + client 纯函数测试
 | `lib/ai.js` / `lib/obsidian.js` | 模型调用、系统打开器。 |
 | `test/` | 测试；`node --test` 直接运行。 |
 | `docs/` | 使用与开发指南、实现契约、版本记录、已知问题。 |
+
+0.16 的性能与结构复核见 [排查报告](docs/AUDIT-0.16.md)。Host 按文件职责拆分，Client 的数据、编辑与设置由独立 hooks 管理；后续扩展优先拆分较长的主面板交互，继续复用现有复制、删除和撤回逻辑。
 
 更完整的操作说明、文件行为与 HMR 开发方式见 [使用与开发指南](docs/GUIDE.md)；接口与 UX 规格见 [实现契约](docs/CONTRACT.md)。
 

@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.15.1](https://img.shields.io/badge/version-0.15.1-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.2](https://img.shields.io/badge/version-0.16.2-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -84,7 +84,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 **3. Pick folders and start writing**
 
-Click the gear in the top-right corner, set the vault root and notes folder, and save. Project and archive folders can be added later.
+Open the top-right gear or Settings → Plugins → Obsidian MEMO. Settings are grouped into Folders, AI, Images, and Manage & about. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
 
 | Setting | Required | Notes |
 | --- | --- | --- |
@@ -98,11 +98,13 @@ Click the gear in the top-right corner, set the vault root and notes folder, and
 
 All folders must live in the same Obsidian vault. Notes from subfolders are included by default and can be toggled in the header.
 
+Configuration defaults to `~/.config/dsh-obsidian-memo/config.json` (Windows: `%APPDATA%/dsh-obsidian-memo/config.json`; honors `XDG_CONFIG_HOME`). Legacy `data/settings.json` is migrated once and kept. Load config opens a native JSON file chooser and loads the selected file immediately; cancelling keeps the current configuration. Open config, Load config, and More use equal-width buttons; More contains Open file, Reload, and Save copy & use. Manage & about ends with a small, muted GitHub text link and `by cavenzhong` on one line. External edits load automatically; malformed files are preserved. `DSH_STICKY_NOTES_SETTINGS` still pins a location.
+
 **Update, disable, uninstall**
 
 - **Update:** `git pull`, then run the install command again, or disable and re-enable the plugin.
 - **Disable:** switch it off on the Plugins page; notes and settings stay put.
-- **Uninstall:** remove the plugin on the Plugins page. With a `link:` install the source folder is not deleted, so its `data/settings.json` stays there (already covered by `.gitignore`) and can be cleaned up manually; **notes and attachments in Obsidian are untouched**.
+- **Uninstall:** remove the plugin on the Plugins page. With a `link:` install the source folder is not deleted, and independent user configuration is also retained; find its location in Manage & about and remove it manually if desired; **notes and attachments in Obsidian are untouched**.
 
 ## Usage
 
@@ -115,6 +117,8 @@ Paste, drag, or use the plus button to attach up to 8 images. They are compresse
 ### Read, edit, and tidy
 
 - Click a card to open the reading panel; double-click the title or body to edit, and press `⌘ / Ctrl + S` to save.
+- Cards keep the normal arrow cursor. Folder tags overlay the upper-right corner over a matching paper-color gradient; cards and the reader share paper-colored tags with darker matching text and adjusted contrast in dark mode.
+- The reader's upper-right actions are Archive, To project, Delete, and Copy full note, in that order, with line icons and tooltips above. A purple icon and text button for Open in Obsidian sits on the second row. The double-click editing hint appears only when the body is empty.
 - Saves are version-checked. If Obsidian, an AI comment, or another edit changed the note meanwhile, the save is refused and your draft is kept.
 - Tick tasks in reading mode; they are written back as `[ ]` / `[x]` while preserving line breaks and frontmatter.
 - Click the pin to keep the panel open on the right; re-entering restores the last note.
@@ -140,8 +144,8 @@ The drag preview has a soft shadow, with its action hint centered above it. The 
 Dragging a card replaces capture with Archive / To project / Delete. Archive reveals the configured archive folders, To project opens the project name dialog, and Delete acts on release. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
 Pointer movement updates only the preview layer, and switching the dock keeps the layout stable. Cancelling animates the card back; archive and delete fade it out and keep the placeholder until the operation completes, preventing a brief flash of the original card. Reduced-motion preferences skip these animations.
 
-- **Copy:** copies the filename title on its own line followed by the full Markdown body, without frontmatter, and shows a success message.
-- **Delete:** drop on Delete or press `⌘ / Ctrl + Backspace` on a card or in the reader. The note and its exclusive local images move together to `.trash/MEMO-…` inside the vault, with a 5-second undo. Shared images stay in place. After expiry, files remain available for manual recovery using the original paths in `restore.json`; nothing is automatically purged. Existing trash files are preserved. In macOS Finder, press `⌘ + Shift + .` to show hidden folders.
+- **Copy:** use the button on a card or in the reader to copy the filename title on its own line followed by the full Markdown body, without frontmatter, with a success message.
+- **Delete:** click the reader's muted warning-colored Delete icon, drop on Delete, or press `⌘ / Ctrl + Backspace` on a card or in the reader. The note and its exclusive local images move together to `.trash/MEMO-…` inside the vault, with a 5-second undo. Shared images stay in place. After expiry, files remain available for manual recovery using the original paths in `restore.json`; nothing is automatically purged. Existing trash files are preserved. In macOS Finder, press `⌘ + Shift + .` to show hidden folders.
 - **Back to top:** a round ↑ button appears above capture after scrolling past one screen.
 
 ### To project, archive, open in Obsidian
@@ -168,7 +172,7 @@ Pointer movement updates only the preview layer, and switching the dock keeps th
 ## Data & privacy
 
 - **Notes and images stay in your vault, including deleted files in its `.trash` folder.** The plugin reads and writes the Obsidian folder you choose; it does not import, copy, or maintain a second library.
-- **Settings live in the plugin's own `data/settings.json`.** Nothing is written to the DSH profile config or to your Obsidian vault.
+- **Settings live in an independent user `config.json`, with a customizable location.** The official settings page and panel share this file; no config is written to your Obsidian vault.
 - **No separate API key.** AI uses Harness's current default model and is called only when you click a comment or Open project; it does not start a conversation or write chat logs.
 - **No telemetry.** The plugin makes no analytics or tracking calls. Remote images inside notes are loaded by the browser, as with any Markdown file.
 - **Model calls send the relevant note content to your configured model provider.** That content is the input for the requested comment or project document and is limited to the current note.
@@ -220,7 +224,7 @@ It won't restructure them: editing replaces only the body after frontmatter, com
 
 **Does uninstalling delete my notes?**
 
-No. Notes and attachments remain in your Obsidian vault. Uninstalling removes only the plugin registration; with a `link:` install the source folder and its `data/settings.json` remain and can be cleaned up manually.
+No. Notes and attachments remain in your Obsidian vault. Uninstalling removes only the plugin registration; with a `link:` install the source folder, independent user config, and pre-migration `data/settings.json` remain and can be cleaned up manually.
 
 **Is this an official Obsidian plugin?**
 
@@ -236,7 +240,7 @@ No. It is a third-party DeepSeek Harness plugin, not affiliated with DeepSeek or
 
 ```bash
 cd dsh-obsidian-memo
-pnpm test        # unit tests + mock-ctx integration tests + client pure-function tests (281 currently)
+pnpm test        # unit tests + mock-ctx integration tests + client pure-function tests (354 currently)
 ```
 
 | Path | Contents |
@@ -248,6 +252,8 @@ pnpm test        # unit tests + mock-ctx integration tests + client pure-functio
 | `lib/ai.js` / `lib/obsidian.js` | Model calls and the system opener. |
 | `test/` | Tests, run directly with `node --test`. |
 | `docs/` | Guide, implementation contract, changelog, known issues. |
+
+See the [0.16 performance and architecture review](docs/AUDIT-0.16.md) (Chinese). Host modules separate file responsibilities, and Client hooks manage data, editing, and settings. Future growth should first separate interactions from the long main panel while reusing the existing copy, delete, and undo paths.
 
 See the [usage and development guide](docs/GUIDE.md) (Chinese) for full behavior and the HMR workflow, and the [implementation contract](docs/CONTRACT.md) for API and UX specifications.
 
