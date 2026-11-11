@@ -243,6 +243,8 @@ cd dsh-obsidian-memo
 pnpm test        # unit tests + mock-ctx integration tests + client pure-function tests (354 currently)
 ```
 
+To release, update the version in `package.json` and the README badges, add its entry to `docs/CHANGELOG.md`, and push to `main`. GitHub Actions tests and packs the plugin, then creates a `v<version>` tag and GitHub Release with a `.tgz` asset. Existing releases are skipped. Pushing a version tag also triggers publication; to publish an existing tag, enter it under Actions → Publish release → Run workflow. Ordinary commits do not create releases.
+
 | Path | Contents |
 | --- | --- |
 | `lib/index.js` | Host half: RPC routes and business composition. |

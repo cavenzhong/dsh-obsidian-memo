@@ -245,6 +245,8 @@ cd dsh-obsidian-memo
 pnpm test        # 单元测试 + mock-ctx 集成测试 + client 纯函数测试（当前 354 个）
 ```
 
+发布时更新 `package.json` 的版本号和本页版本标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试、打包并自动创建 `v<版本号>` 标签与 Release，附上插件 `.tgz`；同一版本已发布时跳过。推送版本标签也可触发发布，已有标签可在 Actions → Publish release → Run workflow 中填写后补发。普通提交不新增 Release。
+
 | 目录 | 内容 |
 | --- | --- |
 | `lib/index.js` | Host 半：RPC 路由与业务组合。 |
