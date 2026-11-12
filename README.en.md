@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.3](https://img.shields.io/badge/version-0.16.3-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.4](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -63,26 +63,26 @@ The right panel shows the full note, collapsible comments, and checkable tasks. 
 - A local **Obsidian vault**. The plugin reads and writes that folder directly and does not require an Obsidian community plugin.
 - No build step and no runtime dependencies; you do not need Node, pnpm, or a separate API key.
 
-**1. Get the source**
+**1. Install from npm**
+
+Open the DSH Plugins page, choose Add plugin, and enter `dsh-obsidian-memo`. You can also ask the Harness agent to use `plugin_manager`:
+
+```text
+action: install_bundle
+target: dsh-obsidian-memo
+```
+
+Open the notes entry in the Harness sidebar. If you previously installed a local `link:` copy, remove that entry first; the npm package `dsh-sticky-notes` belongs to someone else and is unrelated.
+
+**Local development**
 
 ```bash
 git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 ```
 
-A ZIP download works too. Note the absolute path of the folder.
+Install with `target: link:/absolute/path/to/dsh-obsidian-memo` for development or preview. A `link:` install uses the local directory and does not provide npm version checks.
 
-**2. Install inside DeepSeek Harness**
-
-Ask the agent in Harness to call the `plugin_manager` tool, replacing the path with your own:
-
-```text
-action: install_bundle
-target: link:/absolute/path/to/dsh-obsidian-memo
-```
-
-`link:` refers to the local source folder, so keep it in place after installing. Open the notes entry in the Harness sidebar. If you previously installed the old package name (`dsh-sticky-notes`), remove that package first.
-
-**3. Pick folders and start writing**
+**2. Pick folders and start writing**
 
 Open the top-right gear or Settings → Plugins → Obsidian MEMO. Settings are grouped into Folders, AI, Images, and Manage & about. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
 
@@ -102,7 +102,7 @@ Configuration defaults to `~/.config/dsh-obsidian-memo/config.json` (Windows: `%
 
 **Update, disable, uninstall**
 
-- **Update:** `git pull`, then run the install command again, or disable and re-enable the plugin.
+- **Update:** npm installs can check and apply updates from the DSH Plugins page. The manager checks the npm package version. For a `link:` install, run `git pull` and repeat the local install command.
 - **Disable:** switch it off on the Plugins page; notes and settings stay put.
 - **Uninstall:** remove the plugin on the Plugins page. With a `link:` install the source folder is not deleted, and independent user configuration is also retained; find its location in Manage & about and remove it manually if desired; **notes and attachments in Obsidian are untouched**.
 
@@ -246,7 +246,7 @@ pnpm test        # generated output, architecture checks and regression tests
 pnpm dev         # optional: watch browser sources alongside Harness HMR
 ```
 
-To release, update the version in `package.json` and the README badges, add its entry to `docs/CHANGELOG.md`, and push to `main`. GitHub Actions tests and packs the plugin, then creates a `v<version>` tag and GitHub Release with a `.tgz` asset. Existing releases are skipped. Pushing a version tag also triggers publication; to publish an existing tag, enter it under Actions → Publish release → Run workflow. Ordinary commits do not create releases.
+To release, update the version in `package.json` and both README badges, add an entry to `docs/CHANGELOG.md`, and push to `main`. GitHub Actions tests and packs one `.tgz`, publishes that exact file to npm, and attaches it to the GitHub Release. The npm package contains runtime files, browser sources and build scripts, locales, the bundle patch, and documentation; tests and internal agent instructions are excluded. If the package name does not exist on npm yet, sign in locally and run `npm publish --access public --tag dsh-bootstrap` from the stable 0.16.3 source, completing initial package creation with your account's 2FA. The temporary `dsh-bootstrap` tag does not take over `latest`; no CI token is needed. Once the package exists, add an npm Trusted Publisher for GitHub Actions, user `cavenzhong`, repository `dsh-obsidian-memo`, workflow filename `release.yml`, and allow `npm publish`. Push 0.16.4 within two days so its first OIDC publish validates the publisher. If the package already exists, configure the publisher and push within two days. GitHub Actions then publishes with OIDC and stores no npm token. The workflow independently skips an npm version or GitHub Release that already exists, so a failed side can be retried. Ordinary commits do not create releases.
 
 | Path | Contents |
 | --- | --- |
@@ -259,7 +259,7 @@ To release, update the version in `package.json` and the README badges, add its 
 | `test/` / `test-support/` | Focused suites and shared test harnesses. |
 | `docs/` | Guide, implementation contract, changelog, known issues. |
 
-Version 0.16.3 separates Host services, browser interactions and large test suites. Start with the [architecture map](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) to locate each feature and its tests. The [0.16 performance review](docs/AUDIT-0.16.md) retains the earlier audit findings (Chinese).
+Version 0.16.3 separated Host services, browser interactions and large test suites. Start with the [architecture map](docs/ARCHITECTURE.md) and the [repository development guide](https://github.com/cavenzhong/dsh-obsidian-memo/blob/main/AGENTS.md) to locate each feature and its tests. The [0.16 performance review](docs/AUDIT-0.16.md) retains the earlier audit findings (Chinese).
 
 See the [usage and development guide](docs/GUIDE.md) (Chinese) for full behavior and the HMR workflow, and the [implementation contract](docs/CONTRACT.md) for API and UX specifications.
 

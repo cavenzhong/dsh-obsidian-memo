@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.3](https://img.shields.io/badge/version-0.16.3-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.4](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -65,26 +65,26 @@ dsh-obsidian-memo 在 Harness 左侧栏提供便签入口，把 Obsidian 文件�
 - 本机可访问的 **Obsidian 仓库**。插件直接读写这个文件夹，不需要在 Obsidian 里安装任何配套插件。
 - 插件无需构建，也没有运行时依赖；不需要单独准备 Node、pnpm 或 API Key。
 
-**1. 准备源码**
+**1. 从 npm 安装**
+
+在 DSH「插件」页点「添加插件」并输入 `dsh-obsidian-memo`。也可以在 Harness 对话中让 agent 调用 `plugin_manager`：
+
+```text
+action: install_bundle
+target: dsh-obsidian-memo
+```
+
+安装后打开 Harness 左侧栏的便签入口。如果之前用 `link:` 装过本地目录版本，先在插件页移除旧条目再安装本包；npm 上的 `dsh-sticky-notes` 是其他人的插件，与本项目无关。
+
+**本地开发**
 
 ```bash
 git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 ```
 
-也可以下载 ZIP 解压。记下这个文件夹的绝对路径。
+在 Harness 对话中调用 `plugin_manager` 并使用 `target: link:/absolute/path/to/dsh-obsidian-memo`。`link:` 安装引用本地目录，适合开发和预览，不提供 npm 版本检查。
 
-**2. 在 DeepSeek Harness 中安装**
-
-在 Harness 对话中让 agent 调用 `plugin_manager` 工具，把路径换成你自己的：
-
-```text
-action: install_bundle
-target: link:/absolute/path/to/dsh-obsidian-memo
-```
-
-`link:` 引用的是本地源码目录，安装后请保留该目录。装好后打开 Harness 左侧栏的便签入口；如果之前装过旧包名的版本（`dsh-sticky-notes`），先移除旧包再安装本包。
-
-**3. 选好目录，开始记录**
+**2. 选好目录，开始记录**
 
 点右上角齿轮，或到官方「设置 → 插件 → Obsidian MEMO」。先选仓库和便签文件夹；其余文件夹只显示仓库相对路径，共用支持新建、系统选择、搜索和最近记录的下拉菜单。设置分为「文件夹 / AI / 图片 / 管理与关于」，AI 角色通过横向 Emoji 标签切换，末尾加号添加角色。
 
@@ -104,7 +104,7 @@ target: link:/absolute/path/to/dsh-obsidian-memo
 
 配置默认保存在 `~/.config/dsh-obsidian-memo/config.json`（Windows 为 `%APPDATA%/dsh-obsidian-memo/config.json`；支持 `XDG_CONFIG_HOME`）。首次运行自动迁移旧 `data/settings.json` 并保留原文件。「加载配置」直接弹出系统 JSON 文件选择窗，选中即加载，取消则保留当前配置。「打开配置 / 加载配置 / 更多」按钮等宽；「更多」收纳打开文件、重新加载与另存并使用。管理页底部以一行淡色小字显示 GitHub 文字链接与 `by cavenzhong`；外部编辑自动加载，损坏文件不会被覆盖。`DSH_STICKY_NOTES_SETTINGS` 仍可固定配置位置。
 
-- **更新**：`git pull` 后重新执行一次上面的安装命令，或在插件页停用再启用。
+- **更新**：npm 安装的插件可在 DSH「插件」页查看版本并执行更新；管理器根据 npm 包版本检查更新。`link:` 安装请 `git pull` 后重新执行本地安装命令。
 - **停用**：在插件页关闭开关即可，笔记与设置都不受影响。
 - **卸载**：在插件页移除插件。`link:` 安装时源码目录不会被删除，独立用户配置仍保留，可从「管理与关于」查看位置并手动清理；**Obsidian 里的笔记和附件不会被删除**。
 
@@ -248,7 +248,7 @@ pnpm test        # 构建一致性 + 架构边界 + 单元与集成回归
 pnpm dev         # 可选：持续构建前端，配合 Harness HMR
 ```
 
-发布时更新 `package.json` 的版本号和本页版本标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试、打包并自动创建 `v<版本号>` 标签与 Release，附上插件 `.tgz`；同一版本已发布时跳过。推送版本标签也可触发发布，已有标签可在 Actions → Publish release → Run workflow 中填写后补发。普通提交不新增 Release。
+发布时更新 `package.json` 的版本号和中英文 README 标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试并打出单一 `.tgz`，将同一文件发布到 npm 并作为 GitHub Release 附件；npm 包包含运行文件、前端源码与构建脚本、locale、bundle patch 和文档，不包含测试或内部指引。若包名尚未在 npm 创建，先从 0.16.3 稳定源码在本机登录 npm 并运行 `npm publish --access public --tag dsh-bootstrap`，按提示使用账号 2FA 完成首次创建；临时 `dsh-bootstrap` 标签不会占用 `latest`，不需要 CI token。包存在后，在 npm 包设置中添加 Trusted Publisher：GitHub Actions、用户 `cavenzhong`、仓库 `dsh-obsidian-memo`、工作流文件 `release.yml`，并允许 `npm publish`。配置后两天内推送 0.16.4，让首次 OIDC 发布完成验证。若包已存在，只需配置 Trusted Publisher 并在两天内推送。之后 GitHub Actions 使用 OIDC 发布，不保存 npm token。若 npm 版本或 GitHub Release 已存在，工作流会分别跳过对应发布，失败后可重跑。普通提交不新增 Release。
 
 | 目录 | 内容 |
 | --- | --- |
@@ -261,7 +261,7 @@ pnpm dev         # 可选：持续构建前端，配合 Harness HMR
 | `test/` / `test-support/` | 按功能拆分的测试与共享运行器。 |
 | `docs/` | 使用与开发指南、实现契约、版本记录、已知问题。 |
 
-0.16.3 将 Host 服务、浏览器交互和大型测试按职责拆分。开发或让 AI agent 接手时，先看 [架构导航](docs/ARCHITECTURE.md) 与 [AGENTS.md](AGENTS.md)，按功能定位源码和测试；0.16 的性能复核记录保留在 [排查报告](docs/AUDIT-0.16.md)。
+0.16.3 将 Host 服务、浏览器交互和大型测试按职责拆分。开发或让 AI agent 接手时，先看 [架构导航](docs/ARCHITECTURE.md) 与 [仓库开发指引](https://github.com/cavenzhong/dsh-obsidian-memo/blob/main/AGENTS.md)，按功能定位源码和测试；0.16 的性能复核记录保留在 [排查报告](docs/AUDIT-0.16.md)。
 
 更完整的操作说明、文件行为与 HMR 开发方式见 [使用与开发指南](docs/GUIDE.md)；接口与 UX 规格见 [实现契约](docs/CONTRACT.md)。
 

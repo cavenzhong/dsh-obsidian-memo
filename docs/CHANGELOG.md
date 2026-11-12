@@ -4,6 +4,12 @@
 
 以下保留各版本发布时的变更记录，当前功能以 README 与实现契约为准。
 
+## 版本 0.16.4 变更摘要（2026-11-12）
+
+- 新增 npm 公共分发配置，包版本、README 标记、DSH `dsh.bundle.patch` manifest 与 npm 发布元数据对齐；npm 包保留 DSH 运行文件、浏览器源码与构建脚本、bundle patch、locale、文档和许可文件，不包含测试与内部 agent 指引。
+- GitHub Actions 在测试后只打包一次，将同一 `.tgz` 发布到 npm 并附到 GitHub Release；npm 与 GitHub Release 分别检查版本、支持失败后重跑。工作流使用 npm Trusted Publisher / OIDC，无需保存长期 token；若 npm 包名尚未创建，先由维护者本机交互式 2FA 用 `dsh-bootstrap` dist-tag 创建 0.16.3 包，再在两天验证期内发布 0.16.4。
+- README 更新为从 npm 安装，并说明 DSH 插件页的版本检查与更新；`link:` 安装保留为本地开发方式。
+
 ## 版本 0.16.3 变更摘要（2026-11-12）
 
 - 重整浏览器代码：原约 6,200 行单文件拆成 `src/client/` 内按功能组织的 ES 模块；数据、编辑、设置、图片、拖拽、AI、筛选分页、布局、样式与文案各自维护。主面板缩至约 400 行，只组合状态和操作入口。
