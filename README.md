@@ -248,7 +248,7 @@ pnpm test        # 构建一致性 + 架构边界 + 单元与集成回归
 pnpm dev         # 可选：持续构建前端，配合 Harness HMR
 ```
 
-发布时更新 `package.json` 的版本号和中英文 README 标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试并打出单一 `.tgz`，将同一文件发布到 npm 并作为 GitHub Release 附件；npm 包包含运行文件、前端源码与构建脚本、locale、bundle patch 和文档，不包含测试或内部指引。若包名尚未在 npm 创建，先从 0.16.3 稳定源码在本机登录 npm 并运行 `npm publish --access public --tag dsh-bootstrap`，按提示使用账号 2FA 完成首次创建；临时 `dsh-bootstrap` 标签不会占用 `latest`，不需要 CI token。包存在后，在 npm 包设置中添加 Trusted Publisher：GitHub Actions、用户 `cavenzhong`、仓库 `dsh-obsidian-memo`、工作流文件 `release.yml`，并允许 `npm publish`。配置后两天内推送 0.16.4，让首次 OIDC 发布完成验证。若包已存在，只需配置 Trusted Publisher 并在两天内推送。之后 GitHub Actions 使用 OIDC 发布，不保存 npm token。若 npm 版本或 GitHub Release 已存在，工作流会分别跳过对应发布，失败后可重跑。普通提交不新增 Release。
+发布时更新 `package.json` 的版本号和中英文 README 标记，并在 `docs/CHANGELOG.md` 添加对应记录，再推送到 `main`。GitHub Actions 会测试并打出单一 `.tgz`，将同一文件发布到 npm（[`dsh-obsidian-memo`](https://www.npmjs.com/package/dsh-obsidian-memo)）并作为 GitHub Release 附件；npm 包包含运行文件、前端源码与构建脚本、locale、bundle patch 和文档，不包含测试或内部指引。npm 侧使用 Trusted Publishing（OIDC，不保存长期 token），已通过 `npm trust github --file release.yml --repo cavenzhong/dsh-obsidian-memo --allow-publish` 绑定 GitHub Actions；若绑定被撤销或过期，重新执行该命令（需账号 2FA）并在 48 小时内推送新版本完成验证。若 npm 版本或 GitHub Release 已存在，工作流会分别跳过对应发布，失败后可重跑；普通提交不新增 Release。
 
 | 目录 | 内容 |
 | --- | --- |
