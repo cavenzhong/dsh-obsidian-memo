@@ -259,13 +259,15 @@ test('scan：commentKinds 为全部评论 emoji 去重（按出现顺序，不�
   assert.deepEqual(note.commentKinds, ['😈', '🔍', '⚠️', '✅', '💡'])
 })
 
-test('scan：notes 默认按 created 升序，非递减', async (t) => {
+test('scan：notes 按 created 非递增、同值按 relPath 升序排序', async (t) => {
   const root = await makeRoot(t)
   const vault = join(root, 'vault')
   const notesDir = join(vault, '进行时')
   await mkdir(notesDir, { recursive: true })
 
-  // 显式设置 created 顺序（macOS 上 utimes 会同时改 birthtime）：a 最旧 → c 最新
+  // 显式设置 mtime 顺序：a 最旧 → c 最新。
+  // 注意：macOS 上 utimes 会同时更新 birthtime，Linux/Windows 不会，
+  // 所以跨平台只断言排序契约；精确先后仅在 macOS 上额外验证。
   const files = {}
   for (const name of ['a', 'b', 'c']) {
     files[name] = join(notesDir, `${name}.md`)
@@ -277,16 +279,23 @@ test('scan：notes 默认按 created 升序，非递减', async (t) => {
 
   const scanner = new NotesScanner()
   const result = await scanner.scan({ vaultPath: vault, notesDir })
-  assert.deepEqual(result.notes.map((note) => note.name), ['c', 'b', 'a'])
+  assert.equal(result.notes.length, 3)
 
-  // created 是 birthtime 数字，且按非递增（新→旧）排序
+  // created 是数字，排序契约为「created 非递增（新→旧），同值按 relPath 升序」。
   for (const note of result.notes) assert.equal(typeof note.created, 'number')
-  assert.equal(new Set(result.notes.map((note) => note.created)).size, 3)
   for (let i = 1; i < result.notes.length; i += 1) {
+    const previous = result.notes[i - 1]
+    const current = result.notes[i]
     assert.ok(
-      result.notes[i].created <= result.notes[i - 1].created,
-      `created 应非递增：${result.notes[i - 1].created} -> ${result.notes[i].created}`,
+      current.created < previous.created ||
+        (current.created === previous.created && current.relPath.localeCompare(previous.relPath) >= 0),
+      `排序应为 created 非递增、同值按 relPath 升序：${previous.name}(${previous.created}) -> ${current.name}(${current.created})`,
     )
+  }
+
+  if (process.platform === 'darwin') {
+    assert.deepEqual(result.notes.map((note) => note.name), ['c', 'b', 'a'])
+    assert.equal(new Set(result.notes.map((note) => note.created)).size, 3)
   }
 })
 
