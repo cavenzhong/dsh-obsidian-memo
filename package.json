@@ -1,6 +1,6 @@
 {
   "name": "dsh-obsidian-memo",
-  "version": "0.16.4",
+  "version": "0.16.6",
   "type": "module",
   "description": "dsh-obsidian-memo：DeepSeek Harness 的 Obsidian 便签插件。把 Obsidian 进行时文件夹变成淡色便签墙，支持快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、归档、开档与在 Obsidian 打开。",
   "main": "lib/index.js",

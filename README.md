@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.4](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.6](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -120,7 +120,7 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 
 - 单击卡片从右侧打开阅读面板；双击标题或正文进入编辑，`⌘ / Ctrl + S` 保存。
 - 便签保持普通箭头光标；文件夹标签叠在右上方，使用同纸色渐变蒙层。卡片与阅读面板共用同纸色标签和对应深色文字，深色主题自动调整对比度。
-- 阅读面板右上操作依次为「归档 / 到项目 / 删除 / 复制全文」四个线图标，悬停或聚焦显示上方提示；第二行保留紫色图标与文字的「在 Obsidian 打开」。仅空正文显示「双击正文编辑」。
+- 阅读面板操作条一行放完：左侧「归档 / 到项目 / 删除 / 复制全文」四个线图标，悬停或聚焦显示上方提示；右侧保留紫色图标与文字的「在 Obsidian 打开」。AI 评论 emoji 移到底部评论区的标题行（与「评论（N）」同一行、靠右）。仅空正文显示「双击正文编辑」。
 - 编辑保存带打开时的内容版本；期间若被 Obsidian、AI 评论或其他编辑改动过，会拒绝覆盖并保留草稿。
 - 阅读模式可直接勾选任务，写回原 Markdown 的 `[ ]` / `[x]`，保留换行与 frontmatter。
 - 点图钉把面板固定在右侧；再次进入会恢复上次打开的便签。

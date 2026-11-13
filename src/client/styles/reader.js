@@ -22,7 +22,7 @@ const readerStyles = `
 .SN_noteViewHint{margin:8px 0;font-size:12.5px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 .SN_noteViewError{display:flex;align-items:center;gap:12px;margin-bottom:14px;font-size:12.5px;color:var(--dsw-alias-state-error-primary)}
 .SN_noteViewEmpty{margin:0 0 14px;font-size:13px;color:var(--dsw-alias-label-tertiary)}
-.SN_noteViewSection{margin:0 0 2px;font-family:var(--sn-serif);font-size:14px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
+.SN_noteViewSection{margin:0;font-family:var(--sn-serif);font-size:14px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
 .SN_noteEdit{flex:1;min-height:0;display:flex;flex-direction:column}
 .SN_noteEditor{flex:1;min-height:0;width:100%;padding:16px 18px;border:0;resize:none;outline:none;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;tab-size:2}
 .SN_noteEditor:disabled{opacity:.7;cursor:wait}

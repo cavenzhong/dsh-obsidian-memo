@@ -32,7 +32,12 @@ const overridesStyles = `
 /* ── 0.13 抽屉：锁定按钮 / 底部固定评论区 ── */
 .SN_noteDrawerHeadActions{flex:none;display:flex;align-items:center;gap:2px}
 .SN_noteDrawerComments{flex:none;display:flex;flex-direction:column;min-height:96px;max-height:42%;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
-.SN_noteDrawerCommentsHead{flex:none;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 18px 6px}
+/* 0.16.5：评论标题行左侧是标题，右侧是 AI emoji 评论按钮（与标题同一行；emoji 多时只在行内换行，不把标题挤下去）。 */
+.SN_noteDrawerCommentsHead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;row-gap:6px;padding:8px 18px 6px}
+.SN_commentEmojiRow{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;min-width:0;flex:1 1 0;margin-left:auto}
+.SN_commentEmojiRow .SN_aiBtn{flex:none}
+.SN_commentEmojiRow .SN_aiLabel{max-width:168px;white-space:normal;text-align:center}
+.SN_commentEmojiRow .SN_aiBtn:last-child .SN_aiLabel{left:auto;right:0;transform:none}
 .SN_noteDrawerCommentsBody{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:2px 18px 14px;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar{width:8px}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.16));border-radius:4px}
@@ -48,10 +53,9 @@ const overridesStyles = `
 .SN_iconBtn[data-active='true']{color:var(--sn-accent);background:rgba(139,92,246,.10);background:color-mix(in srgb,var(--sn-accent) 10%,transparent)}
 .SN_iconBtn[data-active='true']:hover:not(:disabled){color:var(--sn-accent);background:rgba(139,92,246,.14);background:color-mix(in srgb,var(--sn-accent) 14%,transparent)}
 
-/* ── 0.13 抽屉操作条（§7.3.2）：header 下方一行；左=AI emoji，右=同排线图标 ── */
-.SN_drawerActions{flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;row-gap:6px;flex-wrap:wrap;min-width:0;padding:8px 18px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
-.SN_drawerActionLeft{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0;flex:1}
-.SN_drawerActionRight{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;position:relative;margin-left:auto}
+/* ── 0.16.5 抽屉操作条（§7.3.2）：header 下方一行；左=四个文件操作线图标，右=紫色 Obsidian 入口 ── */
+.SN_drawerActions{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;min-width:0;padding:8px 18px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
+.SN_drawerActionLeft{display:flex;align-items:center;gap:4px;min-width:0;flex:none;position:relative;margin-right:auto}
 .SN_drawerActionTop{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
 .SN_drawerActionBtn{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:27px;height:27px;padding:0;border:.5px solid var(--dsw-alias-border-l3,rgba(80,62,36,.16));border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f9f7f3);color:var(--dsw-alias-label-secondary,#817970);cursor:pointer;transition:background .12s ease,color .12s ease}
 .SN_drawerActionBtn svg{display:block;pointer-events:none}
@@ -63,7 +67,7 @@ const overridesStyles = `
 .SN_drawerDeleteBtn:hover:not(:disabled){color:#b76363;background:color-mix(in srgb,#b77979 12%,transparent)}
 body[data-ds-dark-theme] .SN_drawerDeleteBtn{color:#d09b9b}
 body[data-ds-dark-theme] .SN_drawerDeleteBtn:hover:not(:disabled){color:#e3b3b3}
-.SN_drawerMenu{position:absolute;top:calc(100% + 6px);right:0;z-index:46;width:214px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 10px 30px rgba(0,0,0,.18);animation:SN_toastIn .14s ease;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
+.SN_drawerMenu{position:absolute;top:calc(100% + 6px);left:0;right:auto;z-index:46;width:214px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 10px 30px rgba(0,0,0,.18);animation:SN_toastIn .14s ease;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
 
 @keyframes SN_fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes SN_toastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

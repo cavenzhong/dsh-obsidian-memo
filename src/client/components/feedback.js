@@ -30,6 +30,8 @@ function ToastStack(props) {
         key: item.id,
         className: 'SN_toast',
         'data-kind': item.kind,
+        // toast 浮在顶栏拖动行的几何范围内；macOS 0.2.2-rc.2 起需自行声明 no-drag 区域。
+        'data-window-drag-exclude': '',
         role: 'status',
       },
         h('span', { className: 'SN_toastText' }, item.text),

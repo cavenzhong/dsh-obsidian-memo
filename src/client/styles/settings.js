@@ -20,7 +20,8 @@ const settingsStyles = `
 .SN_panel [hidden]{display:none!important}
 .SN_drawerBody>.SN_drawerSection[data-settings-tab='ai']{padding-top:0;border-top:0}
 .SN_drawerSection>.SN_field+.SN_field{margin-top:6px}
-.SN_inlineSettings{display:flex;flex-direction:column;min-height:0;height:100%;max-width:760px;margin:0 auto}
+/* 0.16.5：官方设置页铺满设置内容列（原先 760px 居中留白）；面板内设置抽屉仍是 420px。 */
+.SN_inlineSettings{display:flex;flex-direction:column;min-height:0;height:100%;width:100%;max-width:none;margin:0}
 .SN_settingsTabs{display:flex;gap:4px;padding:8px 20px;border-bottom:.5px solid var(--dsw-alias-border-l1);flex:none}
 .SN_settingsTab{flex:1;border:0;border-radius:7px;padding:8px 4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;cursor:pointer}
 .SN_settingsTab[aria-selected='true']{background:color-mix(in srgb,var(--sn-accent) 10%,transparent);color:var(--sn-accent);font-weight:600}
@@ -60,7 +61,7 @@ const settingsStyles = `
 .SN_inlineSettings .SN_drawerBody{overflow:visible}.SN_inlineSettings .SN_drawerHead{padding-left:0;padding-right:0}
 .SN_inlineSettings .SN_drawerBody,.SN_inlineSettings .SN_settingsTabs{padding-left:0;padding-right:0}
 .SN_inlineSettings .SN_drawerFoot{margin-top:16px;background:transparent;padding-left:0;padding-right:0}
-.SN_officialSettings{height:auto;min-height:100%;overflow:visible;padding:16px 24px}
+.SN_officialSettings{height:auto;min-height:100%;overflow:visible;padding:16px 0}
 .SN_inlineSettings .SN_drawerHead>.SN_iconBtn{display:none}
 .SN_fieldLabel{font-size:11.5px;font-weight:500;line-height:1.4;color:var(--dsw-alias-label-secondary)}
 .SN_pathActions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}

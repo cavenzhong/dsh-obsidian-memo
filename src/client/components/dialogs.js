@@ -6,6 +6,8 @@ function ProjectDialog(props) {
   const title = note.title || note.name || '';
   return h('div', {
     className: 'SN_dialogLayer',
+    // 遮罩盖住顶栏拖动行；声明排除后，遮罩在窗口顶部也能正常接收点击关闭。
+    'data-window-drag-exclude': '',
     onMouseDown: (event) => {
       if (event.target === event.currentTarget && !busy) onCancel();
     },
@@ -49,6 +51,8 @@ function ConfirmDialog(props) {
   const { title, text, confirmLabel, cancelLabel, onConfirm, onCancel } = props;
   return h('div', {
     className: 'SN_dialogLayer',
+    // 遮罩盖住顶栏拖动行；声明排除后，遮罩在窗口顶部也能正常接收点击关闭。
+    'data-window-drag-exclude': '',
     onMouseDown: (event) => {
       if (event.target === event.currentTarget) onCancel();
     },

@@ -30,9 +30,12 @@ function SettingsDrawer(props) {
   const disabled = Boolean(saving);
 
   return h(Fragment, null,
-    !inline ? h('div', { className: 'SN_scrim', role: 'presentation', onClick: saving ? undefined : onCancel }) : null,
+    !inline ? h('div', { className: 'SN_scrim', role: 'presentation', 'data-window-drag-exclude': '', onClick: saving ? undefined : onCancel }) : null,
     h('aside', {
       className: inline ? 'SN_inlineSettings' : 'SN_drawer',
+      // DSH 0.2.2-rc.2 起 macOS 只自动排除 data-window-drag[-controls] 内的控件；
+      // 设置抽屉与遮罩盖在顶栏拖动行上，需显式排除自身矩形，头部关闭和遮罩点击才不会被当成拖窗口。
+      'data-window-drag-exclude': inline ? undefined : '',
       role: inline ? undefined : 'dialog',
       'aria-modal': inline ? undefined : 'true',
       'aria-label': t('settings.title'),

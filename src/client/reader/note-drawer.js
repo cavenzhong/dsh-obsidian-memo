@@ -78,10 +78,38 @@ function NoteDrawer(props) {
     ) : null,
   );
 
+  // 0.16.5：AI emoji 评论按钮移到评论区标题行（标题右侧），与标题同一行；pending / 无预设也在这一行。
+  const emojiButtons = drawerActions && Array.isArray(drawerActions.emojis) ? drawerActions.emojis : [];
+  const commentEmojiRow = drawerActions
+    ? h('div', { className: 'SN_commentEmojiRow', role: 'group', 'aria-label': t('card.aiComment') },
+      drawerActions.pending
+        ? h('span', { className: 'SN_pending', role: 'status' },
+          h('span', { className: 'SN_pendingDot', 'aria-hidden': 'true' }),
+          t('card.pending'),
+        )
+        : emojiButtons.length === 0
+          ? h('span', { className: 'SN_aiEmpty' }, t('card.noPresets'))
+          : emojiButtons.map((emoji) => h('button', {
+            key: emoji.id || emoji.emoji,
+            type: 'button',
+            className: 'SN_aiBtn',
+            'aria-label': emojiLabel(emoji) || emoji.emoji || t('card.aiComment'),
+            onClick: (event) => {
+              event.stopPropagation();
+              drawerActions.onComment(emoji);
+            },
+          },
+            h('span', { className: 'SN_aiEmoji', 'aria-hidden': 'true' }, emoji.emoji || '✨'),
+            h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, emoji.label || emoji.emoji || ''),
+          )),
+    )
+    : null;
+
   // 0.13 评论固定区：flex:none、max-height:42%、min-height:96px、自身滚动、上边框；编辑态隐藏。
   const commentsNode = h('section', { className: 'SN_noteDrawerComments', 'aria-label': t('drawer.comments', { count: comments.length }) },
     h('div', { className: 'SN_noteDrawerCommentsHead' },
       h('h3', { className: 'SN_noteViewSection' }, t('drawer.comments', { count: comments.length })),
+      commentEmojiRow,
     ),
     comments.length === 0
       ? h('p', { className: 'SN_noteViewHint SN_commentEmpty' }, t('drawer.noComments'))
@@ -91,32 +119,10 @@ function NoteDrawer(props) {
   );
 
   // 抽屉操作条（§7.3.2）：header 分割线下方；锁定/未锁定都显示，编辑态隐藏。
-  // 左 = AI emoji；右上 = 归档 / 到项目 / 删除 / 复制全文；右下 = 紫色 Obsidian 图文入口。
+  // 0.16.5：一行放完——左侧归档 / 到项目 / 删除 / 复制全文，右侧紫色 Obsidian 图文入口。
   const actionsNode = drawerActions
     ? h('div', { className: 'SN_drawerActions' },
       h('div', { className: 'SN_drawerActionLeft' },
-        drawerActions.pending
-          ? h('span', { className: 'SN_pending' },
-            h('span', { className: 'SN_pendingDot', 'aria-hidden': 'true' }),
-            t('card.pending'),
-          )
-          : (Array.isArray(drawerActions.emojis) ? drawerActions.emojis : []).length === 0
-            ? h('span', { className: 'SN_aiEmpty' }, t('card.noPresets'))
-            : (drawerActions.emojis || []).map((emoji) => h('button', {
-              key: emoji.id || emoji.emoji,
-              type: 'button',
-              className: 'SN_aiBtn',
-              'aria-label': emojiLabel(emoji) || emoji.emoji || t('card.aiComment'),
-              onClick: (event) => {
-                event.stopPropagation();
-                drawerActions.onComment(emoji);
-              },
-            },
-              h('span', { className: 'SN_aiEmoji', 'aria-hidden': 'true' }, emoji.emoji || '✨'),
-              h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, emoji.label || emoji.emoji || ''),
-            )),
-      ),
-      h('div', { className: 'SN_drawerActionRight' },
         h('div', { className: 'SN_drawerActionTop' }, [
           { kind: 'archive', label: t('card.archive'), onClick: drawerActions.onToggleArchive,
             disabled: Boolean(drawerActions.pending), 'data-sn-drawer-menu-trigger': '',
@@ -129,10 +135,6 @@ function NoteDrawer(props) {
           className: 'SN_drawerActionBtn' + (kind === 'delete' ? ' SN_drawerDeleteBtn' : ''),
           'aria-label': label,
         }, h(ActionIcon, { kind, size: 15 }), h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, label)))),
-        h('button', {
-          type: 'button', className: 'SN_mini SN_obsidianBtn',
-          'aria-label': t('card.obsidian'), onClick: drawerActions.onOpenObsidian,
-        }, h(ObsidianIcon, null), h('span', { className: 'SN_obsidianText' }, t('card.obsidian'))),
         drawerActions.archiveOpen
           ? h('div', {
             className: 'SN_drawerMenu',
@@ -160,11 +162,18 @@ function NoteDrawer(props) {
           )
           : null,
       ),
+      h('button', {
+        type: 'button', className: 'SN_mini SN_obsidianBtn',
+        'aria-label': t('card.obsidian'), onClick: drawerActions.onOpenObsidian,
+      }, h(ObsidianIcon, null), h('span', { className: 'SN_obsidianText' }, t('card.obsidian'))),
     )
     : null;
   const drawerNode = h('aside', {
     className: 'SN_noteDrawer',
     'data-pinned': pinned ? 'true' : 'false',
+    // DSH 0.2.2-rc.2 起 macOS 只对 data-window-drag[-controls] 内的控件自动 no-drag；
+    // 抽屉盖在顶栏的拖动行上，必须显式排除自己的可见矩形，否则头部按钮会变成拖窗口。
+    'data-window-drag-exclude': '',
     role: 'dialog',
     'aria-label': t('drawer.aria'),
     style: { ...drawerStyle, '--sn-card-bg': source.color || DEFAULT_NOTE_COLOR, '--sn-card-bg-dark': source.darkColor || source.color || DEFAULT_NOTE_COLOR },
