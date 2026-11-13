@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.16.6）
+# 代码结构与修改入口（0.16.7）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
 
