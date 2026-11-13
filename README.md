@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.6](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.6](https://img.shields.io/badge/version-0.16.6-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -55,7 +55,7 @@ dsh-obsidian-memo 在 Harness 左侧栏提供便签入口，把 Obsidian 文件�
 
 ![真实阅读界面：左侧便签墙，右侧钉住的正文与 AI 评论区](docs/assets/reader.png)
 
-右侧面板里可以读全文、展开或折叠评论、直接勾选任务；钉住后与便签墙左右并排，边整理边对照。面板宽度可拖拽，正文与评论各自滚动。
+右侧面板里可以读全文、展开或折叠评论、直接勾选任务；钉住后与便签墙左右并排，边整理边对照。面板宽度可拖拽，正文与评论各自滚动；评论区的上边线也能上下拉动调整显示空间，展开/折叠状态会记住。卡片上只显示每条评论的 emoji + 标题 + 条数，点卡片即可进去看全文或删除评论（源 Markdown 同步改写，5 秒内可撤回）。
 
 ## 安装
 
@@ -121,6 +121,8 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 - 单击卡片从右侧打开阅读面板；双击标题或正文进入编辑，`⌘ / Ctrl + S` 保存。
 - 便签保持普通箭头光标；文件夹标签叠在右上方，使用同纸色渐变蒙层。卡片与阅读面板共用同纸色标签和对应深色文字，深色主题自动调整对比度。
 - 阅读面板操作条一行放完：左侧「归档 / 到项目 / 删除 / 复制全文」四个线图标，悬停或聚焦显示上方提示；右侧保留紫色图标与文字的「在 Obsidian 打开」。AI 评论 emoji 移到底部评论区的标题行（与「评论（N）」同一行、靠右）。仅空正文显示「双击正文编辑」。
+- 卡片评论区按 emoji + 标题汇总，只显示加粗条数，不显示正文；点击卡片打开面板。右侧评论区可拖动上边线调整高度（96px 到 72%，双击恢复），点标题箭头或「评论（N）」可折叠成一行。
+- 每条评论右上角可删除，删除会同步移除源 Markdown 里的 callout，5 秒内可撤回；文件已被再次修改时撤回会被拒绝。
 - 编辑保存带打开时的内容版本；期间若被 Obsidian、AI 评论或其他编辑改动过，会拒绝覆盖并保留草稿。
 - 阅读模式可直接勾选任务，写回原 Markdown 的 `[ ]` / `[x]`，保留换行与 frontmatter。
 - 点图钉把面板固定在右侧；再次进入会恢复上次打开的便签。

@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.6](https://img.shields.io/badge/version-0.16.4-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.6](https://img.shields.io/badge/version-0.16.6-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -53,7 +53,7 @@ Type a line and press `Enter` to create a note. Press `Tab` to expand the body a
 
 ![The reading panel: sticky-note wall on the left, pinned note and AI comments on the right](docs/assets/reader.png)
 
-The right panel shows the full note, collapsible comments, and checkable tasks. Pin it to work side by side with the wall; drag its edge to resize, and the body and comments scroll independently.
+The right panel shows the full note, collapsible comments, and checkable tasks. Pin it to work side by side with the wall; drag its edge to resize, and the body and comments scroll independently. The line above the comments is also draggable to adjust how much space comments get, and the collapsed/expanded state is remembered. Cards show only each comment's emoji + label + count; click a card to read, add, or delete comments (the source Markdown is updated too, with a 5-second undo).
 
 ## Install
 
@@ -119,6 +119,8 @@ Paste, drag, or use the plus button to attach up to 8 images. They are compresse
 - Click a card to open the reading panel; double-click the title or body to edit, and press `⌘ / Ctrl + S` to save.
 - Cards keep the normal arrow cursor. Folder tags overlay the upper-right corner over a matching paper-color gradient; cards and the reader share paper-colored tags with darker matching text and adjusted contrast in dark mode.
 - The reader's action bar is one row: Archive, To project, Delete, and Copy full note on the left, in that order, with line icons and tooltips above; the purple icon-and-text Open in Obsidian button sits on the right. AI comment emojis live in the comments heading row at the bottom, beside the Comments title. The double-click editing hint appears only when the body is empty.
+- Card comments are grouped by emoji + label, showing only a bold count and no body text; click a card to open it. In the reader, drag the line above the comments to resize them (96px to 72%, double-click to reset), or click the heading arrow or Comments title to collapse them into one row.
+- Each comment has a delete button; deleting removes the callout from the source Markdown and offers a 5-second undo. If the file changed again meanwhile, the undo is refused.
 - Saves are version-checked. If Obsidian, an AI comment, or another edit changed the note meanwhile, the save is refused and your draft is kept.
 - Tick tasks in reading mode; they are written back as `[ ]` / `[x]` while preserving line breaks and frontmatter.
 - Click the pin to keep the panel open on the right; re-entering restores the last note.

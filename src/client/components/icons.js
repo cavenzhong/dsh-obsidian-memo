@@ -145,6 +145,20 @@ function CalendarIcon() {
   );
 }
 
+function ChevronIcon(props) {
+  const size = props && typeof props.size === 'number' && props.size > 0 ? props.size : 12;
+  return h('svg', {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    'aria-hidden': 'true', focusable: 'false', className: 'SN_chevron',
+    style: { display: 'block', transform: props && props.collapsed ? 'rotate(-90deg)' : 'none' },
+  },
+    h('path', {
+      d: 'M6 9l6 6 6-6',
+      stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round',
+    }),
+  );
+}
+
 function ActionIcon({ kind, size = 20 }) {
   const paths = {
     delete: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7',
@@ -157,4 +171,4 @@ function ActionIcon({ kind, size = 20 }) {
     h('path', { d: paths[kind], stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }));
 }
 
-export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SortIcon, ObsidianIcon, CalendarIcon, ActionIcon };
+export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SortIcon, ObsidianIcon, CalendarIcon, ChevronIcon, ActionIcon };

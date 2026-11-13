@@ -27,10 +27,11 @@ const wallStyles = `
 .SN_cardTitle{margin:0;overflow:hidden;font-family:var(--sn-serif);font-size:19px;font-weight:600;line-height:1.3;color:var(--sn-ink-title);word-break:break-word;user-select:text}
 .SN_cardTitleText{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .SN_cardExcerpt{margin:0;flex:0 1 auto;min-height:0;font-size:12.5px;line-height:1.58;color:var(--sn-ink-body);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;user-select:text}
-.SN_cardComments{flex:none;display:flex;flex-direction:column;gap:2px;min-height:0;max-height:37px;overflow:hidden;margin-top:auto}
-.SN_cComment{display:flex;align-items:baseline;gap:5px;min-width:0;font-size:11.5px;line-height:1.5;color:var(--sn-ink-comment)}
-.SN_cCommentHead{flex:none;font-size:11px;letter-spacing:.01em;color:var(--sn-ink-muted)}
-.SN_cCommentText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.SN_cardComments{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 9px;min-height:0;max-height:37px;overflow:hidden;margin-top:auto}
+.SN_cCommentGroup{display:inline-flex;align-items:baseline;gap:4px;min-width:0;max-width:100%;font-size:11.5px;line-height:1.5;color:var(--sn-ink-comment);white-space:nowrap}
+.SN_cCommentEmoji{flex:none;font-size:11.5px;line-height:1}
+.SN_cCommentLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
+.SN_cCommentCount{flex:none;font-weight:700;font-variant-numeric:tabular-nums;color:var(--sn-ink-title)}
 .SN_cCommentMore{flex:none;font-size:10.5px;color:var(--sn-ink-muted)}
 
 .SN_cardActions{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;flex-direction:column;gap:6px;padding:26px 12px 11px;background:linear-gradient(to top,var(--sn-card-bg) 34%,rgba(255,255,255,0));opacity:0;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}

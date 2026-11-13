@@ -1,4 +1,5 @@
 /** 阅读模式的 Markdown 块、任务与评论渲染。 */
+import { ActionIcon } from '../components/icons.js';
 import { NoteImage } from '../images/components.js';
 import { h } from '../react.js';
 import { commentHead } from '../wall/model.js';
@@ -39,10 +40,24 @@ function NoteBlock(props) {
 function NoteComment(props) {
   const comment = props.comment || {};
   const head = commentHead(comment);
+  const deleteLabel = props.deleteLabel || '删除评论';
   return h('div', { className: 'SN_commentCard' },
     h('div', { className: 'SN_commentCardHead' },
       h('span', { className: 'SN_commentCardLabel' }, head),
       comment.time ? h('span', { className: 'SN_commentCardTime' }, comment.time) : null,
+      typeof props.onDelete === 'function'
+        ? h('button', {
+          type: 'button',
+          className: 'SN_commentCardDelete',
+          title: deleteLabel,
+          'aria-label': deleteLabel,
+          disabled: Boolean(props.deleting),
+          onClick: (event) => {
+            event.stopPropagation();
+            props.onDelete();
+          },
+        }, h(ActionIcon, { kind: 'delete', size: 12 }))
+        : null,
     ),
     h('div', { className: 'SN_commentCardBody' }, comment.text || ''),
   );

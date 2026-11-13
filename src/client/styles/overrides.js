@@ -8,7 +8,6 @@ const overridesStyles = `
 .SN_card[data-images='true'] .SN_cardClip{padding:10px 15px;gap:2px}
 .SN_cardExcerpt[data-compact='true']{-webkit-line-clamp:1;line-height:1.5}
 .SN_card[data-images='true'] .SN_cardComments{max-height:18px;margin-top:0}
-.SN_card[data-images='true'] .SN_cCommentMore{display:none}
 .SN_cardImages{flex:none;display:flex;align-items:center;gap:6px;min-height:64px;overflow:hidden;margin-top:auto;margin-bottom:6px;align-self:flex-start;transition:opacity .12s ease}
 /* 0.13.4：卡片操作菜单出现（= 悬停/聚焦卡片）且这张卡有图时，统一隐藏图片预览；
    不再区分鼠标是否停在 emoji 行上，也移除了旧的同色渐变蒙版。 */
@@ -31,9 +30,23 @@ const overridesStyles = `
 
 /* ── 0.13 抽屉：锁定按钮 / 底部固定评论区 ── */
 .SN_noteDrawerHeadActions{flex:none;display:flex;align-items:center;gap:2px}
-.SN_noteDrawerComments{flex:none;display:flex;flex-direction:column;min-height:96px;max-height:42%;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
-/* 0.16.5：评论标题行左侧是标题，右侧是 AI emoji 评论按钮（与标题同一行；emoji 多时只在行内换行，不把标题挤下去）。 */
+.SN_noteDrawerComments{position:relative;flex:none;display:flex;flex-direction:column;min-height:96px;max-height:42%;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
+/* 折叠后只留标题一行；显式高度让位给 auto，避免留下空白。 */
+.SN_noteDrawerComments[data-collapsed='true']{height:auto!important;min-height:0;max-height:none}
+/* 顶边就是高度拖拽线：上面 8px 热区，悬停/拖动时显示品牌色。 */
+.SN_noteDrawerCommentsHandle{position:absolute;left:0;right:0;top:-5px;height:10px;z-index:4;cursor:row-resize;touch-action:none}
+.SN_noteDrawerCommentsHandle::after{content:'';position:absolute;left:0;right:0;top:4px;height:1px;background:transparent;transition:background .12s ease}
+.SN_noteDrawerCommentsHandle:hover::after,.SN_noteDrawerComments[data-resizing='true'] .SN_noteDrawerCommentsHandle::after{background:var(--dsw-alias-brand-primary,#2f6feb)}
+.SN_noteDrawerCommentsHandle[data-disabled='true']{cursor:default;pointer-events:none}
+.SN_noteDrawerComments[data-resizing='true'],.SN_noteDrawerComments[data-resizing='true'] *{user-select:none!important;cursor:row-resize!important}
+/* 0.16.6：评论标题行左侧是标题，右侧是 AI emoji 评论按钮（与标题同一行；emoji 多时只在行内换行，不把标题挤下去）。 */
 .SN_noteDrawerCommentsHead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;row-gap:6px;padding:8px 18px 6px}
+/* 标题本身是折叠按钮：图标在文字左侧；点图标或文字都能切换。 */
+.SN_commentToggle{display:inline-flex;align-items:center;gap:5px;min-width:0;margin:0;padding:2px 0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:6px}
+.SN_commentToggle:hover .SN_noteViewSection{color:var(--dsw-alias-brand-primary,#2f6feb)}
+.SN_commentToggle:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}
+.SN_commentToggle .SN_chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.SN_commentToggle:hover .SN_chevron{color:var(--dsw-alias-brand-primary,#2f6feb)}
 .SN_commentEmojiRow{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;min-width:0;flex:1 1 0;margin-left:auto}
 .SN_commentEmojiRow .SN_aiBtn{flex:none}
 .SN_commentEmojiRow .SN_aiLabel{max-width:168px;white-space:normal;text-align:center}
@@ -41,7 +54,14 @@ const overridesStyles = `
 .SN_noteDrawerCommentsBody{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:2px 18px 14px;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar{width:8px}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.16));border-radius:4px}
-.SN_commentEmpty{padding:0 18px 14px;margin:0}
+.SN_commentEmpty{padding:0;margin:0}
+/* 评论卡片右上角删除：默认淡出，悬停/键盘聚焦出现；触屏设备保持半可见。 */
+.SN_commentCardDelete{flex:none;align-self:center;margin-left:auto;width:22px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;opacity:0;transition:opacity .12s ease,background .12s ease,color .12s ease}
+.SN_commentCard:hover .SN_commentCardDelete,.SN_commentCard:focus-within .SN_commentCardDelete{opacity:1}
+.SN_commentCardDelete:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#c23b43) 10%,transparent);color:var(--dsw-alias-state-error-primary,#c23b43)}
+.SN_commentCardDelete:focus-visible{opacity:1;outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:1px}
+.SN_commentCardDelete:disabled{opacity:.35;cursor:default}
+@media (hover:none){.SN_commentCardDelete{opacity:.55}}
 
 /* ── 0.13 面板锁：锁定 = SN_body 内联双栏，抽屉普通 flex 子项 ── */
 .SN_body[data-pinned='true']{flex-direction:row}
@@ -53,7 +73,7 @@ const overridesStyles = `
 .SN_iconBtn[data-active='true']{color:var(--sn-accent);background:rgba(139,92,246,.10);background:color-mix(in srgb,var(--sn-accent) 10%,transparent)}
 .SN_iconBtn[data-active='true']:hover:not(:disabled){color:var(--sn-accent);background:rgba(139,92,246,.14);background:color-mix(in srgb,var(--sn-accent) 14%,transparent)}
 
-/* ── 0.16.5 抽屉操作条（§7.3.2）：header 下方一行；左=四个文件操作线图标，右=紫色 Obsidian 入口 ── */
+/* ── 0.16.6 抽屉操作条（§7.3.2）：header 下方一行；左=四个文件操作线图标，右=紫色 Obsidian 入口 ── */
 .SN_drawerActions{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;min-width:0;padding:8px 18px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
 .SN_drawerActionLeft{display:flex;align-items:center;gap:4px;min-width:0;flex:none;position:relative;margin-right:auto}
 .SN_drawerActionTop{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}

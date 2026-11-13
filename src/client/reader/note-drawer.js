@@ -1,5 +1,5 @@
 /** 阅读/编辑抽屉视图，接收草稿、布局和操作回调。 */
-import { ActionIcon, CloseIcon, ObsidianIcon, PinIcon } from '../components/icons.js';
+import { ActionIcon, ChevronIcon, CloseIcon, ObsidianIcon, PinIcon } from '../components/icons.js';
 import { Fragment, React, h } from '../react.js';
 import { NoteBlock, NoteComment } from './blocks.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
@@ -9,8 +9,8 @@ import { emojiLabel } from '../wall/model.js';
 function NoteDrawer(props) {
   const {
     t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, pinned,
-    inline, onTogglePinned, drawerActions, onClose, onRetry, onStartEdit, onBodyChange, onSave,
-    onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
+    inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
+    onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
   } = props;
   // 第 4 轮：标题编辑用多行 textarea 完整显示，高度随内容自适应（不支持 field-sizing 的浏览器靠这里）。
   const titleEditorRef = React.useRef(null);
@@ -78,7 +78,7 @@ function NoteDrawer(props) {
     ) : null,
   );
 
-  // 0.16.5：AI emoji 评论按钮移到评论区标题行（标题右侧），与标题同一行；pending / 无预设也在这一行。
+  // 0.16.6：AI emoji 评论按钮移到评论区标题行（标题右侧），与标题同一行；pending / 无预设也在这一行。
   const emojiButtons = drawerActions && Array.isArray(drawerActions.emojis) ? drawerActions.emojis : [];
   const commentEmojiRow = drawerActions
     ? h('div', { className: 'SN_commentEmojiRow', role: 'group', 'aria-label': t('card.aiComment') },
@@ -105,21 +105,69 @@ function NoteDrawer(props) {
     )
     : null;
 
-  // 0.13 评论固定区：flex:none、max-height:42%、min-height:96px、自身滚动、上边框；编辑态隐藏。
-  const commentsNode = h('section', { className: 'SN_noteDrawerComments', 'aria-label': t('drawer.comments', { count: comments.length }) },
+  // 评论区固定底部：标题行可折叠；顶边可上下拖动调整高度（双击恢复默认）；编辑态隐藏。
+  const collapsed = Boolean(commentsLayout && commentsLayout.commentsCollapsed);
+  const resizingComments = Boolean(commentsLayout && commentsLayout.resizingComments);
+  const commentsHeight = commentsLayout && typeof commentsLayout.commentsHeight === 'number'
+    && Number.isFinite(commentsLayout.commentsHeight) ? commentsLayout.commentsHeight : null;
+  const commentsStyle = commentsHeight === null || collapsed
+    ? undefined
+    : { height: commentsHeight + 'px', maxHeight: 'min(72%, calc(100% - 260px))' };
+  const commentsToggle = h('button', {
+    type: 'button',
+    className: 'SN_commentToggle',
+    'aria-expanded': collapsed ? 'false' : 'true',
+    'aria-controls': 'SN_noteDrawerCommentsBody',
+    title: collapsed ? t('drawer.commentsExpand') : t('drawer.commentsCollapse'),
+    onClick: (event) => {
+      event.stopPropagation();
+      if (commentsLayout && typeof commentsLayout.onToggle === 'function') commentsLayout.onToggle();
+    },
+  },
+    h(ChevronIcon, { collapsed: collapsed }),
+    h('span', { className: 'SN_noteViewSection' }, t('drawer.comments', { count: comments.length })),
+  );
+  const commentsNode = h('section', {
+    className: 'SN_noteDrawerComments',
+    'aria-label': t('drawer.comments', { count: comments.length }),
+    'data-collapsed': collapsed ? 'true' : 'false',
+    'data-resizing': resizingComments ? 'true' : 'false',
+    style: commentsStyle,
+  },
+    h('div', {
+      className: 'SN_noteDrawerCommentsHandle',
+      role: 'separator',
+      'aria-orientation': 'horizontal',
+      'aria-label': t('drawer.commentsResize'),
+      title: t('drawer.commentsResize'),
+      'data-disabled': collapsed ? 'true' : 'false',
+      onPointerDown: commentsLayout && typeof commentsLayout.onResizeStart === 'function'
+        ? commentsLayout.onResizeStart : undefined,
+      onDoubleClick: commentsLayout && typeof commentsLayout.onResizeReset === 'function'
+        ? commentsLayout.onResizeReset : undefined,
+    }),
     h('div', { className: 'SN_noteDrawerCommentsHead' },
-      h('h3', { className: 'SN_noteViewSection' }, t('drawer.comments', { count: comments.length })),
-      commentEmojiRow,
+      commentsToggle,
+      collapsed ? null : commentEmojiRow,
     ),
-    comments.length === 0
-      ? h('p', { className: 'SN_noteViewHint SN_commentEmpty' }, t('drawer.noComments'))
-      : h('div', { className: 'SN_noteDrawerCommentsBody' },
-        comments.map((comment, index) => h(NoteComment, { key: index, comment: comment })),
+    collapsed
+      ? null
+      : h('div', { className: 'SN_noteDrawerCommentsBody', id: 'SN_noteDrawerCommentsBody' },
+        comments.length === 0
+          ? h('p', { className: 'SN_noteViewHint SN_commentEmpty' }, t('drawer.noComments'))
+          : comments.map((comment, index) => h(NoteComment, {
+            key: index,
+            comment: comment,
+            deleting: Boolean(commentsActions && commentsActions.deletingIndex === index),
+            deleteLabel: t('drawer.commentDelete'),
+            onDelete: commentsActions && typeof commentsActions.onDelete === 'function'
+              ? () => commentsActions.onDelete(index, comment) : undefined,
+          })),
       ),
   );
 
   // 抽屉操作条（§7.3.2）：header 分割线下方；锁定/未锁定都显示，编辑态隐藏。
-  // 0.16.5：一行放完——左侧归档 / 到项目 / 删除 / 复制全文，右侧紫色 Obsidian 图文入口。
+  // 0.16.6：一行放完——左侧归档 / 到项目 / 删除 / 复制全文，右侧紫色 Obsidian 图文入口。
   const actionsNode = drawerActions
     ? h('div', { className: 'SN_drawerActions' },
       h('div', { className: 'SN_drawerActionLeft' },

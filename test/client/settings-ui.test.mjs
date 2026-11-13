@@ -117,7 +117,7 @@ test('v0.16 管理与关于：共享设置页包含 GitHub 与作者信息', (t)
   assert.match(CLIENT_SOURCE, /\.SN_configActions>select\{appearance:none;-webkit-appearance:none;background-image:none/)
 })
 
-test('v0.16.5 DSH 0.2.2-rc.2：设置抽屉与遮罩声明 no-drag 排除，官方设置页铺满内容列', (t) => {
+test('v0.16.6 DSH 0.2.2-rc.2：设置抽屉与遮罩声明 no-drag 排除，官方设置页铺满内容列', (t) => {
   const api = loadClient(t).mod.__test
   const draft = { vaultPath: '/vault', notesDir: '/vault/notes', emojis: [] }
   const drawer = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft }))

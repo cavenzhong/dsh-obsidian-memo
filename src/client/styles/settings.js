@@ -20,7 +20,7 @@ const settingsStyles = `
 .SN_panel [hidden]{display:none!important}
 .SN_drawerBody>.SN_drawerSection[data-settings-tab='ai']{padding-top:0;border-top:0}
 .SN_drawerSection>.SN_field+.SN_field{margin-top:6px}
-/* 0.16.5：官方设置页铺满设置内容列（原先 760px 居中留白）；面板内设置抽屉仍是 420px。 */
+/* 0.16.6：官方设置页铺满设置内容列（原先 760px 居中留白）；面板内设置抽屉仍是 420px。 */
 .SN_inlineSettings{display:flex;flex-direction:column;min-height:0;height:100%;width:100%;max-width:none;margin:0}
 .SN_settingsTabs{display:flex;gap:4px;padding:8px 20px;border-bottom:.5px solid var(--dsw-alias-border-l1);flex:none}
 .SN_settingsTab{flex:1;border:0;border-radius:7px;padding:8px 4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;cursor:pointer}

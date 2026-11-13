@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { appendComment, buildCommentCallout, clip, commentKindsFrom, parseNote, stripBlockIds, stripInline } from '../../lib/notes.js'
+import { commentGroupsFrom, removeCommentAt } from '../../lib/comments.js'
+import {
+  appendComment, buildCommentCallout, clip, commentKindsFrom, parseNote, stripBlockIds, stripInline,
+} from '../../lib/notes.js'
 
 test('buildCommentCallout：标题与正文格式', () => {
   const block = buildCommentCallout({ type: 'quote', title: '🔍 洞察 · 2026-11-03 22:10', text: '评论正文' })
@@ -104,6 +107,55 @@ test('stripInline / parseNote：0.13.9 隐藏行尾 block id 只去掉锚点，�
   assert.doesNotMatch(parsed.excerpt, /qa-daily-preview/)
   assert.equal(parsed.comments.length, 1)
   assert.equal(parsed.comments[0].text, '评论正文')
+})
+
+test('commentGroupsFrom：按 emoji+label 分组计数，空 emoji 也归组', () => {
+  assert.deepEqual(
+    commentGroupsFrom([
+      { emoji: '😈', label: '毒舌' },
+      { emoji: '🌱', label: '落地' },
+      { emoji: '😈', label: '毒舌' },
+      { emoji: '', label: '笔记' },
+      { emoji: '', label: '笔记' },
+    ]),
+    [
+      { emoji: '😈', label: '毒舌', count: 2 },
+      { emoji: '🌱', label: '落地', count: 1 },
+      { emoji: '', label: '笔记', count: 2 },
+    ],
+  )
+  assert.deepEqual(commentGroupsFrom([{ emoji: '🔍', title: '洞察' }]), [{ emoji: '🔍', label: '洞察', count: 1 }])
+  assert.deepEqual(commentGroupsFrom(null), [])
+})
+
+test('removeCommentAt：按序号删 callout 与多余空行，保留其余评论', () => {
+  const text = '# T\n\n正文\n\n> [!quote] 😈 毒舌 · 2026-11-13 10:00\n> 第一条\n\n> [!tip] 🌱 落地 · 2026-11-13 10:05\n> 第二段\n>\n> 续\n'
+  const ranges = parseNote(text, { withRanges: true }).comments
+  assert.equal(ranges[0].startLine, 4)
+  assert.equal(ranges[0].endLine, 5)
+  assert.equal(ranges[1].startLine, 7)
+  assert.equal(ranges[1].endLine, 10)
+
+  const first = removeCommentAt(text, 0)
+  assert.equal(first.before, text)
+  assert.equal(first.comment.title, '😈 毒舌 · 2026-11-13 10:00')
+  assert.equal(first.text, '# T\n\n正文\n\n> [!tip] 🌱 落地 · 2026-11-13 10:05\n> 第二段\n>\n> 续\n')
+
+  const second = removeCommentAt(text, 1)
+  assert.equal(second.text, '# T\n\n正文\n\n> [!quote] 😈 毒舌 · 2026-11-13 10:00\n> 第一条\n')
+
+  // 越界 / 非法序号不返回结果。
+  assert.equal(removeCommentAt(text, 2), null)
+  assert.equal(removeCommentAt(text, -1), null)
+  assert.equal(removeCommentAt(text, 0.5), null)
+})
+
+test('removeCommentAt：保留 BOM 与 frontmatter，撤回用原文', () => {
+  const text = '\uFEFF---\nPROJECTS: x\n---\n\n# T\n\n> [!note] A\n> a\n'
+  const removed = removeCommentAt(text, 0)
+  assert.equal(removed.text, '\uFEFF---\nPROJECTS: x\n---\n\n# T\n')
+  assert.equal(removed.before, text)
+  assert.deepEqual(parseNote(removed.text).blocks.map((block) => block.text), ['T'])
 })
 
 test('clip：短文本原样，长文本截断加省略号', () => {

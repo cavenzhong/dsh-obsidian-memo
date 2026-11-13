@@ -1,11 +1,11 @@
 /** 可 memo 的卡片展示与事件转发；通过稳定 actions ref 调用交互。 */
 import { ActionIcon, ObsidianIcon } from '../components/icons.js';
-import { MAX_CARD_COMMENTS } from '../constants.js';
+import { MAX_CARD_COMMENT_GROUPS } from '../constants.js';
 import { imageCacheKey } from '../images/cache.js';
 import { CardThumb } from '../images/components.js';
 import { React, h } from '../react.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
-import { cardImages, commentHead, emojiLabel } from './model.js';
+import { cardCommentGroups, cardImages, emojiLabel } from './model.js';
 
 const NoteCard = React.memo(function NoteCard(props) {
   const {
@@ -17,14 +17,13 @@ const NoteCard = React.memo(function NoteCard(props) {
   const darkColor = typeof note.darkColor === 'string' && note.darkColor !== '' ? note.darkColor : color;
   const title = note.title || note.name || '';
   const excerpt = typeof note.excerpt === 'string' ? note.excerpt : '';
-  // 有图时：标题仍 3 行、摘要 1 行、评论 1 条；缩略图排在评论条之后并贴卡片底部左侧。
+  // 有图时：标题仍 3 行、摘要 1 行、评论 1 类；缩略图排在评论条之后并贴卡片底部左侧。
   const { items: images, more: moreImages } = cardImages(note);
   const hasImages = images.length > 0;
-  const comments = Array.isArray(note.comments)
-    ? note.comments.slice(0, hasImages ? 1 : MAX_CARD_COMMENTS)
-    : [];
-  const commentCount = typeof note.commentCount === 'number' ? note.commentCount : comments.length;
-  const rest = Math.max(0, commentCount - comments.length);
+  // 卡片只显示「emoji + label + 加粗条数」，不显示评论正文；点击整张卡片打开右侧面板。
+  const commentGroups = cardCommentGroups(note);
+  const visibleGroups = commentGroups.slice(0, hasImages ? 1 : MAX_CARD_COMMENT_GROUPS);
+  const restGroups = Math.max(0, commentGroups.length - visibleGroups.length);
   const disabled = Boolean(pending);
   // 菜单随整张卡片悬停/聚焦出现；此时统一隐藏图片预览。
   const menuVisible = Boolean(!pending && !drawerOpen && !props.dragging && hoverActive);
@@ -105,12 +104,17 @@ const NoteCard = React.memo(function NoteCard(props) {
         className: 'SN_cardExcerpt',
         'data-compact': hasImages ? 'true' : 'false',
       }, excerpt) : null,
-      comments.length === 0 && rest === 0 ? null : h('div', { className: 'SN_cardComments' },
-        comments.map((comment, index) => h('div', { className: 'SN_cComment', key: index, title: comment.text || '' },
-          h('span', { className: 'SN_cCommentHead' }, commentHead(comment)),
-          h('span', { className: 'SN_cCommentText' }, comment.text || ''),
+      visibleGroups.length === 0 && restGroups === 0 ? null : h('div', { className: 'SN_cardComments' },
+        visibleGroups.map((group, index) => h('span', {
+          className: 'SN_cCommentGroup',
+          key: `${group.emoji}|${group.label}|${index}`,
+          title: [group.emoji, group.label].filter(Boolean).join(' '),
+        },
+          group.emoji ? h('span', { className: 'SN_cCommentEmoji', 'aria-hidden': 'true' }, group.emoji) : null,
+          group.label ? h('span', { className: 'SN_cCommentLabel' }, group.label) : null,
+          h('span', { className: 'SN_cCommentCount' }, String(group.count)),
         )),
-        rest > 0 ? h('span', { className: 'SN_cCommentMore' }, t('card.moreComments', { count: rest })) : null,
+        restGroups > 0 ? h('span', { className: 'SN_cCommentMore' }, t('card.moreCommentGroups', { count: restGroups })) : null,
       ),
       // 0.13 修正：图片条排在评论条之后，margin-top:auto 贴卡片底部、align-self:flex-start 靠左。
       hasImages

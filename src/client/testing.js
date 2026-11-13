@@ -9,8 +9,8 @@ import { CenterState, ToastStack } from './components/feedback.js';
 import { PanelIcon } from './components/icons.js';
 import {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
-  CAPTURE_TOTAL_BYTES, DATE_FILTERS, DATE_FILTER_ENABLED_KEY, DEFAULT_DATE_FILTER,
-  DEFAULT_DATE_FILTER_ENABLED, PINNED_KEY, PINNED_NOTE_KEY, SORT_OPTIONS, WALL_PAGE_SIZE,
+  CAPTURE_TOTAL_BYTES, COMMENTS_COLLAPSED_KEY, COMMENTS_HEIGHT_KEY, DATE_FILTERS, DATE_FILTER_ENABLED_KEY,
+  DEFAULT_DATE_FILTER, DEFAULT_DATE_FILTER_ENABLED, PINNED_KEY, PINNED_NOTE_KEY, SORT_OPTIONS, WALL_PAGE_SIZE,
 } from './constants.js';
 import { decorateNotes, jobsSignature, mergeState, pendingFromJob } from './data/state.js';
 import { createStateReader, useNotesData } from './data/use-notes-data.js';
@@ -23,13 +23,16 @@ import { CardThumb, NoteImage } from './images/components.js';
 import { clearImageQueue, enqueueImageLoad, imageQueueStats } from './images/queue.js';
 import { StickyNotesPanel } from './panel.js';
 import {
-  clampDrawerWidth, clearStoredPinnedNote, drawerWidthBounds, nextPollDelay, readStoredDateEnabled,
-  readStoredDateFilter, readStoredDateRealtime, readStoredDrawerWidth, readStoredPinned,
-  readStoredPinnedNote, readStoredSort, storeDateEnabled, storeDateFilter, storeDateRealtime, storePinned,
-  storePinnedNote,
+  clampCommentsHeight, clampDrawerWidth, clearStoredCommentsHeight, clearStoredPinnedNote,
+  commentsHeightBounds, drawerWidthBounds, nextPollDelay, readStoredCommentsCollapsed,
+  readStoredCommentsHeight, readStoredDateEnabled, readStoredDateFilter, readStoredDateRealtime,
+  readStoredDrawerWidth, readStoredPinned, readStoredPinnedNote, readStoredSort, storeCommentsCollapsed,
+  storeCommentsHeight, storeDateEnabled, storeDateFilter, storeDateRealtime, storePinned, storePinnedNote,
 } from './preferences.js';
 import { NoteBlock, NoteComment } from './reader/blocks.js';
 import { NoteDrawer } from './reader/note-drawer.js';
+import { useCommentActions } from './reader/use-comment-actions.js';
+import { useCommentsLayout } from './reader/use-comments-layout.js';
 import { useNoteEditor } from './reader/use-note-editor.js';
 import { AI_EFFORTS, AI_PRESETS, AI_PRESET_IDS, DEFAULT_AI, patchAiBudget, readAiBudget } from './settings/ai-budget.js';
 import { ConfigFileSettings } from './settings/config-file.js';
@@ -42,8 +45,8 @@ import { TrashSettings } from './settings/trash.js';
 import { useSettingsDraft } from './settings/use-settings-draft.js';
 import { baseName, formatTime, formatVersionLabel, isAbsolutePath, joinPath, resolvedPath } from './utils.js';
 import {
-  cardImages, dateFilterAnchor, dateFilterBounds, filterNotesByDate, nextVisibleCount, replaceNoteAtPath,
-  sortNotes,
+  cardCommentGroups, cardImages, dateFilterAnchor, dateFilterBounds, filterNotesByDate, nextVisibleCount,
+  replaceNoteAtPath, sortNotes,
 } from './wall/model.js';
 import { NoteCard } from './wall/note-card.js';
 
@@ -53,7 +56,10 @@ const __test = {
   createStateReader: createStateReader,
   captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, captureRefocusField, cardDragLayout, createCardDragMotion,
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
-  hooks: { useNotesData, useNoteEditor, useSettingsDraft, useJobNotifications, useToasts },
+  hooks: {
+    useNotesData, useNoteEditor, useSettingsDraft, useJobNotifications, useToasts,
+    useCommentActions, useCommentsLayout,
+  },
   PINNED_KEY: PINNED_KEY,
   PINNED_NOTE_KEY: PINNED_NOTE_KEY,
   readStoredPinned: readStoredPinned,
@@ -78,6 +84,16 @@ const __test = {
   filterNotesByDate: filterNotesByDate,
   replaceNoteAtPath: replaceNoteAtPath,
   cardImages: cardImages,
+  cardCommentGroups: cardCommentGroups,
+  COMMENTS_HEIGHT_KEY: COMMENTS_HEIGHT_KEY,
+  COMMENTS_COLLAPSED_KEY: COMMENTS_COLLAPSED_KEY,
+  readStoredCommentsCollapsed: readStoredCommentsCollapsed,
+  storeCommentsCollapsed: storeCommentsCollapsed,
+  readStoredCommentsHeight: readStoredCommentsHeight,
+  storeCommentsHeight: storeCommentsHeight,
+  clearStoredCommentsHeight: clearStoredCommentsHeight,
+  commentsHeightBounds: commentsHeightBounds,
+  clampCommentsHeight: clampCommentsHeight,
   drawerWidthBounds: drawerWidthBounds,
   // 0.13.9：抽屉操作条窄布局（「在 Obsidian 打开」换到下一行）。
   nextPollDelay: nextPollDelay,

@@ -16,6 +16,8 @@ import { renderPanelHeader } from './panel/header.js';
 import { usePanelShortcuts } from './panel/use-shortcuts.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
+import { useCommentActions } from './reader/use-comment-actions.js';
+import { useCommentsLayout } from './reader/use-comments-layout.js';
 import { useDockOffset } from './reader/use-dock-offset.js';
 import { useDrawerLayout } from './reader/use-drawer-layout.js';
 import { useNoteEditor } from './reader/use-note-editor.js';
@@ -42,6 +44,7 @@ function StickyNotesPanel(props) {
     effectiveDrawerWidth, startDrawerResize, resetDrawerWidth, togglePinned,
   } = useDrawerLayout({ panelRef });
   const { toasts, dismissToast, pushToast, pushErrorToast } = useToasts();
+  const commentsLayout = useCommentsLayout();
   const {
     sortId, sortMenu, setSortMenu, sortWrapRef, dateFilter, dateEnabled, dateRealtime, dateMenu,
     setDateMenu, dateWrapRef, nowTick, setNowTick, toggleSortMenu, chooseSort, openDateMenu,
@@ -82,6 +85,8 @@ function StickyNotesPanel(props) {
       resizeCleanupRef.current = null;
       resizingRef.current = false;
       setResizingDrawer(false);
+      commentsLayout.stopCommentsResize();
+      commentsLayout.persistCommentsHeight();
       setDrawerArchive(false);
     },
   });
@@ -101,6 +106,9 @@ function StickyNotesPanel(props) {
   const archiveTargets = Array.isArray(currentSettings.archiveTargets) ? currentSettings.archiveTargets : [];
   const { projectTarget, projectName, setProjectName, projectBusy, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setSortMenu, t, tRef, watchedJobsRef });
   const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setHoverPath, tRef, viewRef, watchedJobsRef });
+  const { deletingIndex: deletingCommentIndex, deleteComment } = useCommentActions({
+    aliveRef, noteDrawerRef, request, loadNote, refreshNow, replaceNote, pushToast, pushErrorToast, tRef,
+  });
   const { findTarget, runDelete, copyNote, runArchive, openInObsidian } = useNoteActions({
     aliveRef, archiveTargets, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
     refreshNow, request, setDrawerArchive, setHoverPath, tRef, updateView, viewRef,
@@ -306,6 +314,18 @@ function StickyNotesPanel(props) {
         onOpenObsidian: () => openInObsidian(currentDrawerNote()),
         onCopy: () => copyNote(currentDrawerNote()),
         onDelete: () => runDelete(currentDrawerNote()),
+      },
+      commentsLayout: {
+        commentsCollapsed: commentsLayout.commentsCollapsed,
+        commentsHeight: commentsLayout.commentsHeight,
+        resizingComments: commentsLayout.resizingComments,
+        onToggle: commentsLayout.toggleComments,
+        onResizeStart: commentsLayout.startCommentsResize,
+        onResizeReset: commentsLayout.resetCommentsHeight,
+      },
+      commentsActions: {
+        deletingIndex: deletingCommentIndex,
+        onDelete: deleteComment,
       },
       onTogglePinned: togglePinned,
       onToggleTask: toggleTask,

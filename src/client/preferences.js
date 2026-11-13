@@ -1,6 +1,8 @@
 /** 持久化筛选、排序和钉住偏好，计算抽屉尺寸边界；保留已有存储键。 */
 import {
-  DATE_FILTER_ENABLED_KEY, DATE_FILTER_KEY, DATE_REALTIME_KEY, DEFAULT_DATE_FILTER,
+  COMMENTS_BODY_MIN_HEIGHT, COMMENTS_CHROME_RESERVE, COMMENTS_COLLAPSED_KEY, COMMENTS_HEIGHT_KEY,
+  COMMENTS_MAX_RATIO, COMMENTS_MIN_HEIGHT, DATE_FILTER_ENABLED_KEY, DATE_FILTER_KEY, DATE_REALTIME_KEY,
+  DEFAULT_DATE_FILTER,
   DEFAULT_DATE_FILTER_ENABLED, DEFAULT_SORT, DRAWER_MAX_WIDTH, DRAWER_MIN_WIDTH, DRAWER_WIDTH_KEY,
   PINNED_KEY, PINNED_NOTE_KEY, PINNED_WALL_MIN_WIDTH, POLL_BASE, POLL_MAX, SORT_KEY, SORT_OPTIONS,
 } from './constants.js';
@@ -119,6 +121,81 @@ function clearStoredDrawerWidth() {
   }
 }
 
+function readStoredCommentsCollapsed() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return false;
+    return window.localStorage.getItem(COMMENTS_COLLAPSED_KEY) === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
+function storeCommentsCollapsed(collapsed) {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    window.localStorage.setItem(COMMENTS_COLLAPSED_KEY, collapsed === true ? '1' : '0');
+  } catch (error) {
+    // 存不下也不影响本次折叠。
+  }
+}
+
+function readStoredCommentsHeight() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    const raw = window.localStorage.getItem(COMMENTS_HEIGHT_KEY);
+    if (typeof raw !== 'string' || raw === '') return null;
+    const height = Number(raw);
+    if (!Number.isFinite(height) || height <= 0) return null;
+    return Math.round(Math.max(COMMENTS_MIN_HEIGHT, Math.min(2000, height)));
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeCommentsHeight(height) {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    if (typeof height !== 'number' || !Number.isFinite(height)) return;
+    window.localStorage.setItem(COMMENTS_HEIGHT_KEY, String(Math.round(height)));
+  } catch (error) {
+    // 存不下也不影响本次拖拽。
+  }
+}
+
+function clearStoredCommentsHeight() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem(COMMENTS_HEIGHT_KEY);
+  } catch (error) {
+    // ignore
+  }
+}
+
+/**
+ * 评论区高度范围：最小 96px，最多 72%，且给正文留至少 140px。
+ * chromeReserve 是评论区顶边到抽屉顶部的距离（头部 + 操作条），默认按 120px 估算。
+ */
+function commentsHeightBounds(drawerHeight, chromeReserve = COMMENTS_CHROME_RESERVE) {
+  const height = typeof drawerHeight === 'number' && Number.isFinite(drawerHeight) && drawerHeight > 0
+    ? drawerHeight
+    : 0;
+  const lower = COMMENTS_MIN_HEIGHT;
+  if (height === 0) return { lower, upper: 480 };
+  const chrome = typeof chromeReserve === 'number' && Number.isFinite(chromeReserve) && chromeReserve >= 0
+    ? chromeReserve
+    : COMMENTS_CHROME_RESERVE;
+  const upper = Math.max(lower, Math.min(
+    Math.round(height * COMMENTS_MAX_RATIO),
+    Math.round(height - chrome - COMMENTS_BODY_MIN_HEIGHT),
+  ));
+  return { lower, upper };
+}
+
+function clampCommentsHeight(height, drawerHeight, chromeReserve) {
+  const bounds = commentsHeightBounds(drawerHeight, chromeReserve);
+  if (typeof height !== 'number' || !Number.isFinite(height)) return Math.round(bounds.lower);
+  return Math.round(Math.max(bounds.lower, Math.min(bounds.upper, height)));
+}
+
 function drawerWidthBounds(panelWidth, pinned) {
   const width = typeof panelWidth === 'number' && Number.isFinite(panelWidth) && panelWidth > 0
     ? panelWidth
@@ -194,5 +271,7 @@ export {
   readStoredSort, storeSort, readStoredDateFilter, storeDateFilter, readStoredDateEnabled,
   storeDateEnabled, readStoredDateRealtime, storeDateRealtime, readStoredDrawerWidth, storeDrawerWidth,
   clearStoredDrawerWidth, drawerWidthBounds, clampDrawerWidth, nextPollDelay, readStoredPinned,
-  storePinned, readStoredPinnedNote, storePinnedNote, clearStoredPinnedNote,
+  storePinned, readStoredPinnedNote, storePinnedNote, clearStoredPinnedNote, readStoredCommentsCollapsed,
+  storeCommentsCollapsed, readStoredCommentsHeight, storeCommentsHeight, clearStoredCommentsHeight,
+  commentsHeightBounds, clampCommentsHeight,
 };

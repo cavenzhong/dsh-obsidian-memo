@@ -20,6 +20,52 @@ function cardImages(note) {
   return { items: items, more: Math.max(0, total - items.length) };
 }
 
+/**
+ * 卡片上的评论类型汇总：优先用 Host 的 commentGroups（覆盖全部评论）；
+ * 旧 Host 没有时按已下发的 comments 现算，保证卡片仍能显示 emoji + label + 条数。
+ * @param {object} note
+ * @returns {{ emoji: string, label: string, count: number }[]}
+ */
+function cardCommentGroups(note) {
+  if (!note) return [];
+  const push = (target, byKey, emoji, label) => {
+    const key = `${emoji}\u0000${label}`;
+    const found = byKey.get(key);
+    if (found) {
+      found.count += 1;
+      return;
+    }
+    const group = { emoji: emoji, label: label, count: 1 };
+    byKey.set(key, group);
+    target.push(group);
+  };
+  const groups = [];
+  const byKey = new Map();
+  if (Array.isArray(note.commentGroups)) {
+    for (const group of note.commentGroups) {
+      if (!group || typeof group !== 'object') continue;
+      const emoji = typeof group.emoji === 'string' ? group.emoji : '';
+      const label = typeof group.label === 'string' ? group.label : '';
+      const count = Math.floor(Number(group.count));
+      if ((emoji === '' && label === '') || !Number.isFinite(count) || count <= 0) continue;
+      groups.push({ emoji: emoji, label: label, count: count });
+      if (groups.length >= 12) break;
+    }
+  }
+  if (groups.length > 0) return groups;
+  for (const comment of Array.isArray(note.comments) ? note.comments : []) {
+    if (!comment || typeof comment !== 'object') continue;
+    const emoji = typeof comment.emoji === 'string' ? comment.emoji : '';
+    const label = typeof comment.label === 'string' && comment.label !== ''
+      ? comment.label
+      : typeof comment.title === 'string' ? comment.title : '';
+    if (emoji === '' && label === '') continue;
+    push(groups, byKey, emoji, label);
+    if (groups.length >= 12) break;
+  }
+  return groups;
+}
+
 function noteName(note) {
   if (!note) return '';
   return String(note.name || note.title || '');
@@ -153,6 +199,6 @@ function commentHead(comment) {
 }
 
 export {
-  nextVisibleCount, cardImages, sortNotes, replaceNoteAtPath, isDateFilterId, dateFilterOption,
+  nextVisibleCount, cardImages, cardCommentGroups, sortNotes, replaceNoteAtPath, isDateFilterId, dateFilterOption,
   dateFilterBounds, dateFilterAnchor, filterNotesByDate, emojiLabel, commentHead,
 };

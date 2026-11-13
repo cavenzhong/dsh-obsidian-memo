@@ -1,7 +1,7 @@
 /** host: comments regression coverage. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { makeCase, waitForJob } from '../../test-support/host.mjs'
 
 test('comment：异步生成后写入 callout，轮询到 done', async () => {
@@ -30,6 +30,8 @@ test('comment：异步生成后写入 callout，轮询到 done', async () => {
   assert.equal(note.pending, null)
   // 0.12：新评论的 emoji 立刻进入 commentKinds
   assert.deepEqual(note.commentKinds, ['😈'])
+  // 卡片按类型汇总：emoji + label + 条数
+  assert.deepEqual(note.commentGroups, [{ emoji: '😈', label: '毒舌', count: 1 }])
 })
 
 test('comment：emojiId 未知时 bad-request', async () => {
@@ -124,4 +126,89 @@ test('comment：撞上 token 上限但有正文 → done + truncated，评论仍
   assert.equal(job.status, 'done')
   assert.equal(job.truncated, true)
   assert.match(await readFile(notePath, 'utf8'), /写到一半的评论/)
+})
+
+const TWO_COMMENTS = '# 删除\n\n正文\n\n> [!quote] 😈 毒舌 · 2026-11-13 10:00\n> 第一条\n\n> [!tip] 🌱 落地 · 2026-11-13 10:05\n> 第二条\n'
+
+test('deleteComment：按序号删除 callout，返回汇总并整份撤回', async () => {
+  const c = await makeCase({ notes: { '删除.md': TWO_COMMENTS } })
+  const notePath = c.seeded['删除.md']
+  const note = await c.call('note', { path: notePath })
+  assert.equal(note.ok, true)
+  assert.equal(note.value.commentCount, 2)
+  assert.deepEqual(note.value.commentGroups, [
+    { emoji: '😈', label: '毒舌', count: 1 },
+    { emoji: '🌱', label: '落地', count: 1 },
+  ])
+
+  const deleted = await c.call('deleteComment', {
+    path: notePath,
+    index: 0,
+    expectedTitle: note.value.comments[0].title,
+    expectedTime: note.value.comments[0].time,
+  })
+  assert.equal(deleted.ok, true)
+  assert.equal(deleted.value.note.commentCount, 1)
+  assert.deepEqual(deleted.value.note.commentGroups, [{ emoji: '🌱', label: '落地', count: 1 }])
+  assert.equal(typeof deleted.value.undoToken, 'string')
+  const after = await readFile(notePath, 'utf8')
+  assert.doesNotMatch(after, /第一条/)
+  assert.match(after, /第二条/)
+
+  const undo = await c.call('undoDeleteComment', { undoToken: deleted.value.undoToken })
+  assert.equal(undo.ok, true)
+  assert.equal(await readFile(notePath, 'utf8'), TWO_COMMENTS)
+  assert.equal((await c.call('state')).value.notes.find((item) => item.path === notePath).commentCount, 2)
+})
+
+test('deleteComment：序号/标题已被外部修改时拒绝，文件不变', async () => {
+  const c = await makeCase({ notes: { '变化.md': TWO_COMMENTS } })
+  const notePath = c.seeded['变化.md']
+  const note = await c.call('note', { path: notePath })
+
+  const wrong = await c.call('deleteComment', {
+    path: notePath,
+    index: 0,
+    expectedTitle: '另一条评论',
+    expectedTime: note.value.comments[0].time,
+  })
+  assert.equal(wrong.ok, false)
+  assert.equal(wrong.error.code, 'conflict')
+  assert.equal(await readFile(notePath, 'utf8'), TWO_COMMENTS)
+
+  const outOfRange = await c.call('deleteComment', {
+    path: notePath,
+    index: 9,
+    expectedTitle: note.value.comments[0].title,
+    expectedTime: note.value.comments[0].time,
+  })
+  assert.equal(outOfRange.ok, false)
+  assert.equal(outOfRange.error.code, 'conflict')
+})
+
+test('undoDeleteComment：删除后文件又被修改则拒绝撤回', async () => {
+  const c = await makeCase({ notes: { '再改.md': TWO_COMMENTS } })
+  const notePath = c.seeded['再改.md']
+  const note = await c.call('note', { path: notePath })
+  const deleted = await c.call('deleteComment', {
+    path: notePath,
+    index: 0,
+    expectedTitle: note.value.comments[0].title,
+    expectedTime: note.value.comments[0].time,
+  })
+  assert.equal(deleted.ok, true)
+  const external = (await readFile(notePath, 'utf8')) + '\n外部追加\n'
+  await writeFile(notePath, external, 'utf8')
+
+  const undo = await c.call('undoDeleteComment', { undoToken: deleted.value.undoToken })
+  assert.equal(undo.ok, false)
+  assert.equal(undo.error.code, 'conflict')
+  assert.equal(await readFile(notePath, 'utf8'), external)
+})
+
+test('undoDeleteComment：未知 token 返回 not-found', async () => {
+  const c = await makeCase({ notes: { '未知.md': TWO_COMMENTS } })
+  const undo = await c.call('undoDeleteComment', { undoToken: 'nope' })
+  assert.equal(undo.ok, false)
+  assert.equal(undo.error.code, 'not-found')
 })

@@ -210,3 +210,54 @@ test('client __test：localStorage 不可用时锁定便签路径读写安全回
   assert.doesNotThrow(() => api.storePinnedNote('/a.md'))
   assert.doesNotThrow(() => api.clearStoredPinnedNote())
 })
+
+test('client __test：评论区折叠与高度持久化', (t) => {
+  const { mod, storage } = loadClient(t)
+  const api = getTestApi(mod)
+  assert.equal(api.COMMENTS_COLLAPSED_KEY, 'dsh-sticky-notes.commentsCollapsed.v1')
+  assert.equal(api.COMMENTS_HEIGHT_KEY, 'dsh-sticky-notes.commentsHeight.v1')
+  assert.equal(api.readStoredCommentsCollapsed(), false)
+  assert.equal(api.readStoredCommentsHeight(), null)
+
+  api.storeCommentsCollapsed(true)
+  assert.equal(storage.getItem(api.COMMENTS_COLLAPSED_KEY), '1')
+  assert.equal(api.readStoredCommentsCollapsed(), true)
+  api.storeCommentsCollapsed(false)
+  assert.equal(api.readStoredCommentsCollapsed(), false)
+
+  api.storeCommentsHeight(240.4)
+  assert.equal(storage.getItem(api.COMMENTS_HEIGHT_KEY), '240')
+  assert.equal(api.readStoredCommentsHeight(), 240)
+  api.storeCommentsHeight(10)
+  assert.equal(api.readStoredCommentsHeight(), 96, '低于最小高度时读回最小 96px')
+  api.clearStoredCommentsHeight()
+  assert.equal(api.readStoredCommentsHeight(), null)
+
+  storage.setItem(api.COMMENTS_HEIGHT_KEY, 'bogus')
+  assert.equal(api.readStoredCommentsHeight(), null)
+})
+
+test('client __test：commentsHeightBounds 最小 96、最多 72% 且给正文留 140px', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.deepEqual(api.commentsHeightBounds(600), { lower: 96, upper: 340 })
+  assert.deepEqual(api.commentsHeightBounds(400), { lower: 96, upper: 140 })
+  assert.deepEqual(api.commentsHeightBounds(300), { lower: 96, upper: 96 })
+  assert.deepEqual(api.commentsHeightBounds(200), { lower: 96, upper: 96 })
+  assert.deepEqual(api.commentsHeightBounds(0), { lower: 96, upper: 480 })
+  // 实际测得头部 + 操作条更高时，上限还会再降。
+  assert.deepEqual(api.commentsHeightBounds(600, 180), { lower: 96, upper: 280 })
+  assert.equal(api.clampCommentsHeight(50, 600), 96)
+  assert.equal(api.clampCommentsHeight(999, 600), 340)
+  assert.equal(api.clampCommentsHeight(999, 600, 200), 260)
+  assert.equal(api.clampCommentsHeight(220, 600), 220)
+  assert.equal(api.clampCommentsHeight(undefined, 600), 96)
+})
+
+test('client __test：localStorage 不可用时评论区偏好安全回退', (t) => {
+  const api = getTestApi(loadClient(t, { storage: null }).mod)
+  assert.equal(api.readStoredCommentsCollapsed(), false)
+  assert.equal(api.readStoredCommentsHeight(), null)
+  assert.doesNotThrow(() => api.storeCommentsCollapsed(true))
+  assert.doesNotThrow(() => api.storeCommentsHeight(240))
+  assert.doesNotThrow(() => api.clearStoredCommentsHeight())
+})

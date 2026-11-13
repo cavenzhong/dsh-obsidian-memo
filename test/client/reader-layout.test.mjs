@@ -60,7 +60,7 @@ test('client __test：drawerWidthBounds 锁定态上限 = max(320, min(960, 面�
   assert.ok(api.drawerWidthBounds(1200, true).upper < api.drawerWidthBounds(1200, false).upper)
 })
 
-test('v0.16.5 抽屉操作条：四个线图标在左、Obsidian 在右同一行；AI emoji 与评论标题同一行', (t) => {
+test('v0.16.6 抽屉操作条：四个线图标在左、Obsidian 在右同一行；AI emoji 与评论标题同一行', (t) => {
   const api = loadClient(t).mod.__test, calls = []
   const emojis = [{ id: 'one', emoji: '🔥', label: '毒舌' }, { id: 'two', emoji: '🌱', label: '落地' }]
   const drawerActions = { emojis, onComment: (emoji) => calls.push('comment:' + emoji.id),
@@ -95,10 +95,14 @@ test('v0.16.5 抽屉操作条：四个线图标在左、Obsidian 在右同一行
   assert.equal(captureNodes(bar).some((node) => node.type === 'button' && node.props.className === 'SN_aiBtn'), false,
     '操作条不再放 AI emoji')
 
-  // AI emoji 与评论标题同一行（标题右侧），点击仍发 comment。
+  // AI emoji 与评论标题同一行（标题右侧），点击仍发 comment；标题本身是折叠按钮。
   const commentsHead = nodes.find((node) => node.props.className === 'SN_noteDrawerCommentsHead')
-  assert.deepEqual(commentsHead.children.map((node) => node.props.className), ['SN_noteViewSection', 'SN_commentEmojiRow'])
-  const emojiButtons = captureNodes(commentsHead).filter((node) => node.type === 'button')
+  assert.deepEqual(commentsHead.children.map((node) => node.props.className), ['SN_commentToggle', 'SN_commentEmojiRow'])
+  const toggle = commentsHead.children[0]
+  assert.equal(toggle.type, 'button')
+  assert.equal(toggle.props['aria-expanded'], 'true')
+  assert.deepEqual(captureNodes(toggle).find((node) => node.props.className === 'SN_noteViewSection').children, ['drawer.comments'])
+  const emojiButtons = captureNodes(commentsHead).filter((node) => node.type === 'button' && node.props.className === 'SN_aiBtn')
   assert.deepEqual(emojiButtons.map((node) => node.props['aria-label']), ['🔥 毒舌', '🌱 落地'])
   emojiButtons[0].props.onClick({ stopPropagation() {} })
   assert.deepEqual(calls, ['archive', 'project', 'delete', 'copy', 'obsidian', 'comment:one'])
@@ -127,7 +131,7 @@ test('client 源码 / 0.13.9：锁定按钮改成图钉图标', () => {
   assert.match(CLIENT_SOURCE, /d: 'M9\.3 3\.6h5\.4l-/, '图钉应使用 pin 形状的 path')
 })
 
-test('v0.16.5 DSH 0.2.2-rc.2 窗口拖动区：盖住顶栏拖动行的浮层声明 data-window-drag-exclude', (t) => {
+test('v0.16.6 DSH 0.2.2-rc.2 窗口拖动区：盖住顶栏拖动行的浮层声明 data-window-drag-exclude', (t) => {
   const api = loadClient(t).mod.__test
   const drawerProps = { t: (key) => key, drawer: {}, drawerActions: { emojis: [] } }
   // 未锁定抽屉盖在面板顶部（顶栏拖动行上），必须整块 no-drag，锁定/关闭按钮才可点；
@@ -174,4 +178,96 @@ test('v0.16 阅读标签沿用便签纸色，双击提示仅复用空正文占�
   nodes = captureNodes(api.components.NoteDrawer({ ...props, editing: true }))
   assert.equal(nodes.some((node) => node.children.includes('drawer.editHint')), false)
   assert.ok(nodes.find((node) => node.props.className === 'SN_noteEditHint').children.includes('drawer.shortcutHint'))
+})
+
+test('v0.16.7 评论区可折叠：点标题或图标收起为一行，再点展开', (t) => {
+  const api = loadClient(t).mod.__test
+  let toggles = 0
+  const comment = { emoji: '😈', label: '毒舌', title: '😈 毒舌 · 2026-11-13 10:00', time: '2026-11-13 10:00', text: '评论正文' }
+  const layout = { commentsCollapsed: false, commentsHeight: null, resizingComments: false, onToggle: () => toggles++ }
+  let nodes = captureNodes(api.components.NoteDrawer({
+    t: (key) => key,
+    drawer: { full: { title: '便签', blocks: [], comments: [comment] } },
+    commentsLayout: layout,
+  }))
+  let section = nodes.find((node) => node.props.className === 'SN_noteDrawerComments')
+  assert.equal(section.props['data-collapsed'], 'false')
+  const toggle = section.children.find((node) => node.props.className === 'SN_noteDrawerCommentsHead').children[0]
+  assert.equal(typeof toggle.children[0].type, 'function', '文字左侧是折叠图标组件')
+  assert.equal(toggle.children[0].props.collapsed, false)
+  assert.equal(toggle.children[1].props.className, 'SN_noteViewSection')
+  toggle.props.onClick({ stopPropagation() {} })
+  assert.equal(toggles, 1)
+  assert.equal(captureNodes(section).some((node) => node.props.className === 'SN_noteDrawerCommentsBody'), true)
+
+  nodes = captureNodes(api.components.NoteDrawer({
+    t: (key) => key,
+    drawer: { full: { title: '便签', blocks: [], comments: [comment] } },
+    commentsLayout: { ...layout, commentsCollapsed: true, commentsHeight: 240 },
+  }))
+  section = nodes.find((node) => node.props.className === 'SN_noteDrawerComments')
+  assert.equal(section.props['data-collapsed'], 'true')
+  assert.equal(section.props.style, undefined)
+  const head = section.children.find((node) => node.props.className === 'SN_noteDrawerCommentsHead')
+  assert.deepEqual(head.children.filter(Boolean).map((node) => node.props.className), ['SN_commentToggle'])
+  const collapsedToggle = head.children[0]
+  assert.equal(collapsedToggle.props['aria-expanded'], 'false')
+  assert.equal(section.children.some((node) => node && node.props.className === 'SN_noteDrawerCommentsBody'), false)
+  assert.equal(captureNodes(section).some((node) => node.props.className === 'SN_aiBtn'), false)
+  const handle = section.children.find((node) => node.props.className === 'SN_noteDrawerCommentsHandle')
+  assert.equal(handle.props['data-disabled'], 'true')
+})
+
+test('v0.16.7 评论区高度：拖拽手柄接线、显式高度与双击复位', (t) => {
+  const api = loadClient(t).mod.__test
+  const calls = []
+  const layout = {
+    commentsCollapsed: false, commentsHeight: 220, resizingComments: true,
+    onResizeStart: () => calls.push('start'), onResizeReset: () => calls.push('reset'),
+  }
+  const nodes = captureNodes(api.components.NoteDrawer({
+    t: (key) => key,
+    drawer: { full: { title: '便签', blocks: [], comments: [] } },
+    commentsLayout: layout,
+  }))
+  const section = nodes.find((node) => node.props.className === 'SN_noteDrawerComments')
+  assert.equal(section.props.style.height, '220px')
+  assert.equal(section.props.style.maxHeight, 'min(72%, calc(100% - 260px))')
+  assert.equal(section.props['data-resizing'], 'true')
+  const handle = section.children.find((node) => node.props.className === 'SN_noteDrawerCommentsHandle')
+  assert.equal(handle.props.role, 'separator')
+  assert.equal(handle.props['aria-orientation'], 'horizontal')
+  handle.props.onPointerDown()
+  handle.props.onDoubleClick()
+  assert.deepEqual(calls, ['start', 'reset'])
+  assert.match(CLIENT_SOURCE, /\.SN_noteDrawerCommentsHandle\{[^}]*cursor:row-resize/)
+  assert.match(CLIENT_SOURCE, /\.SN_noteDrawerComments\[data-collapsed='true'\]\{[^}]*height:auto!important/)
+})
+
+test('v0.16.7 右侧评论删除：按钮带本地化标签，点击回调序号', (t) => {
+  const api = loadClient(t).mod.__test
+  const deleted = []
+  const comment = { emoji: '😈', label: '毒舌', time: '2026-11-13 10:00', text: '正文' }
+  const nodes = captureNodes(api.components.NoteDrawer({
+    t: (key) => key,
+    drawer: { full: { title: '便签', blocks: [], comments: [comment, comment] } },
+    commentsActions: { deletingIndex: 1, onDelete: (index, value) => deleted.push([index, value]) },
+  }))
+  const commentNodes = nodes.filter((node) => node.type === api.components.NoteComment)
+  assert.equal(commentNodes.length, 2)
+  assert.equal(commentNodes[0].props.deleteLabel, 'drawer.commentDelete')
+  assert.equal(commentNodes[0].props.deleting, false)
+  assert.equal(commentNodes[1].props.deleting, true)
+  commentNodes[1].props.onDelete()
+  assert.deepEqual(deleted.map(([index]) => index), [1])
+  assert.equal(deleted[0][1], comment)
+
+  const buttons = captureNodes(api.components.NoteComment({ ...commentNodes[0].props, deleting: false }))
+    .filter((node) => node.type === 'button' && node.props.className === 'SN_commentCardDelete')
+  assert.equal(buttons.length, 1)
+  assert.equal(buttons[0].props['aria-label'], 'drawer.commentDelete')
+  buttons[0].props.onClick({ stopPropagation() {} })
+  assert.deepEqual(deleted.map(([index]) => index), [1, 0])
+  assert.match(CLIENT_SOURCE, /\.SN_commentCard:hover \.SN_commentCardDelete/)
+  assert.match(CLIENT_SOURCE, /@media \(hover:none\)\{\.SN_commentCardDelete\{opacity:\.55\}\}/)
 })

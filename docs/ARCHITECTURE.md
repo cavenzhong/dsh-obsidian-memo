@@ -34,6 +34,7 @@ Harness Web  → lib/client.js（生成）
 | 全文与模型输入读取 | `lib/host/note-content.js` | 读原始 Markdown，不复用展示摘要 |
 | 本地图片读取与附件查找 | `lib/host/images.js` | 持有命中/负缓存；切库和删除后清理 |
 | AI 评论与开档 | `lib/host/ai-jobs.js` | 使用同一份任务表与写锁，保留现有并发/部分完成策略 |
+| 评论删除与撤回 | `lib/host/comments.js`、`lib/comments.js` | 按序号定位 callout；撤回 token 与删除前原文由实例 session 持有 |
 | 任务、撤回 token、过期回收 | `lib/host/session.js` | 持有当前实例的 jobs、归档与删除 token |
 | 归档、删除、撤回、系统回收站 | `lib/host/mutations.js` | 复用现有独占移动与整组回滚 |
 | 目录浏览、新建、系统选择 | `lib/host/folders.js` | 保持仓库和符号链接边界 |
@@ -50,7 +51,7 @@ Harness Web  → lib/client.js（生成）
 | 顶栏与全局快捷键 | `src/client/panel/` | preferences、reader-layout |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
-| 阅读块、抽屉编辑、宽度、钉住恢复 | `src/client/reader/` | editor、reader-layout |
+| 阅读块、抽屉编辑、宽度、钉住恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
 | 快速记录、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
 | 拖拽浮层、动作栏、动画与会话 | `src/client/drag/` | drag-motion、drag-sessions |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
@@ -67,7 +68,7 @@ Harness Web  → lib/client.js（生成）
 
 ## 基础能力
 
-`lib/files.js` 管路径、内容版本和原子/独占文件操作；`filename.js` 管文件名规则；`notes.js` 管 Markdown 解析与写回；`scan.js` 管摘要和全文缓存；`capture.js` 管新建笔记、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。
+`lib/files.js` 管路径、内容版本和原子/独占文件操作；`filename.js` 管文件名规则；`notes.js` 管 Markdown 解析与写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存；`capture.js` 管新建笔记、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。
 
 ## 开发与验证
 

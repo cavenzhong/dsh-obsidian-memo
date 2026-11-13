@@ -118,6 +118,7 @@ interface NoteSummary {
   color: string         // 卡片淡色底（见 3.5）
   comments: Comment[]   // 最多 6 条，按文中顺序
   commentCount: number
+  commentGroups: { emoji: string; label: string; count: number }[]  // 0.16.7：全部评论按 emoji+label 汇总（按首次出现顺序，最多 12 组），卡片只显示这个
   created: number      // 文件创建时间（birthtime，默认排序依据：新 → 旧）
   mtime: number
   size: number
@@ -205,6 +206,8 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 | `toggleTask` | `{ path: string, sourceLine: number, checked: boolean, expectedBody: string }` | `{ note: NoteSummary }` | 只修改任务标记；内容已变化返回 conflict；不允许修改代码块 |
 | `readImage` | `{ path: string, source: string, wiki?: boolean, maxBytes?: number }` | `{ dataUrl: string }` | 读取仓库内图片；默认上限 8 MB，传 `maxBytes` 时以它为准；**超过上限统一报 `too-large`**（卡片缩略图用 `LIMITS.cardImageMaxBytes` 避免把大图塞进卡片）；校验真实路径；wiki 裸附件名歧义时拒绝。附件名查找结果会缓存（以真实路径复核），避免卡片缩略图反复全库遍历 |
 | `comment` | `{ path: string, emojiId: string }` | `{ jobId: string }` | 启动 AI 评论任务，立即返回 |
+| `deleteComment` | `{ path: string, index: number, expectedTitle: string, expectedTime: string }` | `{ note: NoteSummary, undoToken: string, expiresAt: number, removed: { title, label } }` | **0.16.7**：删除第 `index` 条评论 callout，只改 callout 与相邻一个空行；标题/时间不匹配（文件已被改）返回 `conflict`；5 秒内可撤回 |
+| `undoDeleteComment` | `{ undoToken: string }` | `{ restoredTo: string, note: NoteSummary }` | **0.16.7**：仅在删除后文件未被再次修改时整份写回原文；token 过期 `not-found`，内容已变 `conflict` |
 | `archive` | `{ path: string, targetId: string }` | `{ undoToken: string, to: string, targetId: string }` | 移动到归档目录 |
 | `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档 |
 | `openProject` | `{ path: string, name: string }` | `{ jobId: string, projectPath: string }` | 建目录 + 生成项目 md（异步） |
@@ -230,7 +233,7 @@ interface StateValue {
 ```
 
 - Client 每次带上次的 `revision`；`unchanged` 时只合并 `jobs`/`settings`。
-- 任何写操作（createNote/saveNote/comment/archive/openProject/saveSettings）之后 Client 主动 `state` 一次；`revision` 变了就整份替换 notes。
+- 任何写操作（createNote/saveNote/comment/deleteComment/undoDeleteComment/archive/openProject/saveSettings）之后 Client 主动 `state` 一次；`revision` 变了就整份替换 notes。
 
 ### 4.1 错误码
 
@@ -252,6 +255,7 @@ interface StateValue {
   ```
 
   0.13：Host 在 `NoteSummary.commentKinds` 里给出已有评论的 emoji 去重集合；Client 在生成同 emoji 评论前先弹确认（见 7.7）。
+- **删除评论（0.16.7）**：`deleteComment` 先按 `parseNote(..., { withRanges: true })` 找到第 `index` 条 callout 的正文行号，校验标题与时间后删掉整段 callout；前后各有一个空行时只收掉一个。写盘用 `atomicWrite`，随后失效并重扫。撤回 token 由实例 session 持有 5 秒，记录删除前原文与删除后的内容版本；撤回请求不带路径，端点自己对同一文件加写锁，只有版本仍等于删除后的版本才整份写回，否则返回 `conflict`。抽屉里删除成功后刷新便签墙，并给 5 秒 toast 撤回。
 - **AI 预算（0.13）**：评论按该 emoji 的 `ai`、开档按 `projectAi` 传 `maxTokens` / `reasoningEffort`。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；撞上限但有正文 → `Job.truncated = true`，内容照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
 - **子文件夹**：`settings.includeSubfolders === false` 时只扫描便签目录顶层 md（不再递归，tag 全为 null）；true 时递归到 5 层（隐藏目录 / `.obsidian` / 符号链接照旧跳过）。设置变化写入 revision，触发整份 notes 刷新。
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
@@ -344,7 +348,7 @@ function apply(ctx) {
 
 ### 7.2 卡片（0.13 版）
 
-- 结构（从上到下）：标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**；0.13.9 起**没有正文就不渲染摘要行**，不再显示「（暂无正文）」）→ 评论条（最多 2 条；有图时最多 1 条、max-height 18px、不显示「＋N」）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。文件夹 tag 只在卡片菜单激活时出现，绝对定位于右上角覆盖标题、不占标题宽度，背后加同纸色的半透明渐变蒙层，标签与右侧预览共用同纸色胶囊样式，底色直接取当前纸色，浅色主题文字取对应深纸色；深色主题反用对应浅纸色保证可读。便签 hover 保持普通箭头（cursor:default），不使用手指或抓手光标；按钮和链接保留各自交互样式。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
+- 结构（从上到下）：标题（宋体加粗，clamp 3 行，**无 byline**）→ 正文摘要（黑体，clamp 3 行；**有图时 clamp 1 行、line-height 1.5**；0.13.9 起**没有正文就不渲染摘要行**，不再显示「（暂无正文）」）→ 评论条（**0.16.7：只显示 emoji + label + 加粗条数，不显示评论正文**；无图最多 2 类、有图 1 类，其余显示 `＋N` 类；整张卡片点击打开右侧面板）→ **图片条（贴卡片底部、靠左对齐）** → hover 操作区（绝对定位底部，渐变底，不挤压内容）。文件夹 tag 只在卡片菜单激活时出现，绝对定位于右上角覆盖标题、不占标题宽度，背后加同纸色的半透明渐变蒙层，标签与右侧预览共用同纸色胶囊样式，底色直接取当前纸色，浅色主题文字取对应深纸色；深色主题反用对应浅纸色保证可读。便签 hover 保持普通箭头（cursor:default），不使用手指或抓手光标；按钮和链接保留各自交互样式。有图时卡片内边距/间距收紧为 `padding:10px 15px; gap:2px`，图片条再留 `margin-bottom:6px`（让缩略图和卡片下边缘之间更透气），保证 208px 内不溢出（预算 ≈ 20 + 74 + 18.75 + 18 + 64 + 6 + 6 = 206.9px）。
 - **图片条（第 3 轮修正）**：`note.images` 前 3 张正方形缩略图（**64×64**、圆角 7px、间隙 6px、`object-fit:cover`），**在 DOM 中排在评论条之后，用 `margin-top:auto` 贴住卡片底部、`align-self:flex-start` 左对齐**；`imageCount > 3` 时末尾追加一枚淡色 `＋N`（N = `imageCount - 3`），只占一小段文字、不占图片位。
   - 懒加载：卡片接近视口（IntersectionObserver，root 为便签墙，提前约 200px）才请求 `readImage { path, source, wiki, maxBytes: 1500000 }`；失败/超限/非图渲染同色系淡占位，不出错误文案、不打断卡片。
   - 网络图片（http/https）直接 `<img src>`；本地图片用返回的 dataUrl。缩略图在模块内缓存（key = `path\0source`，**按字节预算 ~24MB 的 LRU**，条目上限兜底，面板卸载清空），切走再回来不重复请求。
@@ -374,7 +378,10 @@ function apply(ctx) {
   - 锁定按钮本身也使用统一紫色选中样式（见 7.8）。
 - **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；`header` 分割线下方是**抽屉操作条（见 7.3.2）**；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
 - **macOS 窗口拖动区（0.16.6，DSH 0.2.2-rc.2 兼容）**：DSH 0.2.2-rc.2 起只在 `data-window-drag` 行或 `data-window-drag-controls` 范围内自动把控件设为 `no-drag`，不再全局排除。抽屉、设置抽屉、遮罩、toast 与对话框遮罩都盖在自绘顶栏（`.SN_head`，`-webkit-app-region:drag`）的拖动行上，必须按 DSH 迁移指引在这些可见容器上声明 `data-window-drag-exclude`；否则头部锁定/关闭等按钮会被当成窗口拖动而失效。
-- **评论固定区（0.13）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、`max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
+- **评论固定区（0.13，0.16.7 扩展）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、默认 `max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
+  - **高度可拖（0.16.7）**：评论区顶边即拖拽线（10px 热区、`row-resize`、悬停/拖动显示品牌色）。拖动范围 `[96px, max(96, min(72% 抽屉高, 抽屉高 - 260px))]`（头部+操作条约 120px，正文至少留 140px；拖拽时按实际测得的顶部偏移再收紧）；松手把像素值写入 `localStorage['dsh-sticky-notes.commentsHeight.v1']`，下次打开按当前抽屉高度由 CSS `max-height` 夹取；双击拖拽线清除记录、恢复默认 42%。拖拽时禁止选中文本、光标保持 `row-resize`。
+  - **折叠（0.16.7）**：标题左侧有折叠箭头，「评论（N）」文字和箭头在同一个按钮里，点任意一处切换。折叠后只留这一行：隐藏 emoji 按钮、评论列表与空态，拖拽线禁用；状态写入 `localStorage['dsh-sticky-notes.commentsCollapsed.v1']`，跨抽屉保持。
+  - **删除（0.16.7）**：每条评论卡片右上角有删除按钮（默认淡出，hover / `focus-within` 出现；触屏保持半可见），点击立即发 `deleteComment`；成功后刷新抽屉与便签墙，并给 5 秒撤回 toast。删除按钮在编辑态不存在（评论区整体隐藏）。
 - **双击正文区进入编辑态**（双击按钮/空白边缘不算）：正文变成 textarea，显示 `note.body` 原始 Markdown（不渲染），工具栏出现 `保存` / `取消`；`Cmd/Ctrl+S` 保存，`Esc`/取消退出编辑态（丢弃未保存修改，若有修改 toast「已取消编辑」）。
 - **编辑态标题（第 4 轮修正）**：标题编辑是**多行 textarea**，宽度 100%、自动换行（`white-space:pre-wrap`，高度随内容 24–132px 自适应），完整显示文件名，**不需要横向滚动到尾部**；文件名不允许换行，`Enter` 不插入换行（保存仍用 Cmd/Ctrl+S 或按钮）。
 - **保存**：`saveNote { path, body, name, expectedRevision }`；成功后同步抽屉路径、退出编辑态，再取 `note` 并刷新 state；失败保留草稿并 toast `error.message`。**0.13.4：改名保存时先用 Host 返回的新 `NoteSummary` 乐观替换 `view.notes` 里的旧 path（`replaceNoteAtPath`），避免「打开的便签不在筛选结果里」effect 把刚保存的抽屉误关闭 / 锁定态误切到别的便签；保存请求在飞时该 effect 也会跳过。**
@@ -474,6 +481,7 @@ function apply(ctx) {
 - [ ] 侧栏出现便签图标，点击切到面板，选中态正确
 - [ ] 顶栏显示 Host 下发的完整版本；版本缺失时不显示版本；管理与关于显示一行 GitHub 文字链接与 by cavenzhong。
 - [ ] 便签墙渲染 title/excerpt/comments/tag/color，meta 不出现；日间卡片色很淡（#FDFAF4 系）
+- [ ] 卡片评论只显示 emoji + label + 加粗条数，不显示正文；无图最多 2 类、有图 1 类，其余 `＋N`；点击卡片打开面板
 - [ ] 正文与卡片摘要是 80% 墨色
 - [ ] 有图卡片：3 张方图贴卡片底部、左对齐（＋N 跟随）；标题不压缩、摘要/评论行数被压缩、卡片仍 208px
 - [ ] 卡片 hover：所有 AI emoji 平铺一行，悬停某枚时上方浮出文字标题；分割线下仅有复制与在 Obsidian 打开；**hover/聚焦整张卡（菜单出现）且有图预览时统一隐藏图片条**，移出恢复
@@ -486,7 +494,9 @@ function apply(ctx) {
 - [ ] 单击卡片推出抽屉；点左侧卡片区关闭；编辑态点左侧只退出编辑
 - [ ] 抽屉内双击标题或正文进入编辑：标题为多行 textarea（完整换行显示、无横向滚动），正文为原始 Markdown textarea；保存只替换正文、frontmatter 不动
 - [ ] 有图卡片缩略图与卡片下边缘之间留出更明显空隙（图片条 margin-bottom 6px）
-- [ ] 抽屉阅读态评论固定在下方面板内，正文滚动不影响评论
+- [ ] 抽屉阅读态评论固定在下方面板内，正文滚动不影响评论；顶边可上下拖动调整高度（96px ~ min(72%, 抽屉高 - 260px)），双击恢复默认，刷新后记住
+- [ ] 评论区标题左侧箭头 / 「评论（N）」文字都能折叠成一行，再点展开；刷新后记住
+- [ ] 每条评论可删除，源 Markdown 同步移除；5 秒内可撤回，文件被再次修改时撤回被拒绝
 - [ ] 抽屉锁定 → 变成右侧内联双栏、不遮挡；解锁恢复 overlay；刷新后锁定状态记住
 - [ ] 顶栏子文件夹 icon 切换：关闭后墙只剩顶层便签，刷新后状态记住；激活态是紫色高亮
 - [ ] 排序按钮与菜单（默认创建时间新→旧），刷新后记住
