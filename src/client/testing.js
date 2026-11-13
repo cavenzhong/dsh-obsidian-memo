@@ -3,7 +3,7 @@ import { useJobNotifications } from './ai/use-job-notifications.js';
 import { useToasts } from './components/use-toasts.js';
 import { CaptureComposer } from './capture/composer.js';
 import { captureFiles, captureImageSize, compressCaptureImage, readImageCompression } from './capture/images.js';
-import { captureRefocusField, focusCaptureOnTab } from './capture/keyboard.js';
+import { captureRefocusField, focusCaptureOnTab, focusPanelForCapture } from './capture/keyboard.js';
 import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
 import { CenterState, ToastStack } from './components/feedback.js';
 import { PanelIcon } from './components/icons.js';
@@ -54,7 +54,7 @@ const __test = {
   // 0.13 契约 §6.1 要求导出的纯函数 / 常量。
   formatVersionLabel: formatVersionLabel,
   createStateReader: createStateReader,
-  captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, captureRefocusField, cardDragLayout, createCardDragMotion,
+  captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, focusPanelForCapture, captureRefocusField, cardDragLayout, createCardDragMotion,
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
     useNotesData, useNoteEditor, useSettingsDraft, useJobNotifications, useToasts,

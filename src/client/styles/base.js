@@ -7,6 +7,8 @@ const baseStyles = `
 .SN_panel button{font-family:inherit}
 .SN_panel button:focus-visible,.SN_panel [tabindex]:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}
 .SN_panel input:focus-visible,.SN_panel textarea:focus-visible,.SN_panel select:focus-visible{outline:none}
+/* 切换到面板时容器只作为键盘落点（tabIndex=-1），不画整块焦点环。 */
+.SN_panel:focus{outline:none}
 
 /* 0.13.9 桌面版窗口拖拽：整个顶栏空白/标题区可拖动 DSH 窗口（Electron app-region），
    右侧操作区（按钮/菜单）显式恢复 no-drag，保证点击、弹菜单不被拖拽吃掉。

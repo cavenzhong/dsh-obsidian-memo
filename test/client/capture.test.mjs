@@ -267,6 +267,49 @@ test('快速记录：只有无焦点/面板空白处按 Tab 才进入标题，�
   assert.equal(prevented, 2)
 })
 
+test('切换面板：容器获得焦点后 Enter 可进入输入岛，已在面板内则不重复抢焦点', (t) => {
+  const api = loadClient(t).mod.__test
+  const calls = []
+  const outside = { id: 'sidebar-entry' }, inside = { id: 'panel-child' }
+  const panel = {
+    contains: (target) => target === inside || target === panel,
+    focus(options) { calls.push(options) },
+  }
+  const doc = { activeElement: outside }
+  assert.equal(api.focusPanelForCapture(panel, doc), true, '入口按钮仍有焦点时由面板接管')
+  assert.deepEqual(calls, [{ preventScroll: true }])
+  doc.activeElement = inside
+  assert.equal(api.focusPanelForCapture(panel, doc), false, '焦点已在面板内不重复聚焦')
+  assert.equal(calls.length, 1)
+  assert.equal(api.focusPanelForCapture(null, doc), false)
+  assert.equal(api.focusPanelForCapture({}, doc), false)
+})
+
+test('切换面板：StickyNotesPanel 挂载时把焦点交给面板容器（tabIndex=-1）', (t) => {
+  const runner = hookRunner(t)
+  const previous = globalThis.document
+  let focused = 0, focusOptions = null
+  globalThis.document = {
+    hidden: false,
+    activeElement: { tagName: 'BUTTON' },
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  const panelNode = {
+    contains: () => false,
+    querySelector: () => null,
+    focus(options) { focused++; focusOptions = options },
+  }
+  const panel = runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }, (node) => {
+    node.props.ref.current = panelNode
+  })
+  assert.equal(panel.props.className, 'SN_panel')
+  assert.equal(panel.props.tabIndex, -1, '面板本身可编程聚焦但不进入 Tab 顺序')
+  assert.equal(focused, 1)
+  assert.deepEqual(focusOptions, { preventScroll: true })
+})
+
 test('快速记录：失败提交的焦点恢复字段——正文回正文，其余回标题', (t) => {
   const api = loadClient(t).mod.__test
   const body = {}

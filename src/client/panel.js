@@ -3,6 +3,7 @@ import { useComments } from './ai/use-comments.js';
 import { useJobNotifications } from './ai/use-job-notifications.js';
 import { useProjectDialog } from './ai/use-project-dialog.js';
 import { CaptureComposer } from './capture/composer.js';
+import { focusPanelForCapture } from './capture/keyboard.js';
 import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
 import { ToastStack } from './components/feedback.js';
 import { useToasts } from './components/use-toasts.js';
@@ -39,6 +40,11 @@ function StickyNotesPanel(props) {
 
   tRef.current = t;
   const panelRef = React.useRef(null);
+  // 从侧栏/菜单切换到本面板后焦点仍停在入口按钮上，先交给面板容器；
+  // 这样直接按 Enter 就会命中输入岛的聚焦逻辑，不必先点一下面板。
+  React.useEffect(() => {
+    focusPanelForCapture(panelRef.current, typeof document === 'undefined' ? null : document);
+  }, []);
   const {
     resizingDrawer, setResizingDrawer, resizingRef, resizeCleanupRef, pinned, pinnedUserClosedRef,
     effectiveDrawerWidth, startDrawerResize, resetDrawerWidth, togglePinned,
@@ -354,6 +360,7 @@ function StickyNotesPanel(props) {
     'data-resizing': resizingDrawer ? 'true' : 'false',
     ref: panelRef,
     role: 'region',
+    tabIndex: -1,
     'aria-label': t('panel.title'),
   },
     renderPanelHeader({

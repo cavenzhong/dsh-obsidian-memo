@@ -3,6 +3,15 @@ import { panelIsVisible } from '../data/visibility.js';
 
 const CAPTURE_TAB_PASSTHROUGH = 'button,a,input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="textbox"],[role="menuitem"],[tabindex]';
 
+/** 切换到本面板时把焦点交给面板容器，让紧接着的 Enter/Tab 无需先点击即可进入输入岛。 */
+function focusPanelForCapture(panel, doc) {
+  if (!panel || typeof panel.focus !== 'function') return false;
+  const active = doc && doc.activeElement;
+  if (active && typeof panel.contains === 'function' && panel.contains(active)) return false;
+  panel.focus({ preventScroll: true });
+  return true;
+}
+
 function focusCaptureOnTab(event, { panel, form, title, busy }) {
   if (!panel || !form || !title || busy || event.defaultPrevented || !['Tab', 'Enter'].includes(event.key)
     || event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229 || !panelIsVisible(panel)) return false;
@@ -31,4 +40,4 @@ function captureFileDrag(event) {
   return Array.from(event.dataTransfer?.types || []).includes('Files') || Boolean(event.dataTransfer?.files?.length);
 }
 
-export { focusCaptureOnTab, captureRefocusField, captureFileDrag };
+export { focusCaptureOnTab, focusPanelForCapture, captureRefocusField, captureFileDrag };
