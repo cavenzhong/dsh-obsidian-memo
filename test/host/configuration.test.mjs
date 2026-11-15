@@ -249,3 +249,44 @@ test('saveSettings 0.16.8：标题模式与文件名模板落盘、重扫并在�
   assert.match(created.value.note.name, /^MEMO-\d{4}-\d{2}-\d{2}$/)
   assert.equal(created.value.note.title, '新标题')
 })
+
+test('saveSettings 0.16.8：来回切换标题模式只改配置与展示标题，源 .md 字节不变', async () => {
+  const c = await makeCase({
+    notes: {
+      '甲.md': '# 大标题\n\n正文\n',
+      '乙.md': '第一行\n\n内容\n',
+      '丙.md': '',
+      '子/丁.md': '---\ntags: [x]\n---\n\n第一段\n',
+    },
+  })
+  const snapshot = new Map()
+  for (const [rel, path] of Object.entries(c.seeded)) snapshot.set(rel, await readFile(path))
+
+  const order = ['firstLine', 'heading', 'filename', 'heading', 'firstLine', 'filename']
+  for (const mode of order) {
+    const current = (await c.call('state')).value.settings
+    const saved = await c.call('saveSettings', { settings: { ...current, titleMode: mode } })
+    assert.equal(saved.ok, true, `${mode}: ${JSON.stringify(saved)}`)
+    assert.equal((await c.call('state')).value.settings.titleMode, mode, '配置应切换到新模式')
+    for (const [rel, path] of Object.entries(c.seeded)) {
+      assert.deepEqual(await readFile(path), snapshot.get(rel), `切到 ${mode} 后 ${rel} 的源文件不应被改写`)
+    }
+  }
+
+  // 只有展示标题跟着模式变：乙.md 首行是「第一行」，没有一级标题。
+  let state = await c.call('state')
+  assert.equal((await c.call('saveSettings', { settings: { ...state.value.settings, titleMode: 'firstLine' } })).ok, true)
+  state = await c.call('state')
+  let byName = new Map(state.value.notes.map((note) => [note.name, note]))
+  assert.equal(byName.get('乙').title, '第一行')
+  assert.equal(byName.get('甲').title, '大标题')
+  const heading = await c.call('saveSettings', { settings: { ...state.value.settings, titleMode: 'heading' } })
+  assert.equal(heading.ok, true)
+  state = await c.call('state')
+  byName = new Map(state.value.notes.map((note) => [note.name, note]))
+  assert.equal(byName.get('乙').title, '乙', '没有 H1 时展示回退文件名')
+  assert.equal(byName.get('甲').title, '大标题')
+  for (const [rel, path] of Object.entries(c.seeded)) {
+    assert.deepEqual(await readFile(path), snapshot.get(rel), `最终 ${rel} 的源文件仍应逐字节不变`)
+  }
+})
