@@ -15,7 +15,7 @@ const en = {
   'sort.createdAsc': 'Created · oldest first',
   'sort.createdDesc': 'Created · newest first (default)',
   'sort.mtimeDesc': 'Last modified · newest first',
-  'sort.nameAsc': 'File name · A→Z',
+  'sort.nameAsc': 'Title · A→Z',
 
   'date.label': 'Date filter',
   'date.today': 'Today',
@@ -177,7 +177,7 @@ Object.assign(en, {
   'drag.hint': 'Drag a card to an action below', 'drag.release': 'Release to delete · Undo within 5 seconds',
   'drag.releaseArchive': 'Release to choose an archive', 'drag.releaseArchiveTarget': 'Release to archive to "{label}"', 'drag.releaseProject': 'Release to create a project',
   'drag.delete': 'Delete', 'drag.actions': 'Card drag actions', 'panel.backToTop': 'Back to top',
-  'capture.label': 'Quick capture', 'capture.title': 'Idea (used as the filename)',
+  'capture.label': 'Quick capture', 'capture.title': 'Idea (used as the filename)', 'capture.titleBody': 'Idea (used as the note title)',
   'capture.placeholder': 'Capture a thought…', 'capture.tab': 'Add details',
   'capture.body': 'Body', 'capture.bodyPlaceholder': 'A little more…',
   'capture.add': 'Add images', 'capture.remove': 'Remove image {name}',
@@ -198,7 +198,7 @@ Object.assign(en, {
 });
 
 Object.assign(en, {
-  'settings.tab.folders': 'Folders', 'settings.tab.ai': 'AI', 'settings.tab.images': 'Images', 'settings.tab.config': 'Manage & about',
+  'settings.tab.folders': 'Folders', 'settings.tab.notes': 'Notes', 'settings.tab.ai': 'AI', 'settings.tab.config': 'Manage & about',
   'settings.about': 'About this project', 'settings.author': 'by cavenzhong',
   'settings.vault': 'Obsidian vault', 'settings.notes': 'Notes folder', 'settings.project': 'Projects folder', 'settings.archive': 'Archive folders',
   'settings.vaultHint': 'Choose the vault once. All other folders are relative to it.', 'settings.notesHint': 'Read Markdown notes from this folder.',
@@ -219,6 +219,23 @@ Object.assign(en, {
   'settings.revealTrash': 'Show in Finder / file manager', 'settings.emptyTrash': 'Move to system trash',
   'settings.trashConfirm': 'Move the entire vault .trash, including files trashed by Obsidian, to the system trash. Restore through the system trash afterward. Existing system trash is kept.',
   'settings.trashMoved': 'Moved {count} items to system trash',
+});
+
+Object.assign(en, {
+  'settings.titleMode': 'Note title', 'settings.titleModeHint': 'Choose what the wall and reader show as the title. It also changes how new notes are written.',
+  'settings.titleMode.filename': 'File name', 'settings.titleMode.filenameNote': 'The .md file name is the title',
+  'settings.titleMode.firstLine': 'First line', 'settings.titleMode.firstLineNote': 'The first body line is the title',
+  'settings.titleMode.heading': 'Heading', 'settings.titleMode.headingNote': 'The first # heading is the title',
+  'settings.titleMode.filenameHint': 'The file name is the title: it cannot contain \\ / : * ? " < > | # ^ [ ] and must be at most 240 bytes; duplicates are reported.',
+  'settings.fileNamePattern': 'File name pattern', 'settings.fileNamePatternPreview': 'Preview: {name}',
+  'settings.fileNamePatternHint': 'Special characters become spaces, names over 240 bytes are truncated, and duplicates get -2, -3. Only affects new notes; existing files keep their names.',
+  'settings.fileNamePreviewTitle': 'Sample title',
+  'settings.fileNameToken.title': 'Title', 'settings.fileNameToken.date': 'Date',
+  'settings.fileNameToken.time': 'Time', 'settings.fileNameToken.timestamp': 'Timestamp',
+  'drawer.titleAria': 'Note file name', 'drawer.titleAriaBody': 'Note title',
+  'drawer.titleFromBodyFirstLine': 'The title is saved as the first body line',
+  'drawer.titleFromBodyHeading': 'The title is saved as the first level-1 heading',
+  'drawer.titleEmptyHint': 'No title found; the file name is shown after saving',
 });
 
 export { en };

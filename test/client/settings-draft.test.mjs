@@ -63,3 +63,31 @@ test('v0.16 设置会话：关闭重开后旧选择结果与旧配置回调不�
   assert.equal(controls.settingsDraft.notesDir, '/new/notes')
   assert.equal(updates.length, 0)
 })
+
+test('v0.16.8 设置草稿：旧 Host 缺标题模式时补默认值，非法值回退', (t) => {
+  const runner = hookRunner(t)
+  const viewRef = { current: { settings: { vaultPath: '/v', notesDir: '/v/notes', emojis: [] } } }
+  const options = {
+    t: (key) => key, tRef: { current: (key) => key }, viewRef, updateView() {},
+    request: async () => ({}), refreshNow: async () => {}, aliveRef: { current: true },
+    panelRef: { current: null }, pushToast() {}, pushErrorToast() {}, onOpen() {},
+  }
+  const render = () => runner.render(runner.api.hooks.useSettingsDraft, options)
+  let controls = render()
+  controls.openSettings()
+  controls = render()
+  assert.equal(controls.settingsDraft.titleMode, 'filename')
+  assert.equal(controls.settingsDraft.fileNamePattern, '{date}-{time}')
+
+  controls.closeSettings(); controls = render()
+  viewRef.current = { settings: { vaultPath: '/v', emojis: [], titleMode: 'bogus', fileNamePattern: '   ' } }
+  controls.openSettings(); controls = render()
+  assert.equal(controls.settingsDraft.titleMode, 'filename')
+  assert.equal(controls.settingsDraft.fileNamePattern, '{date}-{time}')
+
+  controls.closeSettings(); controls = render()
+  viewRef.current = { settings: { vaultPath: '/v', emojis: [], titleMode: 'heading', fileNamePattern: 'MEMO-{date}' } }
+  controls.openSettings(); controls = render()
+  assert.equal(controls.settingsDraft.titleMode, 'heading')
+  assert.equal(controls.settingsDraft.fileNamePattern, 'MEMO-{date}')
+})

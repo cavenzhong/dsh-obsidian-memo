@@ -253,3 +253,45 @@ test('saveNote：缺 body / body 非字符串 / 正文过大 → bad-request', a
   assert.equal(oversized.error.code, 'bad-request')
   assert.equal(await readFile(notePath, 'utf8'), before)
 })
+
+// 0.16.8：标题在正文模式的保存与读取
+test('saveNote 0.16.8：正文模式不发 name 不重命名，保存后按模式重新推导标题', async () => {
+  const c = await makeCase({ notes: { '甲.md': '# 旧标题\n\n旧正文\n' }, settings: { titleMode: 'heading' } })
+  const path = c.seeded['甲.md']
+  const opened = (await c.call('note', { path })).value
+  assert.equal(opened.title, '旧标题')
+  const saved = await c.call('saveNote', { path, body: '# 新标题\n\n新正文\n', expectedRevision: opened.contentRevision })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  assert.equal(saved.value.note.path, path, '不发送 name 时不得改名')
+  assert.equal(saved.value.note.title, '新标题')
+  assert.equal(await readFile(path, 'utf8'), '# 新标题\n\n新正文\n')
+
+  const reopened = (await c.call('note', { path })).value
+  const cleared = await c.call('saveNote', { path, body: '正文没有标题\n', expectedRevision: reopened.contentRevision })
+  assert.equal(cleared.ok, true)
+  assert.equal(cleared.value.note.title, '甲', '没有一级标题时回退文件名')
+})
+
+test('readFullNote / readModelSource 0.16.8：按模式派生标题并回退文件名', async () => {
+  const { readFullNote, readModelSource } = await import('../../lib/host/note-content.js')
+  const c = await makeCase({ notes: { '甲.md': '首行标题\n\n正文\n', '乙.md': '正文而已\n' } })
+  const first = c.seeded['甲.md']
+  const second = c.seeded['乙.md']
+  const heading = await readFullNote(first, 'heading')
+  assert.equal(heading.title, '甲', '无一级标题时回退文件名')
+  const firstLine = await readFullNote(first, 'firstLine')
+  assert.equal(firstLine.title, '首行标题')
+  assert.equal((await readFullNote(first)).title, '甲', '缺省 filename 模式保持旧行为')
+  assert.equal((await readModelSource(first, 'firstLine')).title, '首行标题')
+  assert.equal((await readModelSource(second, 'heading')).title, '乙')
+})
+
+test('toggleTask 0.16.8：正文模式标题行里的任务不可勾选', async () => {
+  const c = await makeCase({ notes: { '任务.md': '- [ ] 首行任务\n\n正文\n' }, settings: { titleMode: 'firstLine' } })
+  const path = c.seeded['任务.md']
+  const full = (await c.call('note', { path })).value
+  const toggled = await c.call('toggleTask', { path, sourceLine: 0, checked: true, expectedBody: full.body })
+  assert.equal(toggled.ok, false)
+  assert.equal(toggled.error.code, 'bad-request')
+  assert.equal(await readFile(path, 'utf8'), '- [ ] 首行任务\n\n正文\n')
+})

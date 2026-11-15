@@ -10,7 +10,7 @@ Harness 侧栏入口 · 本地 Markdown · 复用默认模型 · 一键开档
 
 [它是什么](#它是什么) · [安装](#安装) · [用法](#用法) · [数据与隐私](#数据与隐私) · [常见问题](#常见问题) · [English](README.en.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.7](https://img.shields.io/badge/version-0.16.7-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-%E5%BC%80%E6%BA%90-111?style=flat-square)](LICENSE) ![version 0.16.8](https://img.shields.io/badge/version-0.16.8-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## 它是什么
 
@@ -43,13 +43,13 @@ dsh-obsidian-memo 在 Harness 左侧栏提供便签入口，把 Obsidian 文件�
 
 ## 看一眼
 
-### 记下：标题就是文件名
+### 记下：先决定标题写在哪
 
 ![快速记录：输入标题、补充正文，并附上参考图](docs/assets/capture.png)
 
 写一句标题，按 `Enter` 就是一张便签。想多写一点，按 `Tab` 展开正文，用 `⌘ / Ctrl + Enter` 提交。图片可以直接粘贴或拖进输入栏，记录时不必先整理附件。
 
-标题就是 Markdown 文件名；正文、图片与之后的评论，都留在同一份笔记里。
+标题默认就是 Markdown 文件名；也可以在设置里改成「正文首行」或「第一个一级标题」，这时标题写进正文，文件名按模板自动生成（例如 `叉叉-2026-11-13-1924`）。正文、图片与之后的评论，都留在同一份笔记里。
 
 ### 回看：正文、任务与 AI 意见在一处
 
@@ -86,13 +86,14 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 
 **2. 选好目录，开始记录**
 
-点右上角齿轮，或到官方「设置 → 插件 → Obsidian MEMO」。先选仓库和便签文件夹；其余文件夹只显示仓库相对路径，共用支持新建、系统选择、搜索和最近记录的下拉菜单。设置分为「文件夹 / AI / 图片 / 管理与关于」，AI 角色通过横向 Emoji 标签切换，末尾加号添加角色。
+点右上角齿轮，或到官方「设置 → 插件 → Obsidian MEMO」。先选仓库和便签文件夹；其余文件夹只显示仓库相对路径，共用支持新建、系统选择、搜索和最近记录的下拉菜单。设置分为「文件夹 / 便签 / AI / 管理与关于」；「便签」页顶部选择便签标题模式，并可编辑正文模式的自动文件名模板；AI 角色通过横向 Emoji 标签切换，末尾加号添加角色。
 
 | 设置 | 必填 | 说明 |
 | --- | --- | --- |
 | 仓库根目录 | 是 | 你的 Obsidian vault，例如 `~/Documents/MyVault`。 |
 | 便签目录 | 是 | 仓库内想常常回看的文件夹，例如 `Inbox` 或 `进行时`。 |
 | 开档目录 | 开档时 | 仓库内存放项目文档的位置。 |
+| 便签标题 | 否 | 文件名（默认）/ 正文首行 / 第一个一级标题；后两种可编辑自动文件名模板（`{title}`/`{date}`/`{time}`/`{timestamp}`）。 |
 | 归档目录 | 否 | 可加多个，归档按钮会列出这些目标。 |
 | 图片文件夹 | 否 | 留空时使用便签目录的 `_attachments/`；必须在仓库内，且不能是以 `.` 开头的隐藏目录。 |
 | 图片处理 | 否 | 默认开启 WebP 压缩：质量 70、最大边长 2048px，可调整或关闭。 |
@@ -112,7 +113,7 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 
 ### 快速记录
 
-底部胶囊浮在便签墙下方，标题自动折行显示全文。输入想法作为新 `.md` 的文件名，按 `Enter` 创建；标题不会重复写进正文。按 `Tab` 展开正文区，空正文在失焦或按 Backspace 后收起；提交失败（重名、文件名过长等）会保留草稿与图片。
+底部胶囊浮在便签墙下方，标题自动折行显示全文。输入想法作为标题，按 `Enter` 创建。标题默认成为文件名；若选择「正文首行 / 一级标题」，标题会写进正文、文件名按模板生成（重名自动加 `-2`）。按 `Tab` 展开正文区，空正文在失焦或按 Backspace 后收起；提交失败（重名、文件名过长等）会保留草稿与图片。
 
 图片可以粘贴、拖入或点左侧加号多选，最多 8 张；默认压缩成静态 WebP，原始格式与动图可在设置里选择保留。新建时会沿用 Obsidian 为当前文件夹配置的 Default Template 的 frontmatter。
 
@@ -126,7 +127,7 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 - 编辑保存带打开时的内容版本；期间若被 Obsidian、AI 评论或其他编辑改动过，会拒绝覆盖并保留草稿。
 - 阅读模式可直接勾选任务，写回原 Markdown 的 `[ ]` / `[x]`，保留换行与 frontmatter。
 - 点图钉把面板固定在右侧；再次进入会恢复上次打开的便签。
-- 顶栏可切换日期范围、是否包含子文件夹、排序（创建时间 / 最近修改 / 文件名）。
+- 顶栏可切换日期范围、是否包含子文件夹、排序（创建时间 / 最近修改 / 标题）。
 
 ### 四种 AI 视角
 
@@ -148,7 +149,7 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 拖动卡片时，输入岛切换为「归档 / 到项目 / 删除」操作栏；拖到归档时可继续选择已配置的归档目录，拖到项目会打开项目名确认框，拖到删除即执行。原位置保留空虚线框，跟随光标的卡片宽高缩为原来的 1/3，实色动作提示固定在预览上方且层级更高；底部渐变按操作变色，操作栏避开右侧面板。卡片菜单的 AI 评论区下方仅保留「复制 / 在 Obsidian 打开」。
 拖动只更新跟随浮层；输入岛与操作栏切换保持布局稳定。取消放手时短动画回落，归档或删除时淡出，操作完成后再清理占位，避免原卡片闪回。系统开启减弱动态效果时直接完成动画。
 
-- **复制**：卡片底部或阅读面板的复制按钮将标题单独一行、换行后完整 Markdown 正文复制到剪贴板，成功显示提示。
+- **复制**：卡片底部或阅读面板的复制按钮将当前标题单独一行、换行后完整 Markdown 正文复制到剪贴板；正文模式的标题行不会重复复制，成功显示提示。
 - **删除**：阅读面板点浅警示色删除图标、拖到删除区，或在卡片/阅读面板按 `⌘ / Ctrl + Backspace`。Markdown 与独占本地图片成组进入笔记库内的 `.trash/MEMO-…` 文件夹，5 秒内可撤回；共享图片保留，避免影响其他笔记。过期后保留文件，不自动清空，可按组内 `restore.json` 的原路径手动移回。使用已有的 `.trash` 时不会清理其他回收文件。设置里的「管理与关于」另有 Finder 入口与「移至系统垃圾桶」：确认后将整个仓库 .trash 移到系统垃圾桶，包括 Obsidian 回收的内容；之后从系统垃圾桶恢复，不会清空系统已有垃圾。macOS Finder 可按 `⌘ + Shift + .` 显示隐藏文件夹。
 - **返回顶部**：向下滚动超过一屏后，输入岛上方出现圆形 ↑ 按钮。
 
@@ -216,7 +217,7 @@ git clone https://github.com/cavenzhong/dsh-obsidian-memo.git
 
 **提示文件名重复或保存失败？**
 
-标题就是 Markdown 文件名，同一目录下不能重名。换一个标题，或先处理已有文件；失败时草稿和已选图片会保留，成功后才清空。
+文件名模式下，标题就是 Markdown 文件名，同一目录下不能重名；换一个标题，或先处理已有文件。正文模式的文件名由模板生成，重名会自动加 `-2`，一般不会撞名。失败时草稿和已选图片会保留，成功后才清空。
 
 **「在 Obsidian 打开」没有反应？**
 
@@ -258,6 +259,7 @@ pnpm dev         # 可选：持续构建前端，配合 Harness HMR
 | `src/client/` | 浏览器源码：按数据、便签墙、阅读、设置、图片、拖拽等功能组织。 |
 | `lib/client.js` | 自动生成的浏览器发布文件；安装时无需构建。 |
 | `lib/capture.js` / `lib/notes.js` | 新建便签与附件、Markdown 解析与写入。 |
+| `lib/title.js` / `lib/filename.js` | 三种标题模式与标题行写回、正文模式的自动文件名模板。 |
 | `lib/settings.js` / `lib/scan.js` | 设置读写、目录扫描与缓存。 |
 | `lib/ai.js` / `lib/obsidian.js` | 模型调用、系统打开器。 |
 | `test/` / `test-support/` | 按功能拆分的测试与共享运行器。 |

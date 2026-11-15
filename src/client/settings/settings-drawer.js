@@ -4,6 +4,7 @@ import { Fragment, React, h } from '../react.js';
 import { AiBudgetRow } from './ai-budget-row.js';
 import { ConfigFileSettings } from './config-file.js';
 import { ImageProcessingSettings } from './image-processing.js';
+import { TitleModeSettings } from './note-title.js';
 import { SettingsPathField, VaultFolderPicker } from './paths.js';
 import { StyleSelect } from './style-select.js';
 import { TrashSettings } from './trash.js';
@@ -52,7 +53,7 @@ function SettingsDrawer(props) {
         }, h(CloseIcon, null)),
       ),
       h('div', { className: 'SN_settingsTabs', role: 'tablist', 'aria-label': t('settings.title') },
-        ['folders', 'ai', 'images', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
+        ['folders', 'notes', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
           'aria-selected': tab === id, onClick: () => setTab(id) }, t('settings.tab.' + id)))),
       h('div', { className: 'SN_drawerBody' },
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
@@ -121,11 +122,20 @@ function SettingsDrawer(props) {
             onChange: (path) => { if (path && !archiveTargets.some((item) => resolvedPath(draft.vaultPath, item.path) === resolvedPath(draft.vaultPath, path))) onPatch({ archiveTargets: archiveTargets.concat({ id: 'archive-' + Date.now().toString(36), label: baseName(path), path }) }); },
             onPick: () => request('pickDirectory', { vaultPath: draft.vaultPath }).then((result) => result.path) }),
         ),
-        h('div', { hidden: tab !== 'images', 'data-settings-tab': 'images' }, h(ImageProcessingSettings, { t, value: draft.imageCompression, disabled, onChange: (imageCompression) => onPatch({ imageCompression }) },
-          h(SettingsPathField, { ...folderProps,
-            t, label: t('settings.attachmentDir'), hint: t('settings.attachmentDirHint'),
-            value: draft.attachmentDir, field: 'attachmentDir', disabled, picking, onPatch, onPick,
-          }))),
+        h('div', { hidden: tab !== 'notes', 'data-settings-tab': 'notes' },
+          h(TitleModeSettings, {
+            t,
+            mode: draft.titleMode,
+            pattern: draft.fileNamePattern,
+            disabled,
+            onChangeMode: (titleMode) => onPatch({ titleMode }),
+            onChangePattern: (fileNamePattern) => onPatch({ fileNamePattern }),
+          }),
+          h(ImageProcessingSettings, { t, value: draft.imageCompression, disabled, onChange: (imageCompression) => onPatch({ imageCompression }) },
+            h(SettingsPathField, { ...folderProps,
+              t, label: t('settings.attachmentDir'), hint: t('settings.attachmentDirHint'),
+              value: draft.attachmentDir, field: 'attachmentDir', disabled, picking, onPatch, onPick,
+            }))),
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'ai', 'data-settings-tab': 'ai' },
           h('div', { className: 'SN_drawerSectionHead' },
             h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.emoji')),

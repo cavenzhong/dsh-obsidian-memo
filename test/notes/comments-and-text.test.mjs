@@ -162,3 +162,15 @@ test('clip：短文本原样，长文本截断加省略号', () => {
   assert.equal(clip('abc', 5), 'abc')
   assert.equal(clip('abcdef', 3), 'abc…')
 })
+
+test('removeCommentAt 0.16.8：按标题模式定位评论，首行 callout 在正文模式里是标题而非评论', async () => {
+  const { removeCommentAt } = await import('../../lib/comments.js')
+  const text = '> [!note] 标题行\n> 其实是标题\n\n> [!tip] 😈 毒舌 · 2026-11-13 10:00\n> 真正的评论\n'
+  const firstLine = removeCommentAt(text, 0, { titleMode: 'firstLine' })
+  assert.ok(firstLine)
+  assert.equal(firstLine.comment.label, '毒舌', '正文模式应删除第二条 callout')
+  assert.match(firstLine.text, /^> \[!note\] 标题行/, '标题行必须保留')
+  assert.doesNotMatch(firstLine.text, /真正的评论/)
+  const filename = removeCommentAt(text, 0, { titleMode: 'filename' })
+  assert.equal(filename.comment.title, '标题行', '文件名模式仍把第一条 callout 当评论（旧行为）')
+})

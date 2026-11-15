@@ -47,3 +47,34 @@ test('v0.16 右侧复制与删除复用卡片行为：复制完整正文，删�
   assert.ok(requests.some((request) => request.endpoint === 'undoDelete' && request.payload.undoToken === 'drawer-undo'))
   assert.equal(nodes.filter((node) => node.type === runner.api.components.NoteCard).length, 1)
 })
+
+test('v0.16.8 复制：正文模式用未截断的派生标题，并去掉正文里的标题行', async (t) => {
+  const runner = hookRunner(t), copied = []
+  const previousDocument = globalThis.document, navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  globalThis.window.addEventListener = () => {}
+  globalThis.window.removeEventListener = () => {}
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async (text) => copied.push(text) } } })
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument
+    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator
+  })
+  const longTitle = '字'.repeat(260)
+  const body = `${longTitle}\n\n第一段`
+  const note = { path: '/long.md', name: '2026-11-13-1924', title: '字'.repeat(200) + '…', excerpt: '摘要', comments: [], images: [], created: Date.now() }
+  runner.connect(async (channel, endpoint, payload) => {
+    if (endpoint === 'state') {
+      return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [], archiveTargets: [], titleMode: 'firstLine' } } }
+    }
+    if (endpoint === 'note') return { ok: true, value: { ...note, body, blocks: [{ kind: 'p', text: '第一段' }] } }
+    assert.fail('Unexpected endpoint ' + endpoint)
+  })
+  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
+  render(); await flush()
+  render().find((node) => node.type === runner.api.components.NoteCard).props.actions.current.onOpen(note)
+  await flush()
+  const drawer = render().find((node) => node.type === runner.api.components.NoteDrawer)
+  assert.ok(drawer)
+  await drawer.props.drawerActions.onCopy()
+  assert.deepEqual(copied, [`${longTitle}\n第一段`], '标题完整、正文不重复标题行')
+})

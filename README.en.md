@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.7](https://img.shields.io/badge/version-0.16.7-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.8](https://img.shields.io/badge/version-0.16.8-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -43,11 +43,13 @@ There is no second notebook: each sticky note is a `.md` file in the folder you 
 
 ## A closer look
 
-### Capture: the title is the filename
+### Capture: choose where the title lives
 
 ![Quick capture: a title, an optional body, and a reference image](docs/assets/capture.png)
 
-Type a line and press `Enter` to create a note. Press `Tab` to expand the body and `⌘ / Ctrl + Enter` to submit. Paste or drag images straight into the composer; the title becomes the Markdown filename, and the body, images, and later comments all live in the same note.
+Type a line and press `Enter` to create a note. Press `Tab` to expand the body and `⌘ / Ctrl + Enter` to submit. Paste or drag images straight into the composer.
+
+The title is the Markdown filename by default. Switch it to **first body line** or **first level-1 heading** in settings and the title is written into the body instead, while the filename is generated from a template (for example `idea-2026-11-13-1924`). The body, images, and later comments all live in the same note.
 
 ### Revisit: text, tasks, and AI comments together
 
@@ -84,13 +86,14 @@ Install with `target: link:/absolute/path/to/dsh-obsidian-memo` for development 
 
 **2. Pick folders and start writing**
 
-Open the top-right gear or Settings → Plugins → Obsidian MEMO. Settings are grouped into Folders, AI, Images, and Manage & about. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
+Open the top-right gear or Settings → Plugins → Obsidian MEMO. Settings are grouped into Folders, Notes, AI, and Manage & about. The Notes page starts with the title mode cards and the filename template for body-title modes. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
 
 | Setting | Required | Notes |
 | --- | --- | --- |
 | Vault root | Yes | Your Obsidian vault, e.g. `~/Documents/MyVault`. |
 | Notes folder | Yes | The folder you want on the wall, e.g. `Inbox`. |
 | Project folder | For projects | Where generated project documents are stored. |
+| Note title | No | File name (default), first body line, or first level-1 heading; the last two use an editable filename template (`{title}`/`{date}`/`{time}`/`{timestamp}`). |
 | Archive folders | No | Add several; the archive button lists these targets. |
 | Image folder | No | Defaults to `_attachments/` inside the notes folder; must be inside the vault and not a dot-hidden folder. |
 | Image processing | No | WebP compression is on by default: quality 70, max edge 2048px. Adjustable or off. |
@@ -110,7 +113,7 @@ Configuration defaults to `~/.config/dsh-obsidian-memo/config.json` (Windows: `%
 
 ### Quick capture
 
-The floating composer sits below the wall. Type an idea as the new `.md` filename and press `Enter`; the title is not duplicated into the body. Press `Tab` to expand the body; clearing it collapses the composer again. A failed submit (duplicate name, overly long filename) keeps your draft and images.
+The floating composer sits below the wall. Type an idea and press `Enter`. The title becomes the filename by default; with a body-title mode it is written into the body and the filename comes from the template (duplicates get `-2`). Press `Tab` to expand the body; clearing it collapses the composer again. A failed submit keeps your draft and images.
 
 Paste, drag, or use the plus button to attach up to 8 images. They are compressed to static WebP by default; keep originals and animation in settings. New notes reuse the frontmatter of the Obsidian Default Template configured for the current folder.
 
@@ -124,7 +127,7 @@ Paste, drag, or use the plus button to attach up to 8 images. They are compresse
 - Saves are version-checked. If Obsidian, an AI comment, or another edit changed the note meanwhile, the save is refused and your draft is kept.
 - Tick tasks in reading mode; they are written back as `[ ]` / `[x]` while preserving line breaks and frontmatter.
 - Click the pin to keep the panel open on the right; re-entering restores the last note.
-- Header controls switch the date range, include/exclude subfolders, and sort by created time, modified time, or filename.
+- Header controls switch the date range, include/exclude subfolders, and sort by created time, modified time, or title.
 
 ### Four AI perspectives
 
@@ -146,7 +149,7 @@ The drag preview has a soft shadow, with its action hint centered above it. The 
 Dragging a card replaces capture with Archive / To project / Delete. Archive reveals the configured archive folders, To project opens the project name dialog, and Delete acts on release. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
 Pointer movement updates only the preview layer, and switching the dock keeps the layout stable. Cancelling animates the card back; archive and delete fade it out and keep the placeholder until the operation completes, preventing a brief flash of the original card. Reduced-motion preferences skip these animations.
 
-- **Copy:** use the button on a card or in the reader to copy the filename title on its own line followed by the full Markdown body, without frontmatter, with a success message.
+- **Copy:** use the button on a card or in the reader to copy the current title on its own line followed by the full Markdown body, without frontmatter (body-title modes do not duplicate the title line), with a success message.
 - **Delete:** click the reader's muted warning-colored Delete icon, drop on Delete, or press `⌘ / Ctrl + Backspace` on a card or in the reader. The note and its exclusive local images move together to `.trash/MEMO-…` inside the vault, with a 5-second undo. Shared images stay in place. After expiry, files remain available for manual recovery using the original paths in `restore.json`; nothing is automatically purged. Existing trash files are preserved. In macOS Finder, press `⌘ + Shift + .` to show hidden folders.
 - **Back to top:** a round ↑ button appears above capture after scrolling past one screen.
 
@@ -214,7 +217,7 @@ Confirm that DSH has a default model configured. If the model spends its whole b
 
 **It says the filename is duplicated or saving failed.**
 
-The title is the Markdown filename, so names must be unique in the folder. Choose another title or handle the existing file; the draft and selected images are kept on failure and cleared only after success.
+In filename mode the title is the Markdown filename and names must be unique in the folder; in body-title modes the filename comes from the template and duplicates get `-2`. The draft and selected images are kept on failure and cleared only after success.
 
 **"Open in Obsidian" does nothing.**
 
@@ -256,6 +259,7 @@ To release, update the version in `package.json` and both README badges, add an 
 | `src/client/` | Browser sources grouped by data, wall, reader, settings, images and dragging. |
 | `lib/client.js` | Generated browser bundle; installation requires no build. |
 | `lib/capture.js` / `lib/notes.js` | Note and attachment creation, Markdown parsing and writing. |
+| `lib/title.js` / `lib/filename.js` | The three title modes, title-line writing, and filename templates. |
 | `lib/settings.js` / `lib/scan.js` | Settings, folder scanning and caches. |
 | `lib/ai.js` / `lib/obsidian.js` | Model calls and the system opener. |
 | `test/` / `test-support/` | Focused suites and shared test harnesses. |

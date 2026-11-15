@@ -151,3 +151,17 @@ test('v0.16.7 cardCommentGroups：优先 Host 汇总，旧 Host 回退按 commen
   }), [{ emoji: '😈', label: '毒舌', count: 2 }, { emoji: '', label: '笔记', count: 1 }])
   assert.deepEqual(api.cardCommentGroups(null), [])
 })
+
+test('v0.16.8 sortNotes：name-asc 按展示标题排序（文件名模式下与 name 相同）', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const notes = [
+    { path: '/1', name: '2026-11-13-1924', title: '乙', created: 1 },
+    { path: '/2', name: 'alpha', title: '甲', created: 2 },
+  ]
+  assert.deepEqual(api.sortNotes(notes, 'name-asc').map((note) => note.path), ['/2', '/1'])
+  const filenameMode = [
+    { path: '/b', name: '乙', title: '乙', created: 1 },
+    { path: '/a', name: '甲', title: '甲', created: 2 },
+  ]
+  assert.deepEqual(api.sortNotes(filenameMode, 'name-asc').map((note) => note.path), ['/a', '/b'])
+})

@@ -14,6 +14,7 @@ const readerStyles = `
 .SN_noteDrawerTitle{margin:0;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.35;color:var(--dsw-alias-label-primary);word-break:break-word}
 /* 编辑态标题：多行 textarea，完整换行显示（不横向滚动）；高度随内容自适应（JS 兜底 + field-sizing）。 */
 .SN_titleEditor{display:block;width:100%;min-width:0;min-height:24px;max-height:132px;border:0;border-bottom:1px solid var(--dsw-alias-border-l2);padding:2px 0;margin:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.35;outline:none;resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;field-sizing:content}
+.SN_noteDrawerTitleHint{margin:0;font-size:10.5px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 .SN_noteDrawerMeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary)}
 .SN_noteDrawerTag{flex:none;max-width:100%}
 .SN_noteDrawerBody{flex:1;min-height:0;overflow-y:auto;padding:18px 18px 40px;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}

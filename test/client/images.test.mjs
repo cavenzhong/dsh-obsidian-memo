@@ -2,6 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { CARD_IMAGE_ENTRIES, CLIENT_SOURCE, captureNodes, deferred, flush, getTestApi, hookRunner, loadClient } from '../../test-support/client.mjs'
+import { LIMITS } from '../../lib/shared.js'
 
 test('图片处理：默认与 Host 对齐，压缩关闭时原文件直通，尺寸保持比例且不放大', async (t) => {
   const api = loadClient(t).mod.__test
@@ -245,4 +246,10 @@ test('v0.16 阅读图片复用卡片已读取的原图缓存', async (t) => {
   assert.equal(node.type, 'img')
   assert.equal(node.props.src, 'data:image/png;base64,cached')
   assert.equal(requests.length, 0)
+})
+
+test('client 0.16.8：跨端限额与 Host 一致（文件名模板 / 便签名）', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  assert.equal(api.FILE_NAME_PATTERN_MAX, LIMITS.fileNamePatternChars)
+  assert.equal(api.NOTE_NAME_MAX_BYTES, LIMITS.noteNameBytes)
 })

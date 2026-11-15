@@ -127,7 +127,7 @@ export function stripTitleLine(body, mode)                // 复制用：去掉�
 阅读视图里标题已经显示在抽屉顶部，正文不再重复显示同一行：
 
 - `parseNote(text, { titleMode })` 在解析 blocks / excerpt 之前，把标题行在行数组里**置为空字符串**；
-- 行数不变，`withRanges` 的评论行号仍与源文件对齐（`lib/comments.js:14-33` 依赖同一行数组，无需改动）；
+- 行数不变，`withRanges` 的评论行号仍与源文件对齐；`removeCommentAt` / `deleteComment` 也必须带当前 `titleMode`，否则「首行恰好是 callout」的正文模式便签会按旧模式数错评论序号；
 - 只有 `title` 非空且 `index >= 0` 时才置空；
 - `titleMode` 缺省仍是 `'filename'`，`parseNote` 的旧标题行为（第一个 h/p 块）保持不变，老测试不受影响。
 
@@ -354,6 +354,7 @@ export function truncateNoteName(name, maxBytes = LIMITS.noteNameBytes)
 - `lib/capture.js`：标题校验分支、标题行、模板文件名、重名重试、Default Template 用实际文件名；`formatTemplateMoment` 改为 re-export。
 - `lib/host/note-content.js`：`readFullNote` / `readModelSource` 接受模式。
 - `lib/host/ai-jobs.js`：模型输入用派生标题。
+- `lib/comments.js` / `lib/host/comments.js`：`removeCommentAt` / `deleteComment` 接受 `titleMode`，按当前展示顺序定位评论。
 - `lib/index.js`：`onSettingsChange` 纳入 `titleMode`。
 - `lib/shared.js`：`LIMITS.fileNamePatternChars = 120`、`LIMITS.titleChars = 200`。
 
@@ -390,6 +391,7 @@ export function truncateNoteName(name, maxBytes = LIMITS.noteNameBytes)
 - `test/scan.test.mjs`：模式切换后标题刷新、`name` 不变、摘要标题分支、readFull 用同一模式。
 - `test/host/capture.test.mjs`：正文模式写入标题行、模板文件名、重名后缀、Default Template 目录匹配、文件名模式回归、正文模式标题超长不报错。
 - `test/host/editing.test.mjs`：正文模式保存不重命名、空标题回退、标题行任务不可勾选；文件名模式回归。
+- `test/notes/comments-and-text.test.mjs` / `test/host/comments.test.mjs`：首行 callout 在正文模式里是标题而非评论，删除序号按当前模式定位。
 - `test/client/editor.test.mjs`：标题 ↔ 正文双向同步、无标题行插入、清空标题删行、保存 payload 不含 name、成功回填、空标题重新打开。
 - `test/client/settings-ui.test.mjs`：四标签顺序与 id、「便签」页、三卡 `role=radio`/radiogroup、方向键切换与 roving tabindex、条件提示、模板预览与 `maxLength`、token 按钮插入、保存中禁用、旧「图片」页不再存在。
 - `test/client/wall-rendering.test.mjs` / `note-actions.test.mjs`：按标题排序、复制去重；复制 >200 字符标题时剪贴板包含完整标题（不丢尾部）。

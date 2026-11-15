@@ -231,3 +231,21 @@ test('v0.16 并发 state 复用扫描，慢扫描不阻塞设置读取和保存'
   assert.ok(results.every((result) => result.ok))
   assert.equal(scan.mock.callCount(), 1)
 })
+
+test('saveSettings 0.16.8：标题模式与文件名模板落盘、重扫并在新建时生效', async () => {
+  const c = await makeCase({ notes: { '甲.md': '# 大标题\n\n正文\n' } })
+  const before = await c.call('state')
+  assert.equal(before.value.notes[0].title, '甲')
+  const saved = await c.call('saveSettings', {
+    settings: { ...before.value.settings, titleMode: 'heading', fileNamePattern: 'MEMO-{date}' },
+  })
+  assert.equal(saved.ok, true, JSON.stringify(saved))
+  assert.equal(saved.value.settings.titleMode, 'heading')
+  assert.equal(saved.value.settings.fileNamePattern, 'MEMO-{date}')
+  const after = await c.call('state')
+  assert.equal(after.value.notes.find((note) => note.name === '甲').title, '大标题')
+  const created = await c.call('createNote', { title: '新标题', body: '正文' })
+  assert.equal(created.ok, true, JSON.stringify(created))
+  assert.match(created.value.note.name, /^MEMO-\d{4}-\d{2}-\d{2}$/)
+  assert.equal(created.value.note.title, '新标题')
+})

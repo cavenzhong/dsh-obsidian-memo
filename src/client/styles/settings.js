@@ -108,6 +108,28 @@ const settingsStyles = `
 .SN_aiTokens:focus{border-color:var(--dsw-alias-brand-primary)}
 .SN_aiUnit{flex:none;font-size:10.5px;line-height:1.4;color:var(--dsw-alias-label-tertiary)}
 
+.SN_titleMode{display:flex;flex-direction:column;gap:10px;padding-top:0;border-top:0}
+.SN_titleModeGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+/* 0.16.8：三张「大选择卡」用插画 + 标题 + 小注，和普通按钮/输入框明显区分。 */
+.SN_titleModeCard{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;padding:10px 7px 9px;border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-secondary);font:inherit;text-align:center;cursor:pointer;transition:border-color .12s ease,background .12s ease,transform .12s ease,box-shadow .12s ease}
+.SN_titleModeCard:hover:not(:disabled){border-color:color-mix(in srgb,var(--sn-accent) 55%,var(--dsw-alias-border-l3));transform:translateY(-1px)}
+.SN_titleModeCard[aria-checked='true']{border-color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 8%,var(--dsw-alias-bg-base,#fff));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 48%,transparent)}
+.SN_titleModeCard:disabled{opacity:.55;cursor:default;transform:none}
+.SN_titleModeCard:focus-visible{outline:2px solid var(--sn-accent);outline-offset:2px}
+.SN_titleModeArt{display:flex;align-items:center;justify-content:center;width:100%;height:56px;border-radius:8px;background:linear-gradient(180deg,color-mix(in srgb,var(--sn-accent) 7%,transparent),transparent)}
+.SN_titleModeCard[aria-checked='true'] .SN_titleModeArt{background:linear-gradient(180deg,color-mix(in srgb,var(--sn-accent) 14%,transparent),transparent)}
+.SN_titleModeName{font-size:12px;font-weight:600;line-height:1.35;color:var(--dsw-alias-label-primary);word-break:keep-all}
+.SN_titleModeNote{font-size:9.5px;line-height:1.4;color:var(--dsw-alias-label-tertiary);word-break:break-word}
+.SN_titleModeCheck{position:absolute;top:6px;right:7px;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--sn-accent);color:#fff;font-size:9px;line-height:1;font-weight:700}
+.SN_titleModeFilenameHint{margin:0;font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
+.SN_titleModeFile{display:flex;flex-direction:column;gap:8px}
+.SN_titleModeTokens{display:flex;flex-wrap:wrap;gap:5px}
+.SN_titleModeToken{height:24px;padding:0 8px;border:.5px dashed var(--dsw-alias-border-l3);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;cursor:pointer}
+.SN_titleModeToken:hover:not(:disabled){border-color:var(--sn-accent);color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 7%,transparent)}
+.SN_titleModeToken:disabled{opacity:.55;cursor:default}
+.SN_titleModePreview{margin:0;font-size:11px;line-height:1.5;color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.SN_titleModeFileHint{margin:0;font-size:10px;line-height:1.55;color:var(--dsw-alias-label-tertiary)}
+
 .SN_dialogLayer{position:absolute;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,16,10,.28);animation:SN_fadeIn .16s ease}
 .SN_dialog{width:min(440px,100%);display:flex;flex-direction:column;gap:14px;padding:20px 22px 18px;border:.5px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 18px 60px rgba(0,0,0,.28);animation:SN_toastIn .18s ease}
 .SN_dialogTitle{margin:0;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}

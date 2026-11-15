@@ -11,7 +11,8 @@ function useProjectDialog({ aliveRef, pushErrorToast, pushToast, refreshNow, req
     if (!note) return;
     setDrawerArchive(false);
     setSortMenu(false);
-    setProjectName(note.name || note.title || '');
+    // 正文模式的 name 是自动文件名（可能是时间戳）；优先用展示标题预填。
+    setProjectName(note.title || note.name || '');
     setProjectTarget(note);
   }
 

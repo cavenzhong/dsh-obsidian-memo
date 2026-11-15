@@ -9,7 +9,7 @@ import { makeError } from '../utils.js';
 
 function CaptureComposer(props) {
   const {
-    t, onCreate, onCreated, onError, enabled, imageCompression, dragNote, archiveParked, dropAction,
+    t, onCreate, onCreated, onError, enabled, imageCompression, titleMode, dragNote, archiveParked, dropAction,
     dropTargetId, archiveTargets, onDragHover, onArchiveDrop, onArchiveChoose, onProjectDrop, onDeleteDrop,
     showBackTop, onBackTop,
   } = props;
@@ -229,7 +229,7 @@ function CaptureComposer(props) {
         h('div', { className: 'SN_captureTitleRow' },
           h('span', { ref: titleMeasureRef, className: 'SN_captureTitleMeasure', 'aria-hidden': 'true' }, title || t('capture.placeholder')),
           h('textarea', { className: 'SN_captureTitle', ref: titleRef, rows: 1, value: title, disabled: busy, autoComplete: 'off',
-            'aria-label': t('capture.title'), placeholder: t('capture.placeholder'), onChange: (event) => setTitle(event.target.value.replace(/[\r\n]+/g, ' ')), onKeyDown: titleKeyDown }),
+            'aria-label': t(titleMode && titleMode !== 'filename' ? 'capture.titleBody' : 'capture.title'), placeholder: t('capture.placeholder'), onChange: (event) => setTitle(event.target.value.replace(/[\r\n]+/g, ' ')), onKeyDown: titleKeyDown }),
           !bodyOpen ? h('span', { className: 'SN_captureHint', 'aria-hidden': 'true' }, h('kbd', null, 'Tab'), t('capture.tab')) : null,
         ),
         bodyOpen ? h('textarea', { className: 'SN_captureBody', ref: bodyRef, value: body, disabled: busy, 'aria-label': t('capture.body'), placeholder: t('capture.bodyPlaceholder'),

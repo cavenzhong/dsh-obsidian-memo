@@ -10,7 +10,8 @@ import { PanelIcon } from './components/icons.js';
 import {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   CAPTURE_TOTAL_BYTES, COMMENTS_COLLAPSED_KEY, COMMENTS_HEIGHT_KEY, DATE_FILTERS, DATE_FILTER_ENABLED_KEY,
-  DEFAULT_DATE_FILTER, DEFAULT_DATE_FILTER_ENABLED, PINNED_KEY, PINNED_NOTE_KEY, SORT_OPTIONS, WALL_PAGE_SIZE,
+  DEFAULT_DATE_FILTER, DEFAULT_DATE_FILTER_ENABLED, DEFAULT_FILE_NAME_PATTERN, DEFAULT_TITLE_MODE,
+  FILE_NAME_PATTERN_MAX, NOTE_NAME_MAX_BYTES, PINNED_KEY, PINNED_NOTE_KEY, SORT_OPTIONS, TITLE_MODES, WALL_PAGE_SIZE,
 } from './constants.js';
 import { decorateNotes, jobsSignature, mergeState, pendingFromJob } from './data/state.js';
 import { createStateReader, useNotesData } from './data/use-notes-data.js';
@@ -31,6 +32,9 @@ import {
 } from './preferences.js';
 import { NoteBlock, NoteComment } from './reader/blocks.js';
 import { NoteDrawer } from './reader/note-drawer.js';
+import {
+  deriveTitle, findTitleLine, normalizeTitleMode, replaceTitleLine, sanitizeTitleText, stripTitleLine, titleLineFor,
+} from './reader/title-line.js';
 import { useCommentActions } from './reader/use-comment-actions.js';
 import { useCommentsLayout } from './reader/use-comments-layout.js';
 import { useNoteEditor } from './reader/use-note-editor.js';
@@ -40,6 +44,11 @@ import { ImageProcessingSettings } from './settings/image-processing.js';
 import { OfficialSettingsPage } from './settings/official-page.js';
 import { SettingsPathField, VaultFolderPicker, vaultRelative } from './settings/paths.js';
 import { SettingsDrawer } from './settings/settings-drawer.js';
+import { TitleModeIcon, TitleModeSettings } from './settings/note-title.js';
+import {
+  buildPreviewName, expandFileNamePattern, insertPatternToken, nextTitleMode, resolveFileNamePattern,
+  sanitizeGeneratedName, truncateNoteName,
+} from './settings/note-title-pattern.js';
 import { StyleSelect } from './settings/style-select.js';
 import { TrashSettings } from './settings/trash.js';
 import { useSettingsDraft } from './settings/use-settings-draft.js';
@@ -131,9 +140,13 @@ const __test = {
   imageCacheKey: imageCacheKey,
   clearImageCache: clearImageCache,
   SORT_OPTIONS: SORT_OPTIONS,
+  TITLE_MODES, DEFAULT_TITLE_MODE, DEFAULT_FILE_NAME_PATTERN, FILE_NAME_PATTERN_MAX, NOTE_NAME_MAX_BYTES,
+  normalizeTitleMode, findTitleLine, titleLineFor, sanitizeTitleText, deriveTitle, replaceTitleLine, stripTitleLine,
+  expandFileNamePattern, sanitizeGeneratedName, truncateNoteName, buildPreviewName, resolveFileNamePattern,
+  insertPatternToken, nextTitleMode,
   dictionaries: { zh: zh, en: en },
   components: {
-    CaptureComposer, DropActions, CardDragOverlay, ImageProcessingSettings,
+    CaptureComposer, DropActions, CardDragOverlay, ImageProcessingSettings, TitleModeSettings, TitleModeIcon,
     PanelIcon: PanelIcon,
     StickyNotesPanel: StickyNotesPanel,
     NoteCard: NoteCard,

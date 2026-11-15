@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.16.7）
+# 代码结构与修改入口（0.16.8）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
 
@@ -57,6 +57,8 @@ Harness Web  → lib/client.js（生成）
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
 | 评论确认、开档对话框、任务通知 | `src/client/ai/` | ai、notifications |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/` | settings-ui、settings-draft、settings-config |
+| 便签标题三卡、正文模式文件名模板与预览 | `src/client/settings/note-title.js`、`note-title-pattern.js` | settings-ui、note-title-pattern、filename |
+| 浏览器端标题推导与编辑同步 | `src/client/reader/title-line.js` | title-parity、editor |
 | 图标、通用对话框与 toast | `src/client/components/` | ai、reader-layout、notifications |
 | localStorage 兼容与抽屉尺寸约束 | `src/client/preferences.js` | preferences、reader-layout |
 | 中英文文案 | `src/client/i18n/` | registration、settings-ui、ai |
@@ -68,7 +70,7 @@ Harness Web  → lib/client.js（生成）
 
 ## 基础能力
 
-`lib/files.js` 管路径、内容版本和原子/独占文件操作；`filename.js` 管文件名规则；`notes.js` 管 Markdown 解析与写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存；`capture.js` 管新建笔记、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。
+`lib/files.js` 管路径、内容版本和原子/独占文件操作；`markdown.js` 管换行/block id/行内 Markdown 清洗；`title.js` 管三种标题模式与标题行写回；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`notes.js` 管 Markdown 解析与写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存（缓存 key 含标题模式）；`capture.js` 管新建笔记、标题行、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。
 
 ## 开发与验证
 

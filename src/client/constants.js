@@ -109,6 +109,19 @@ const COMMENTS_BODY_MIN_HEIGHT = 140;
 // 抽屉头部 + 操作条约占 120px；计算评论最大高度时和正文最小 140px 一起预留。
 const COMMENTS_CHROME_RESERVE = 120;
 
+// 0.16.8：便签标题来源与正文模式的自动文件名模板。
+const TITLE_MODES = ['filename', 'firstLine', 'heading'];
+
+const DEFAULT_TITLE_MODE = 'filename';
+
+const DEFAULT_FILE_NAME_PATTERN = '{date}-{time}';
+
+const FILE_NAME_TOKENS = ['{title}', '{date}', '{time}', '{timestamp}'];
+
+const FILE_NAME_PATTERN_MAX = 120;
+
+const NOTE_NAME_MAX_BYTES = 240;
+
 const EMPTY_SETTINGS = {
   vaultPath: '',
   notesDir: '',
@@ -117,6 +130,8 @@ const EMPTY_SETTINGS = {
   emojis: [],
   projectPrompt: '',
   includeSubfolders: true,
+  titleMode: DEFAULT_TITLE_MODE,
+  fileNamePattern: DEFAULT_FILE_NAME_PATTERN,
 };
 
 const EMPTY_STATE = {
@@ -139,5 +154,6 @@ export {
   DEFAULT_DATE_FILTER_ENABLED, DATE_FILTERS, DAY_MS, DRAWER_WIDTH_KEY, DRAWER_MIN_WIDTH, DRAWER_MAX_WIDTH,
   PINNED_WALL_MIN_WIDTH, PINNED_KEY, PINNED_NOTE_KEY, COMMENTS_HEIGHT_KEY, COMMENTS_COLLAPSED_KEY,
   COMMENTS_MIN_HEIGHT, COMMENTS_MAX_RATIO, COMMENTS_BODY_MIN_HEIGHT, COMMENTS_CHROME_RESERVE,
-  EMPTY_SETTINGS, EMPTY_STATE,
+  EMPTY_SETTINGS, EMPTY_STATE, TITLE_MODES, DEFAULT_TITLE_MODE, DEFAULT_FILE_NAME_PATTERN,
+  FILE_NAME_TOKENS, FILE_NAME_PATTERN_MAX, NOTE_NAME_MAX_BYTES,
 };

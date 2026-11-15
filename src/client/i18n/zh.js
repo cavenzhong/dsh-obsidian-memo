@@ -15,7 +15,7 @@ const zh = {
   'sort.createdAsc': '文件创建时间 · 旧→新',
   'sort.createdDesc': '文件创建时间 · 新→旧（默认）',
   'sort.mtimeDesc': '最近修改 · 新→旧',
-  'sort.nameAsc': '文件名 · A→Z',
+  'sort.nameAsc': '标题 · A→Z',
 
   'date.label': '日期筛选',
   'date.today': '今天',
@@ -177,7 +177,7 @@ Object.assign(zh, {
   'drag.hint': '拖动卡片到对应位置进行操作', 'drag.release': '松手即删除 · 5 秒内可撤回',
   'drag.releaseArchive': '松手即打开归档位置', 'drag.releaseArchiveTarget': '松手即归档到「{label}」', 'drag.releaseProject': '松手即到项目',
   'drag.delete': '删除', 'drag.actions': '卡片拖拽操作', 'panel.backToTop': '回到顶部',
-  'capture.label': '快速记录', 'capture.title': '想法（将作为文件名）',
+  'capture.label': '快速记录', 'capture.title': '想法（将作为文件名）', 'capture.titleBody': '想法（将作为便签标题）',
   'capture.placeholder': '记下此刻的想法…', 'capture.tab': '补充正文',
   'capture.body': '正文', 'capture.bodyPlaceholder': '再写一点…',
   'capture.add': '添加图片', 'capture.remove': '移除图片 {name}',
@@ -198,7 +198,7 @@ Object.assign(zh, {
 });
 
 Object.assign(zh, {
-  'settings.tab.folders': '文件夹', 'settings.tab.ai': 'AI', 'settings.tab.images': '图片', 'settings.tab.config': '管理与关于',
+  'settings.tab.folders': '文件夹', 'settings.tab.notes': '便签', 'settings.tab.ai': 'AI', 'settings.tab.config': '管理与关于',
   'settings.about': '关于项目', 'settings.author': 'by cavenzhong',
   'settings.vault': 'Obsidian 仓库', 'settings.notes': '便签文件夹', 'settings.project': '项目文件夹', 'settings.archive': '归档文件夹',
   'settings.vaultHint': '选择一次仓库，其余文件夹均基于此位置。', 'settings.notesHint': '便签墙从这里读取 Markdown。',
@@ -219,6 +219,23 @@ Object.assign(zh, {
   'settings.revealTrash': '在 Finder / 文件管理器中显示', 'settings.emptyTrash': '移至系统垃圾桶',
   'settings.trashConfirm': '将整个仓库 .trash（包括 Obsidian 放入的文件）移至系统垃圾桶。之后请从系统垃圾桶恢复。不会清空系统垃圾桶。',
   'settings.trashMoved': '已将 {count} 项移至系统垃圾桶',
+});
+
+Object.assign(zh, {
+  'settings.titleMode': '便签标题', 'settings.titleModeHint': '决定便签墙和阅读面板显示什么作为标题，也影响新建便签的写法。',
+  'settings.titleMode.filename': '文件名', 'settings.titleMode.filenameNote': '标题就是 .md 文件名',
+  'settings.titleMode.firstLine': '正文首行', 'settings.titleMode.firstLineNote': '第一行文字作为标题',
+  'settings.titleMode.heading': '一级标题', 'settings.titleMode.headingNote': '第一个 # 标题作为标题',
+  'settings.titleMode.filenameHint': '文件名会直接作为标题：不能包含 \\ / : * ? " < > | # ^ [ ] 等字符，最长 240 字节，重名时会提示。',
+  'settings.fileNamePattern': '文件名模板', 'settings.fileNamePatternPreview': '预览：{name}',
+  'settings.fileNamePatternHint': '特殊字符会被替换为空格；超过 240 字节自动截断；重名自动加 -2、-3。只影响之后新建的便签，已有文件名不变。',
+  'settings.fileNamePreviewTitle': '标题示例',
+  'settings.fileNameToken.title': '标题', 'settings.fileNameToken.date': '日期',
+  'settings.fileNameToken.time': '时间', 'settings.fileNameToken.timestamp': '时间戳',
+  'drawer.titleAria': '便签文件名', 'drawer.titleAriaBody': '便签标题',
+  'drawer.titleFromBodyFirstLine': '标题保存在正文第一行',
+  'drawer.titleFromBodyHeading': '标题保存在正文第一个一级标题',
+  'drawer.titleEmptyHint': '未检测到标题，保存后显示文件名',
 });
 
 export { zh };

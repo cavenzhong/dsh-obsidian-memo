@@ -16,9 +16,16 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 
 0.15.0 新增卡片拖拽与库内回收站删除（见下）；卡片操作区在 AI 评论下方仅提供复制与「在 Obsidian 打开」，归档和「到项目」迁至拖拽栏，阅读面板保留原有入口。Enter 统一聚焦输入岛，输入岛内输入和右侧正文编辑保留原行为，输入法组合态不拦截；Esc 失焦、空正文 Backspace/失焦收起、标题自动折行；滚动超过一屏时显示返回顶部按钮。
 
+### 0.16.8 标题模式约定
+
+- 三种模式：`filename`（默认，保持 0.16.7 行为）、`firstLine`、`heading`。标题规则集中在 `lib/title.js`，浏览器端 `src/client/reader/title-line.js` 是同一套纯函数（parity 测试约束）。
+- 正文模式的标题行同时存在于正文与展示标题里：扫描/blocks 时把该行置空但保留行号（评论删除的 `withRanges` 依赖行号）；编辑抽屉的标题框与正文草稿双向同步，保存只写正文，不重命名文件。
+- 新建时 `firstLine` 写标题纯文本，`heading` 写 `# 标题`；`{title}` 进入文件名时才走文件名清洗与 240 字节截断。
+- 设置 →「便签」页顶部是三张带插画的大选择卡；文件名模式显示特殊字符/240 字节提示，正文模式显示模板输入、token 与实时预览。原图片处理设置在同页下移。
+
 ### 0.16 设置与配置约定
 
-- 设置抽屉分文件夹 / AI / 图片 / 管理与关于；通过官方 settings.plugins.tab 注册 Obsidian MEMO 页，复用相同组件与设置草稿。顶栏只显示版本，「管理与关于」以单行淡色小字显示 GitHub 文字超链接与 by cavenzhong。
+- 设置抽屉分文件夹 / 便签 / AI / 管理与关于；通过官方 settings.plugins.tab 注册 Obsidian MEMO 页，复用相同组件与设置草稿。顶栏只显示版本，「管理与关于」以单行淡色小字显示 GitHub 文字超链接与 by cavenzhong。
 - 仓库路径只显示一次；notesDir、projectDir、attachmentDir 和 archiveTargets 共用 VaultFolderPicker，显示仓库相对路径。菜单提供新建、系统选择、过滤与共享 folderHistory（上限 40）；隐藏目录和符号链接越界拒绝，库内浏览上限 1500 个文件夹。
 - config.json 为唯一设置来源，默认 ~/.config/dsh-obsidian-memo/config.json，Windows 使用 APPDATA，支持 XDG_CONFIG_HOME 与 DSH_STICKY_NOTES_SETTINGS。旧 data/settings.json 首次迁移，原文件保留；JSON 内子文件夹均保存相对路径。location.json 只记住外部配置位置，不包含业务设置。
 - state 与 settings 检查配置文件指纹并加载有效外部修改；无效 JSON 不覆盖文件或上次有效值，错误通过 settings.configFile.error 显示。saveSettings 接受 expected 配置版本，旧草稿拒绝覆盖；configFile.path / pinned / revision 为只读运行时元数据，不落盘。仅配置读取和变更串行，state 的全库扫描不占用配置队列；并发 state 复用扫描。官方设置页只轮询 settings，不扫描或传输便签。
@@ -38,7 +45,7 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 - Markdown 与独占本地图片直接成组移入仓库 `.trash/MEMO-…`，组内 `restore.json` 记录各文件原路径；仅使用库内文件读写，不调用系统垃圾桶、AppleScript 或 Finder，不使用永久删除兜底，不自动清空回收目录。回收专用读写允许 `.trash` 隐藏路径，普通图片保存与索引仍排除隐藏目录；`.trash` 本身和回收组不接受符号链接，创建前检查真实路径，禁止越界。
 - 全库检查 Markdown 图片和普通链接，其他笔记还引用的图片、同名有歧义的裸附件、外部链接、仓库外路径与代码示例中的图片保留。失败时恢复已移动文件；无法自动恢复时错误提示给出暂存路径。
 - `undoDelete({ undoToken })` → `{ restoredTo }`；Host 有效期 5000ms，过期文件继续保留在库内 `.trash`，可按清单手动恢复。整组预检与硬链接／独占复制恢复防止覆盖原位置的新文件；删除和恢复中途失败时回滚已移动文件，回滚失败则提示回收组位置。只清理成功恢复组的清单与空目录，不删除其他回收内容；并发删除/撤回串行执行。
-- 复制从 `note` 读取完整正文（去 frontmatter），写入剪贴板的内容为 `title + '\n' + body`，成功后显示提示。
+- 复制从 `note` 读取完整正文（去 frontmatter）。文件名模式写入 `title + '\n' + body`；正文标题模式写入 `deriveTitle(body, mode) + '\n' + stripTitleLine(body, mode)`（用完整正文重新派生未截断标题，并去掉正文里的标题行），成功后显示提示。
 
 ## 1. 包结构与运行方式
 
@@ -95,6 +102,8 @@ interface Settings {
   projectAi: AiBudget          // 0.13 新增：开档生成项目文档的 token 预算
   imageCompression: { enabled: boolean; quality: number; maxDimension: number } // 0.14：默认 true / 70 / 2048
   includeSubfolders: boolean   // 0.13 新增：是否扫描便签目录的子文件夹；缺省/非 false 一律 true
+  titleMode: 'filename' | 'firstLine' | 'heading' // 0.16.8：标题来源；默认 filename（旧配置升级不变）
+  fileNamePattern: string      // 0.16.8：正文模式的自动文件名模板；默认 '{date}-{time}'，最多 120 字符
 }
 ```
 
@@ -103,6 +112,7 @@ interface Settings {
 - Host 保存时会规范化：空串保留；路径不是绝对路径时相对 `vaultPath` 解析；emoji 去重 id；空 prompt 用默认值。
 - 默认值见 `lib/settings.js` 的 `DEFAULT_SETTINGS`（含 4 枚默认 emoji 与默认建档提示词）。
 - **预设迁移（0.13）**：`readSettingsFile` 读到旧版（0.11 及更早）默认预设、且与 `LEGACY_EMOJIS` 逐字段完全一致时，整组替换为 0.13 的四个预设（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）。用户改过任何一项就原样保留。迁移只在读盘时发生在内存里，下次 `saveSettings` 落盘。
+- **标题模式（0.16.8）**：`titleMode` 缺省/非法一律回退 `filename`；`fileNamePattern` 去首尾空白、空串回退默认、截到 120 字符，只影响之后新建的便签。模板 token：`{title}`（正文标题）、`{date}`（`YYYY-MM-DD`）、`{time}`（`HHmm`）、`{timestamp}`（`YYYYMMDD-HHmmss`），其余文字原样保留；展开后按 `sanitizeNoteFileName` 清洗，超过 240 UTF-8 字节在码点边界截断，清洗为空回退 `note-{timestamp}`，Windows 保留名加 `note-` 前缀。正文模式重名自动追加 `-2`…（最多 5 次），文件名模式仍报 `exists`。
 
 ### 3.2 NoteSummary（卡片直接用这个）
 
@@ -111,7 +121,7 @@ interface NoteSummary {
   path: string          // md 绝对路径（操作时回传）
   relPath: string       // 相对 vaultPath
   name: string          // 文件名去掉 .md
-  title: string         // md 文件名（去掉 .md），Host 直接给
+  title: string         // 当前标题模式下的展示标题：filename = 文件名；正文模式 = 派生标题（回退文件名，最多 LIMITS.titleChars）
   darkColor: string     // 暗色模式卡片底色（同一 tag 同一色相）
   excerpt: string       // 正文摘要（含第一段；已去 meta、callout、markdown 记号；~360 字）
   tag: string | null    // 相对 notesDir 的第一层子文件夹名；顶层文件为 null
@@ -201,8 +211,8 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 |---|---|---|---|
 | `state` | `{ knownRevision?: string \| null }` | 见下 | 主轮询入口 |
 | `note` | `{ path: string }` | `NoteFull` | 打开右侧抽屉只读视图 / 编辑前取全文 |
-| `createNote` | `{ title: string, body: string, images?: { dataUrl: string }[] }` | `{ note: NoteSummary \| null, path: string }` | 0.14：在 notesDir 顶层新建，独占发布拒绝覆盖；图片由 Client 按设置处理后上传 |
-| `saveNote` | `{ path: string, body: string, name?: string, expectedRevision: string }` | `{ note: NoteSummary }` | 同时保存正文与文件名；拒绝同名覆盖；缺少或不匹配编辑版本返回 conflict |
+| `createNote` | `{ title: string, body: string, images?: { dataUrl: string }[] }` | `{ note: NoteSummary \| null, path: string }` | 0.14：在 notesDir 顶层新建，独占发布拒绝覆盖；0.16.8：正文模式把 `title` 写成正文首行/一级标题，文件名由设置里的模板生成并自动避让重名；图片由 Client 按设置处理后上传 |
+| `saveNote` | `{ path: string, body: string, name?: string, expectedRevision: string }` | `{ note: NoteSummary }` | 同时保存正文与文件名；0.16.8：正文模式省略 `name`，只写正文、不重命名；拒绝同名覆盖；缺少或不匹配编辑版本返回 conflict |
 | `toggleTask` | `{ path: string, sourceLine: number, checked: boolean, expectedBody: string }` | `{ note: NoteSummary }` | 只修改任务标记；内容已变化返回 conflict；不允许修改代码块 |
 | `readImage` | `{ path: string, source: string, wiki?: boolean, maxBytes?: number }` | `{ dataUrl: string }` | 读取仓库内图片；默认上限 8 MB，传 `maxBytes` 时以它为准；**超过上限统一报 `too-large`**（卡片缩略图用 `LIMITS.cardImageMaxBytes` 避免把大图塞进卡片）；校验真实路径；wiki 裸附件名歧义时拒绝。附件名查找结果会缓存（以真实路径复核），避免卡片缩略图反复全库遍历 |
 | `comment` | `{ path: string, emojiId: string }` | `{ jobId: string }` | 启动 AI 评论任务，立即返回 |
@@ -262,8 +272,8 @@ interface StateValue {
 - **归档**：移动文件到目标目录；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。
 - **在 Obsidian 打开（0.13.8）**：校验 `path` 在仓库内且是已存在的文件后，构造 `obsidian://open?path=<encodeURIComponent(绝对路径)>`，用 argv 形式调系统打开器（darwin `open` / win32 `cmd /c start "" <url>` / 其他 `xdg-open`；5s 超时）；成功返回 `{ url }`，失败 `open-failed`。不写任何文件。
 - **开档**：`<projectDir>/<项目名>/<项目名>.md`；生成结构化文档；源便签 frontmatter 的 `PROJECTS` 为空时写回项目 wikilink（已有值不覆盖，value 里会有说明）。
-- **标题 = md 文件名**（去掉 `.md`）：卡片和阅读视图都用文件名，不再取第一段；第一段属于正文。
-- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名；目标同名拒绝。新建、改名、归档、归档撤回与删除恢复共用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
+- **标题来源（0.16.8）**：`filename`（默认）= md 文件名；`firstLine` = 正文第一个非空行（ATX 标题取标题文字）；`heading` = 正文第一个一级标题（跳过代码围栏；空 H1 继续找）。正文模式取不到标题时回退文件名；标题行在阅读视图里不重复渲染，但保留在正文与编辑草稿中。
+- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名（0.16.8 起正文模式不传 `name`，因此不重命名）；目标同名拒绝。新建、改名、归档、归档撤回与删除恢复共用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
 - **不渲染 meta**：frontmatter 不进卡片内容。
 - **Obsidian block id（0.13.9）**：`^qa-daily-preview-1e5t8lm` 这类 block id 只出现在**行尾**，由 `lib/notes.js` 的 `stripBlockIds()` / `stripInline()` 去掉：先在原始行上按「行尾锚点」删除，再把段落拼成一行，因此**只删锚点本身、保留锚点后面的文字**（下一行内容不受影响）；同时不会误删行中/行内代码里的 `^`（行中的上标 `x ^2`、行内代码 `` `^abc` `` 原样保留）。0.13.8 之前只匹配字符串末尾，段落拼接后中间的 block id 会漏出来。
 - **文件监听**：Client 轮询 `state`（默认 4 秒，页面隐藏时暂停）；Obsidian 编辑会在数秒内反映。
@@ -406,7 +416,7 @@ function apply(ctx) {
   - `文件创建时间 · 新→旧`（默认，排第一）
   - `文件创建时间 · 旧→新`
   - `最近修改 · 新→旧`
-  - `文件名 · A→Z`
+  - `标题 · A→Z`（按展示标题；文件名模式下即文件名）
 - 当前选项打勾；选择后立即重排并记住（`localStorage` 键 `dsh-sticky-notes.sort.v2`，读不到时用默认）。
 
 ### 7.3.1b 日期筛选开关 + 档位菜单（0.13.9，源自 0.13.4）
@@ -536,7 +546,7 @@ AI 输入使用去掉 frontmatter 后的原始 Markdown（含已有评论），�
 ## 11. v0.14 快速记录与图片处理
 
 - `CaptureComposer` 放在 `.SN_wallWrap` 内，底部浮岛不覆盖右侧锁定面板；`ResizeObserver` 根据实际高度给便签墙预留滚动空间。背景蒙层不接收指针，只有胶囊本体接收输入。
-- 标题即新建文件名，不写入正文；新建与编辑改名共用 `lib/filename.js`（路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符、NFC 归一、首尾点/空格、Windows 保留设备名、240 UTF-8 字节上限）。不截断内容；提示将细节放入正文。
+- 标题模式为 `filename` 时，标题即新建文件名、不写入正文；`firstLine` / `heading` 时写入正文首行 / `# 标题`，文件名由模板生成。新建与编辑改名共用 `lib/filename.js`（路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符、NFC 归一、首尾点/空格、Windows 保留设备名、240 UTF-8 字节上限）；正文模式标题只做换行/控制符清洗，不截断正文标题。
 - Tab 从标题进入正文，正文 Shift+Tab 返回标题修改并保留正文；正文被删空（输入法合成中除外）立即收起回标题态并聚焦标题，之后仍可再按 Tab 展开；分割线与小字区分正文。中文输入法确认键不触发提交；标题 Enter、正文 Cmd/Ctrl+Enter 提交，正文 Enter 换行。提交使用同步 ref 锁防止连按重复请求，失败保留草稿与附件。
 - 图片支持 PNG／JPEG／GIF／WebP，多选或粘贴即在左侧显示方形叠放缩略图；悬停／聚焦展开，600ms 后显示完整图小浮窗（最大约 260×220px），移出取消。对象 URL 在删除、提交成功、卸载或输入岛停用且提交结束时释放。
 - `Settings.imageCompression` 缺失时补 `{ enabled: true, quality: 70, maxDimension: 2048 }`。质量取整并限制 1–100，最大边长取整并限制 256–8192px；JSON 数值只接受有限 number，非法类型回默认，界面输入在提交时显式转换。取消勾选仍保留已设定的参数。

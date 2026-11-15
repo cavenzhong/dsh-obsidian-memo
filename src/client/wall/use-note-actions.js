@@ -1,11 +1,12 @@
 /** 复制、系统打开、归档、删除与撤回；维护乐观视图和操作错误。 */
 import { UNDO_MS } from '../constants.js';
+import { deriveTitle, stripTitleLine } from '../reader/title-line.js';
 import { React } from '../react.js';
 import { isAbortError } from '../utils.js';
 
 function useNoteActions({
   aliveRef, archiveTargets, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
-  refreshNow, request, setDrawerArchive, setHoverPath, tRef, updateView, viewRef,
+  refreshNow, request, setDrawerArchive, setHoverPath, tRef, titleMode, updateView, viewRef,
 }) {
   const deletingRef = React.useRef(new Set());
 
@@ -58,7 +59,13 @@ function useNoteActions({
   async function copyNote(note) {
     try {
       const full = await request('note', { path: note.path });
-      await navigator.clipboard.writeText((full.title || note.title || note.name || '') + '\n' + (full.body || ''));
+      // 正文模式的标题在 body 里：复制时用完整正文派生的未截断标题，并去掉正文里的标题行。
+      const mode = titleMode && titleMode !== 'filename' ? titleMode : 'filename';
+      const body = typeof full.body === 'string' ? full.body : '';
+      const title = mode === 'filename'
+        ? (full.title || note.title || note.name || '')
+        : (deriveTitle(body, mode) || full.title || note.title || note.name || '');
+      await navigator.clipboard.writeText(title + '\n' + (mode === 'filename' ? body : stripTitleLine(body, mode)));
       if (aliveRef.current) pushToast({ text: tRef.current('toast.copied'), kind: 'success' });
     } catch (error) { if (aliveRef.current) pushErrorToast(new Error(tRef.current('toast.copyFailed'))); }
   }

@@ -68,7 +68,8 @@ function cardCommentGroups(note) {
 
 function noteName(note) {
   if (!note) return '';
-  return String(note.name || note.title || '');
+  // 0.16.8：按展示标题排序；文件名模式下 title === name，行为不变。
+  return String(note.title || note.name || '');
 }
 
 function noteCreated(note) {

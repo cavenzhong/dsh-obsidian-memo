@@ -147,3 +147,100 @@ test('client 源码：改名保存走乐观替换，保存中不误关抽屉', (
   assert.match(CLIENT_SOURCE, /replaceRenamedNote\(path, savedNote\)/, 'saveEditing 改名分支应乐观替换 view.notes')
   assert.match(CLIENT_SOURCE, /if \(savingNoteRef\.current\) return;/, '保存请求在飞时，筛选跟随 effect 应跳过')
 })
+
+// 0.16.8：正文模式标题同步
+test('编辑 hook 0.16.8：firstLine 标题 ↔ 正文双向同步，保存 payload 不含 name', async (t) => {
+  const runner = hookRunner(t)
+  const full = { path: '/A.md', name: '2026-11-13-1924', title: '旧标题', body: '旧标题\n\n旧正文\n', contentRevision: 'v1' }
+  runner.connect(async () => ({ ok: true, value: full }))
+  const calls = []
+  const options = editorOptions({
+    titleMode: 'firstLine',
+    request: async (endpoint, payload) => {
+      calls.push({ endpoint, payload })
+      return { note: { path: '/A.md', name: full.name, title: '最终标题', titleMode: 'firstLine' } }
+    },
+  })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/A.md' })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.titleDraft, '旧标题', '标题从正文派生，而不是复制文件名')
+  assert.equal(editor.bodyDraft, '旧标题\n\n旧正文\n')
+
+  editor.handleTitleChange('新标题')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.bodyDraft, '新标题\n\n旧正文\n', '改标题实时写回正文首行')
+
+  editor.handleBodyChange('正文首行\n\n新正文')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.titleDraft, '正文首行', '改正文首行实时反推标题')
+
+  editor.handleTitleChange('最终标题')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.saveEditing()
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(calls[0].endpoint, 'saveNote')
+  assert.equal(calls[0].payload.name, undefined, '正文模式不发送 name')
+  assert.equal(calls[0].payload.body, '最终标题\n\n新正文')
+  assert.equal(editor.editing, false)
+})
+
+test('编辑 hook 0.16.8：正文模式清空标题删除标题行，下一行成为标题', async (t) => {
+  const runner = hookRunner(t)
+  const full = { path: '/A.md', name: '文件名', title: '旧标题', body: '旧标题\n\n正文\n', contentRevision: 'v1' }
+  runner.connect(async () => ({ ok: true, value: full }))
+  const options = editorOptions({ titleMode: 'firstLine' })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/A.md' })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.handleTitleChange('')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.bodyDraft, '\n正文\n')
+  assert.equal(editor.titleDraft, '正文', '清空后下一行立即成为标题，避免误覆盖')
+})
+
+test('编辑 hook 0.16.8：heading 无一级标题时标题框为空，输入标题会插入 # 行', async (t) => {
+  const runner = hookRunner(t)
+  const full = { path: '/B.md', name: '文件名', title: '文件名', body: '正文\n', contentRevision: 'v1' }
+  runner.connect(async () => ({ ok: true, value: full }))
+  const options = editorOptions({ titleMode: 'heading' })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/B.md' })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.titleDraft, '', '没有 H1 时标题框为空（不回退文件名）')
+  editor.handleTitleChange('新标题')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.bodyDraft, '# 新标题\n正文\n')
+})
+
+test('编辑 hook 0.16.8：filename 模式仍发送 name，保持原改名行为', async (t) => {
+  const runner = hookRunner(t)
+  const full = { path: '/A.md', name: '甲', title: '甲', body: '原文', contentRevision: 'v1' }
+  runner.connect(async () => ({ ok: true, value: full }))
+  const calls = []
+  const options = editorOptions({
+    titleMode: 'filename',
+    request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return { note: { path: '/B.md', name: '乙' } } },
+  })
+  let editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.openNoteDrawer({ path: '/A.md' })
+  await flush()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.startEditing()
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.handleTitleChange('乙')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  editor.saveEditing()
+  await flush()
+  assert.equal(calls[0].payload.name, '乙')
+})

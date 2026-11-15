@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { DEFAULT_SETTINGS, normalizeSettings, readSettingsFile, resolveUserPath, settingsEqual, writeSettingsFile } from '../../lib/settings.js'
-import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS } from '../../lib/shared.js'
+import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS, LIMITS } from '../../lib/shared.js'
 
 test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', () => {
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
@@ -338,4 +338,37 @@ test('normalizeSettings：projectPrompt 空 / 缺失 / 非字符串回退默认'
 
 test('normalizeSettings：自定义 projectPrompt 保留', () => {
   assert.equal(normalizeSettings({ projectPrompt: '自定义建档提示' }).projectPrompt, '自定义建档提示')
+})
+
+// 0.16.8：便签标题模式与文件名模板
+test('settings 0.16.8：titleMode / fileNamePattern 默认值与旧配置升级', () => {
+  assert.equal(DEFAULT_SETTINGS.titleMode, 'filename')
+  assert.equal(DEFAULT_SETTINGS.fileNamePattern, '{date}-{time}')
+
+  const legacy = normalizeSettings({ vaultPath: '/v', notesDir: '/v/notes' })
+  assert.equal(legacy.titleMode, 'filename', '旧配置缺字段时保持文件名模式')
+  assert.equal(legacy.fileNamePattern, '{date}-{time}')
+
+  for (const value of ['', null, undefined, 'FirstLine', 'body', 1, {}]) {
+    assert.equal(normalizeSettings({ titleMode: value }).titleMode, 'filename')
+  }
+  assert.equal(normalizeSettings({ titleMode: 'firstLine' }).titleMode, 'firstLine')
+  assert.equal(normalizeSettings({ titleMode: 'heading' }).titleMode, 'heading')
+})
+
+test('settings 0.16.8：fileNamePattern 去空白、空串回退、限长 120 字符', () => {
+  assert.equal(normalizeSettings({ fileNamePattern: '  叉叉-{date}  ' }).fileNamePattern, '叉叉-{date}')
+  assert.equal(normalizeSettings({ fileNamePattern: '   ' }).fileNamePattern, '{date}-{time}')
+  assert.equal(normalizeSettings({ fileNamePattern: 42 }).fileNamePattern, '{date}-{time}')
+  const long = normalizeSettings({ fileNamePattern: 'x'.repeat(200) })
+  assert.equal(long.fileNamePattern.length, LIMITS.fileNamePatternChars)
+  assert.equal(LIMITS.fileNamePatternChars, 120)
+})
+
+test('settings 0.16.8：settingsEqual 受标题模式与模板影响', () => {
+  const base = normalizeSettings({ vaultPath: '/v', notesDir: '/v/notes' })
+  assert.equal(settingsEqual(base, { ...base }), true)
+  assert.equal(settingsEqual(base, { ...base, titleMode: 'heading' }), false)
+  assert.equal(settingsEqual(base, { ...base, fileNamePattern: '便签-{date}' }), false)
+  assert.equal(settingsEqual({ ...base, titleMode: 'heading' }, { ...base, titleMode: 'heading' }), true)
 })

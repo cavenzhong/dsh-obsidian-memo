@@ -23,6 +23,7 @@ import { useDockOffset } from './reader/use-dock-offset.js';
 import { useDrawerLayout } from './reader/use-drawer-layout.js';
 import { useNoteEditor } from './reader/use-note-editor.js';
 import { usePinnedNote } from './reader/use-pinned-note.js';
+import { normalizeTitleMode } from './reader/title-line.js';
 import { runtime } from './runtime.js';
 import { SettingsDrawer } from './settings/settings-drawer.js';
 import { useSettingsDraft } from './settings/use-settings-draft.js';
@@ -74,12 +75,14 @@ function StickyNotesPanel(props) {
       }
     },
   });
+  const titleMode = normalizeTitleMode(view.settings && view.settings.titleMode);
   const {
-    noteDrawer, noteDrawerRef, editing, editingRef, bodyDraft, titleDraft, setTitleDraft, savingNote,
+    noteDrawer, noteDrawerRef, editing, editingRef, bodyDraft, titleDraft, handleTitleChange, savingNote,
     savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer, handleBodyChange, startEditing,
     toggleTask, cancelEditing, saveEditing,
   } = useNoteEditor({
     tRef, aliveRef, controllersRef, request, refreshNow, replaceNote, replaceRenamedNote, pushToast, pushErrorToast,
+    titleMode: titleMode,
     onOpen() {
       pinnedUserClosedRef.current = false;
       setDrawerArchive(false);
@@ -117,7 +120,7 @@ function StickyNotesPanel(props) {
   });
   const { findTarget, runDelete, copyNote, runArchive, openInObsidian } = useNoteActions({
     aliveRef, archiveTargets, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
-    refreshNow, request, setDrawerArchive, setHoverPath, tRef, updateView, viewRef,
+    refreshNow, request, setDrawerArchive, setHoverPath, tRef, titleMode, updateView, viewRef,
   });
   const {
     dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, endCardDrag,
@@ -337,7 +340,8 @@ function StickyNotesPanel(props) {
       onToggleTask: toggleTask,
       taskBusy: taskBusy,
       titleDraft: titleDraft,
-      onTitleChange: setTitleDraft,
+      titleMode: titleMode,
+      onTitleChange: handleTitleChange,
       onResizeStart: startDrawerResize,
       onResizeReset: resetDrawerWidth,
       onClose: closeNoteDrawer,
@@ -378,7 +382,7 @@ function StickyNotesPanel(props) {
       h('div', { className: 'SN_wallWrap', 'data-capture': view.configured ? 'true' : 'false', style: { '--sn-dock-right': dockRight + 'px' } },
         renderContent(),
         h(CaptureComposer, {
-          t, enabled: view.configured, imageCompression: currentSettings.imageCompression,
+          t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
           dragNote, archiveParked: Boolean(dragSession?.parked), dropAction, dropTargetId, archiveTargets,
           onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onArchiveChoose: chooseArchiveTarget, onProjectDrop: projectDrop, onDeleteDrop: deleteDrop,
           showBackTop,

@@ -1,5 +1,6 @@
 /** 设置草稿及其异步会话；实时数据刷新不覆盖未保存内容。 */
 import { readImageCompression } from '../capture/images.js';
+import { DEFAULT_FILE_NAME_PATTERN, DEFAULT_TITLE_MODE, TITLE_MODES } from '../constants.js';
 import { React } from '../react.js';
 import { readAiBudget } from './ai-budget.js';
 import { vaultRelative } from './paths.js';
@@ -52,6 +53,11 @@ function useSettingsDraft(options) {
       draft.emojis = emojis.map((emoji) => Object.assign({}, emoji, { ai: readAiBudget(emoji && emoji.ai) }));
       draft.projectAi = readAiBudget(draft.projectAi);
       draft.imageCompression = readImageCompression(draft.imageCompression);
+      // 0.16.8：旧 Host 没有标题模式时补默认值，保证控件可编辑、保存不丢字段。
+      if (!TITLE_MODES.includes(draft.titleMode)) draft.titleMode = DEFAULT_TITLE_MODE;
+      if (typeof draft.fileNamePattern !== 'string' || draft.fileNamePattern.trim() === '') {
+        draft.fileNamePattern = DEFAULT_FILE_NAME_PATTERN;
+      }
     }
     setSettingsDraft(draft);
     setSettingsOpen(true);

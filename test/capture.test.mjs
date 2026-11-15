@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createCapturedNote } from '../lib/capture.js'
+import { createCapturedNote, expandTemplateVariables, formatTemplateMoment } from '../lib/capture.js'
 import { getBody, splitFrontmatter } from '../lib/notes.js'
 
 const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
@@ -211,4 +211,16 @@ test('快速记录：模板配置损坏、模板不是 md、悬空模板都按�
   await symlink(join(root, 'missing.md'), join(paths.vault, 'dangling.md'))
   await templateConfig(paths, { defaultTemplate: 'dangling.md' })
   assert.equal(await readFile(await create({ title: '悬空模板' }), 'utf8'), '')
+})
+
+test('0.16.8：formatTemplateMoment 从 datetime.js 抽出后旧导出与行为不变', () => {
+  const now = new Date(2026, 10, 13, 19, 24, 5)
+  assert.equal(formatTemplateMoment(now, 'YYYY-MM-DD HH:mm'), '2026-11-13 19:24')
+  assert.equal(formatTemplateMoment(now, 'YYYYMMDD-HHmmss'), '20261113-192405')
+  assert.equal(formatTemplateMoment(now, '[第]D[天] MMM'), '第13天 Nov')
+  assert.equal(formatTemplateMoment(now, 'YYYY'), '2026')
+  assert.equal(expandTemplateVariables('---\ndate: {{date}}\ntime: {{time}}\ntitle: "{{title}}"\n---', '我的标题', now),
+    '---\ndate: 2026-11-13\ntime: 19:24\ntitle: "我的标题"\n---')
+  // title 里的占位符不再二次展开（与 Default Template 的替换顺序一致）
+  assert.match(expandTemplateVariables('{{title}}', '{{date}}', now), /^\{\{date\}\}$/)
 })

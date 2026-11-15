@@ -1,7 +1,7 @@
 /** client: ai regression coverage. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getTestApi, loadClient } from '../../test-support/client.mjs'
+import { getTestApi, loadClient, hookRunner, captureNodes, flush } from '../../test-support/client.mjs'
 
 test('client __test：AI 预算预设与 shared.js 保持一致（防漂移）', async (t) => {
   const api = getTestApi(loadClient(t).mod)
@@ -161,4 +161,36 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
   const presetRendered = collect(budgetRows[0].type(budgetRows[0].props))
   assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiEffort'), false)
   assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiMaxTokens'), false)
+})
+
+test('v0.16.8 开档：默认项目名优先展示标题，而不是自动文件名', async (t) => {
+  const previousDocument = globalThis.document, previousWindow = globalThis.window
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  globalThis.window = { addEventListener() {}, removeEventListener() {} }
+  const runner = hookRunner(t)
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument
+    if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow
+    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator
+  })
+  const note = { path: '/A.md', name: '2026-11-13-1924', title: '展示标题', excerpt: '', comments: [], images: [], created: Date.now() }
+  runner.connect(async (channel, endpoint) => {
+    if (endpoint === 'state') {
+      return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [], archiveTargets: [], titleMode: 'heading' } } }
+    }
+    if (endpoint === 'note') return { ok: true, value: { ...note, body: '# 展示标题\n\n正文', contentRevision: 'v' } }
+    assert.fail('Unexpected endpoint ' + endpoint)
+  })
+  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
+  render()
+  await flush()
+  render().find((node) => node.type === runner.api.components.NoteCard).props.actions.current.onOpen(note)
+  await flush()
+  const drawer = render().find((node) => node.type === runner.api.components.NoteDrawer)
+  assert.ok(drawer)
+  drawer.props.drawerActions.onProject()
+  const dialog = render().find((node) => node.type === runner.api.components.ProjectDialog)
+  assert.ok(dialog)
+  assert.equal(dialog.props.name, '展示标题')
 })

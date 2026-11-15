@@ -8,7 +8,7 @@ import { emojiLabel } from '../wall/model.js';
 
 function NoteDrawer(props) {
   const {
-    t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, pinned,
+    t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, titleMode, pinned,
     inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
     onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
   } = props;
@@ -245,10 +245,10 @@ function NoteDrawer(props) {
             ref: titleEditorRef,
             value: titleDraft,
             rows: 1,
-            maxLength: 60,
+            maxLength: titleMode === 'filename' ? 60 : undefined,
             wrap: 'soft',
             spellCheck: false,
-            'aria-label': '便签文件名',
+            'aria-label': titleMode === 'filename' ? t('drawer.titleAria') : t('drawer.titleAriaBody'),
             onChange: (event) => onTitleChange(event.target.value.replace(/[\r\n]+/g, ' ')),
             onKeyDown: (event) => {
               // 文件名不能换行：Enter 不输入换行（保存仍用 Cmd/Ctrl+S 或按钮）。
@@ -261,6 +261,11 @@ function NoteDrawer(props) {
             // 0.13：双击标题进入编辑态（编辑态标题就是 input）；标题不再带 byline。
             onDoubleClick: canEdit ? onStartEdit : undefined,
           }, title),
+        editing && titleMode && titleMode !== 'filename'
+          ? h('p', { className: 'SN_noteDrawerTitleHint' }, t(titleDraft.trim() === ''
+            ? 'drawer.titleEmptyHint'
+            : titleMode === 'heading' ? 'drawer.titleFromBodyHeading' : 'drawer.titleFromBodyFirstLine'))
+          : null,
         h('div', { className: 'SN_noteDrawerMeta' },
           tag ? h('span', { className: 'SN_noteDrawerTag', title: tag }, tag) : null,
           updated ? h('span', null, updated) : null,

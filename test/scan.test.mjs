@@ -504,3 +504,51 @@ test('scan：整库只缓存摘要，全文按需读取并限制为最近四篇'
   scanner.reset()
   assert.equal(scanner.fullNotes.size, 0)
 })
+
+// 0.16.8：正文模式标题
+test('scan 0.16.8：正文模式标题来自内容，name 仍是文件名，切换模式后刷新', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, 'notes')
+  await writeNote(join(notesDir, '甲.md'), '# 大标题\n\n正文\n')
+  await writeNote(join(notesDir, '乙.md'), '首行标题\n\n正文\n')
+
+  const scanner = new NotesScanner()
+  const filename = await scanner.scan({ vaultPath: vault, notesDir })
+  const filenameByName = new Map(filename.notes.map((note) => [note.name, note]))
+  assert.equal(filenameByName.get('甲').title, '甲')
+  assert.equal(filenameByName.get('乙').title, '乙')
+
+  const heading = await scanner.scan({ vaultPath: vault, notesDir, titleMode: 'heading' })
+  const headingByName = new Map(heading.notes.map((note) => [note.name, note]))
+  assert.equal(headingByName.get('甲').title, '大标题')
+  assert.equal(headingByName.get('乙').title, '乙', '没有一级标题时回退文件名')
+  assert.equal(headingByName.get('甲').name, '甲')
+  assert.equal(headingByName.get('甲').relPath, 'notes/甲.md')
+
+  const firstLine = await scanner.scan({ vaultPath: vault, notesDir, titleMode: 'firstLine' })
+  const firstLineByName = new Map(firstLine.notes.map((note) => [note.name, note]))
+  assert.equal(firstLineByName.get('甲').title, '大标题')
+  assert.equal(firstLineByName.get('乙').title, '首行标题')
+
+  const full = await scanner.readFull(join(notesDir, '甲.md'))
+  assert.equal(full.title, '大标题')
+  assert.deepEqual(full.blocks.map((block) => block.text), ['正文'])
+})
+
+test('scan 0.16.8：展示标题截到 LIMITS.titleChars，正文与 name 不受影响', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, 'notes')
+  const longTitle = '字'.repeat(500)
+  await writeNote(join(notesDir, '长.md'), `${longTitle}\n\n正文\n`)
+  const scanner = new NotesScanner()
+  const result = await scanner.scan({ vaultPath: vault, notesDir, titleMode: 'firstLine' })
+  const note = result.notes.find((item) => item.name === '长')
+  assert.equal(note.name, '长')
+  assert.equal(note.title, `${'字'.repeat(LIMITS.titleChars)}…`)
+  assert.equal(note.title.length, LIMITS.titleChars + 1)
+  const full = await scanner.readFull(join(notesDir, '长.md'))
+  assert.equal(full.title, note.title)
+  assert.ok(full.body.startsWith(longTitle), '正文保留完整标题行')
+})

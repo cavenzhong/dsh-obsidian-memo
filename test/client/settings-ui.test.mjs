@@ -133,3 +133,88 @@ test('v0.16.6 DSH 0.2.2-rc.2：设置抽屉与遮罩声明 no-drag 排除，官�
   assert.doesNotMatch(CLIENT_SOURCE, /max-width:760px/, '旧的居中宽度应移除')
   assert.match(CLIENT_SOURCE, /\.SN_officialSettings\{[^}]*padding:16px 0\}/, '官方设置页不应再叠一层水平内边距')
 })
+
+// 0.16.8：便签标题模式三卡与文件名模板
+test('v0.16.8 设置：标签顺序为 文件夹/便签/AI/管理与关于', (t) => {
+  const runner = hookRunner(t)
+  const draft = { vaultPath: '/v', notesDir: '/v/n', emojis: [] }
+  const nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, { t: (key) => key, draft, initialTab: 'notes' }))
+  const tabs = nodes.filter((node) => node.props.className === 'SN_settingsTab')
+  assert.deepEqual(tabs.map((node) => node.children[0]), [
+    'settings.tab.folders', 'settings.tab.notes', 'settings.tab.ai', 'settings.tab.config',
+  ])
+  assert.equal(tabs.some((node) => node.children[0] === 'settings.tab.images'), false, '旧「图片」标签应移除')
+  const page = nodes.find((node) => node.props['data-settings-tab'] === 'notes')
+  assert.ok(page, '「便签」页应存在')
+  assert.equal(page.props.hidden, false)
+  assert.equal(nodes.some((node) => node.props['data-settings-tab'] === 'images'), false)
+})
+
+test('v0.16.8 设置：三张 role=radio 大卡、条件提示、方向键与禁用态', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const TitleModeSettings = api.components.TitleModeSettings
+  const patches = []
+  const base = {
+    t: (key, params) => (params && params.name ? key + ':' + params.name : key),
+    disabled: false,
+    onChangeMode: (titleMode) => patches.push({ titleMode }),
+    onChangePattern: (fileNamePattern) => patches.push({ fileNamePattern }),
+  }
+  let nodes = captureNodes(TitleModeSettings({ ...base, mode: 'filename', pattern: '{date}-{time}' }))
+  assert.ok(nodes.some((node) => node.props.role === 'radiogroup'))
+  let cards = nodes.filter((node) => node.props.role === 'radio')
+  assert.equal(cards.length, 3)
+  assert.deepEqual(cards.map((node) => node.props['data-mode']), ['filename', 'firstLine', 'heading'])
+  assert.deepEqual(cards.map((node) => node.props['aria-checked']), [true, false, false])
+  assert.deepEqual(cards.map((node) => node.props.tabIndex), [0, -1, -1])
+  assert.ok(nodes.some((node) => node.props.className === 'SN_titleModeFilenameHint'), '文件名模式要有小字提示')
+  assert.equal(nodes.some((node) => node.props.className === 'SN_titleModeFile'), false, '文件名模式不显示模板')
+  for (const card of cards) {
+    const art = captureNodes(card).find((node) => node.props.className === 'SN_titleModeArt')
+    assert.ok(art, '每张卡都要有演示插画')
+    const icon = captureNodes(api.components.TitleModeIcon({ mode: card.props['data-mode'] }))
+    assert.ok(icon.some((node) => node.type === 'svg'))
+  }
+
+  cards[1].props.onClick()
+  assert.deepEqual(patches.at(-1), { titleMode: 'firstLine' })
+  cards[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {}, currentTarget: { parentElement: null } })
+  assert.deepEqual(patches.at(-1), { titleMode: 'firstLine' })
+  cards[0].props.onKeyDown({ key: 'Escape', preventDefault() {}, currentTarget: { parentElement: null } })
+  assert.equal(patches.length, 2, '非方向键不应切换')
+
+  // 切到 heading 后出现模板输入、4 个 token、预览；点击 token 插到末尾。
+  nodes = captureNodes(TitleModeSettings({ ...base, mode: 'heading', pattern: '{date}-{time}' }))
+  const file = nodes.find((node) => node.props.className === 'SN_titleModeFile')
+  assert.ok(file)
+  const input = captureNodes(file).find((node) => node.type === 'input' && node.props.maxLength === 120)
+  assert.ok(input, '模板输入应限制 120 字符')
+  const tokens = captureNodes(file).filter((node) => node.props.className === 'SN_titleModeToken')
+  assert.deepEqual(tokens.map((node) => node.children[0]), ['{title}', '{date}', '{time}', '{timestamp}'])
+  assert.ok(captureNodes(file).some((node) => node.props.className === 'SN_titleModePreview'))
+  tokens[1].props.onClick()
+  assert.equal(patches.at(-1).fileNamePattern, '{date}-{time}{date}')
+
+  // 保存中：卡片和 token 都禁用，点击不触发。
+  const before = patches.length
+  nodes = captureNodes(TitleModeSettings({ ...base, disabled: true, mode: 'heading', pattern: '{date}-{time}' }))
+  cards = nodes.filter((node) => node.props.role === 'radio')
+  assert.equal(cards.every((node) => node.props.disabled === true), true)
+  cards[2].props.onClick()
+  const tokensDisabled = captureNodes(nodes.find((node) => node.props.className === 'SN_titleModeFile'))
+    .filter((node) => node.props.className === 'SN_titleModeToken')
+  assert.equal(tokensDisabled.every((node) => node.props.disabled === true), true)
+  assert.equal(patches.length, before)
+
+  // 抽屉里「便签」页应包含该组件。
+  const drawerNodes = captureNodes(runnerRenderDrawer(t))
+  const page = drawerNodes.find((node) => node.props['data-settings-tab'] === 'notes')
+  assert.ok(captureNodes(page).some((node) => typeof node.type === 'function' && node.type.name === 'TitleModeSettings'))
+})
+
+function runnerRenderDrawer(t) {
+  const runner = hookRunner(t)
+  return runner.render(runner.api.components.SettingsDrawer, {
+    t: (key) => key, draft: { vaultPath: '/v', notesDir: '/v/n', emojis: [] }, initialTab: 'notes',
+  })
+}
