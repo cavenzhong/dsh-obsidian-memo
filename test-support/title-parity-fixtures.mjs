@@ -31,6 +31,12 @@ export const TITLE_CASES = [
   { mode: 'heading', body: '没有标题\n正文', title: '', index: -1, marker: '' },
   { mode: 'heading', body: `${TILDE}md\n# 代码里\n${TILDE}\n# 外面`, title: '外面', index: 3, marker: '#' },
   { mode: 'heading', body: '# \\```\n正文', title: '```', index: 0, marker: '#' },
+  { mode: 'heading', body: '````md\n```\n# 示例\n````\n# 真标题', title: '真标题', index: 4, marker: '#' },
+  { mode: 'heading', body: '```md\n```js\n# 示例\n```\n# 真标题', title: '真标题', index: 4, marker: '#' },
+  { mode: 'heading', body: '~~~~md\n~~~\n# 示例\n~~~~~\n# 真标题', title: '真标题', index: 4, marker: '#' },
+  { mode: 'heading', body: '```\n~~~\n# 示例\n```\n# 真标题', title: '真标题', index: 4, marker: '#' },
+  { mode: 'heading', body: '````md\n```\n# 未闭合的示例', title: '', index: -1, marker: '' },
+  { mode: 'heading', body: '    # 缩进代码\n# 真标题', title: '真标题', index: 1, marker: '#' },
 ]
 
 export const SANITIZE_CASES = [
@@ -47,6 +53,7 @@ export const WRITE_CASES = [
   { mode: 'firstLine', title: '普通标题', marker: '', line: '普通标题', expect: '普通标题' },
   { mode: 'firstLine', title: '  普通标题  ', marker: '', line: '普通标题', expect: '普通标题' },
   { mode: 'firstLine', title: '二级', marker: '##', line: '## 二级', expect: '二级' },
+  { mode: 'firstLine', title: '# 一级', marker: '##', line: '# 一级', expect: '一级' },
   { mode: 'firstLine', title: '```js', marker: '', line: '\\```js', expect: '```js' },
   { mode: 'firstLine', title: '---', marker: '', line: '\\---', expect: '---' },
   { mode: 'firstLine', title: '```', marker: '##', line: '## \\```', expect: '```' },

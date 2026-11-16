@@ -1,7 +1,7 @@
 /** 0.16.8：标题推导与 parseNote 的标题行隐藏（文件行号保持不变）。 */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseNote } from '../../lib/notes.js'
+import { parseNote, summarizeImages } from '../../lib/notes.js'
 
 test('parseNote：filename 模式保持旧行为（标题取第一个 h/p，标题行仍在 blocks）', () => {
   const parsed = parseNote('# 文件名不是标题\n\n正文', { titleMode: 'filename' })
@@ -31,7 +31,7 @@ test('parseNote：heading 模式没有 H1 时标题为空，正文完整保留',
   assert.deepEqual(parsed.blocks.map((block) => block.text), ['只有二级', '正文'])
 })
 
-test('parseNote：正文模式把标题行置空但保留行号（评论删除的 withRanges 依赖）', () => {
+test('parseNote：正文模式隐藏重复标题文字但保留源行号（评论删除的 withRanges 依赖）', () => {
   const text = '# 标题\n\n正文\n\n> [!note] 😈 毒舌 · 2026-11-13 10:00\n> 评论内容\n'
   const heading = parseNote(text, { titleMode: 'heading', withRanges: true })
   const firstLine = parseNote(text, { titleMode: 'firstLine', withRanges: true })
@@ -42,6 +42,36 @@ test('parseNote：正文模式把标题行置空但保留行号（评论删除�
   assert.equal(firstLine.comments[0].startLine, 4)
   assert.equal(filename.comments[0].startLine, 4)
   assert.equal(heading.comments[0].endLine, 5)
+})
+
+test('标题展示投影：隐藏标题文字仍保留同行图片、任务与评论的源行号', () => {
+  for (const mode of ['firstLine', 'heading']) {
+    const text = '# **标题** ![[照片.png|300]] ![图](<附件/图 片.png>) ^memo\n\n- [ ] 任务\n\n> [!note] 评论\n> 内容\n'
+    const parsed = parseNote(text, { titleMode: mode, withRanges: true })
+    assert.equal(parsed.title, '标题')
+    assert.equal(parsed.excerpt, '☐ 任务')
+    assert.deepEqual(parsed.blocks.filter((block) => block.kind === 'image').map((block) => block.source), ['照片.png', '附件/图 片.png'])
+    assert.equal(summarizeImages(parsed.blocks).imageCount, 2)
+    assert.equal(parsed.blocks.find((block) => block.kind === 'li').sourceLine, 2)
+    assert.equal(parsed.comments[0].startLine, 4)
+    assert.equal(parsed.comments[0].endLine, 5)
+  }
+})
+
+test('代码围栏：标题推导、阅读与评论解析共用完整闭合规则', () => {
+  const text = '````md\n```\n# 代码标题\n> [!note] 示例评论\n> 不是评论\n````\n\n# 真标题\n\n> [!note] 真评论\n> 内容'
+  for (const mode of ['filename', 'firstLine', 'heading']) {
+    const parsed = parseNote(text, { titleMode: mode, withRanges: true })
+    assert.equal(parsed.comments.length, 1)
+    assert.equal(parsed.comments[0].title, '真评论')
+    assert.equal(parsed.comments[0].startLine, 9)
+    assert.equal(parsed.blocks[0].kind, 'code')
+    assert.match(parsed.blocks[0].text, /# 代码标题/)
+    assert.match(parsed.blocks[0].text, /> \[!note\] 示例评论/)
+    if (mode === 'heading') assert.equal(parsed.title, '真标题')
+    const limited = parseNote('首段\n\n' + text, { titleMode: mode, maxBlocks: 1 })
+    assert.deepEqual(limited.comments.map((comment) => comment.title), ['真评论'], '达到展示上限后也不把示例当评论')
+  }
 })
 
 test('parseNote：firstLine 围栏行不作为标题，也不会被置空（代码块语义不变）', () => {

@@ -1,5 +1,8 @@
 /** 浏览器协议标识、展示默认值与资源限额；跨端限额由 parity 测试约束。 */
-
+import {
+  TITLE_MODES, DEFAULT_TITLE_MODE, DEFAULT_FILE_NAME_PATTERN, FILE_NAME_TOKENS,
+  FILE_NAME_PATTERN_MAX, NOTE_NAME_MAX_BYTES,
+} from '../shared/note-rules.js';
 
 const NS = 'sticky-notes';
 
@@ -108,19 +111,6 @@ const COMMENTS_BODY_MIN_HEIGHT = 140;
 
 // 抽屉头部 + 操作条约占 120px；计算评论最大高度时和正文最小 140px 一起预留。
 const COMMENTS_CHROME_RESERVE = 120;
-
-// 0.16.8：便签标题来源与正文模式的自动文件名模板。
-const TITLE_MODES = ['filename', 'firstLine', 'heading'];
-
-const DEFAULT_TITLE_MODE = 'filename';
-
-const DEFAULT_FILE_NAME_PATTERN = '{date}-{time}';
-
-const FILE_NAME_TOKENS = ['{title}', '{date}', '{time}', '{timestamp}'];
-
-const FILE_NAME_PATTERN_MAX = 120;
-
-const NOTE_NAME_MAX_BYTES = 240;
 
 const EMPTY_SETTINGS = {
   vaultPath: '',

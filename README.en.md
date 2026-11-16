@@ -120,6 +120,7 @@ Paste, drag, or use the plus button to attach up to 8 images. They are compresse
 ### Read, edit, and tidy
 
 - Click a card to open the reading panel; double-click the title or body to edit, and press `⌘ / Ctrl + S` to save.
+- Title modes only change the display. Switching modes, reading, cancelling edits, and saving without changes leave Markdown untouched. Editing and saving a title updates its source line while preserving inline images and block IDs.
 - Cards keep the normal arrow cursor. Folder tags overlay the upper-right corner over a matching paper-color gradient; cards and the reader share paper-colored tags with darker matching text and adjusted contrast in dark mode.
 - The reader's action bar is one row: Archive, To project, Delete, and Copy full note on the left, in that order, with line icons and tooltips above; the purple icon-and-text Open in Obsidian button sits on the right. AI comment emojis live in the comments heading row at the bottom, beside the Comments title. The double-click editing hint appears only when the body is empty.
 - Card comments are grouped by emoji + label, showing only a bold count and no body text; click a card to open it. In the reader, drag the line above the comments to resize them (96px to 72%, double-click to reset), or click the heading arrow or Comments title to collapse them into one row.
@@ -259,7 +260,7 @@ To release, update the version in `package.json` and both README badges, add an 
 | `src/client/` | Browser sources grouped by data, wall, reader, settings, images and dragging. |
 | `lib/client.js` | Generated browser bundle; installation requires no build. |
 | `lib/capture.js` / `lib/notes.js` | Note and attachment creation, Markdown parsing and writing. |
-| `lib/title.js` / `lib/filename.js` | The three title modes, title-line writing, and filename templates. |
+| `src/shared/` | Title, Markdown, filename template, and date rules shared by Host and Client; `lib/` keeps the compatible entry points. |
 | `lib/settings.js` / `lib/scan.js` | Settings, folder scanning and caches. |
 | `lib/ai.js` / `lib/obsidian.js` | Model calls and the system opener. |
 | `test/` / `test-support/` | Focused suites and shared test harnesses. |

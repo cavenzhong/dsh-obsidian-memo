@@ -17,6 +17,7 @@ Harness Web  → lib/client.js（生成）
 - Client 按 ES 模块维护。esbuild 仅作为开发依赖，把源码生成 Harness `window.__ModuleLoader__.load` 所需的一个文件；运行时只从宿主读取 React 和 ReactDOM。发布包包含生成文件，使用者无需构建。
 - `lib/client.js` 随源码一同提交，便于直接 `link:` 安装。生成文件带来源模块注释；修改应回到 `src/client/`。构建没有时间戳或机器路径，`pnpm build:check` 检查是否与源码一致。
 - `src/client/testing.js` 集中组装已有 `__test` 调试接口；业务模块不依赖测试入口。
+- `src/shared/` 存放 Host 与 Client 共用的纯规则，仅显式导入同目录模块，不依赖文件系统或可变的运行环境状态。Host 的兼容入口保留在 `lib/`；Client 构建会将共享规则打入生成文件。
 
 ## Host：业务组合与状态所有权
 
@@ -58,7 +59,7 @@ Harness Web  → lib/client.js（生成）
 | 评论确认、开档对话框、任务通知 | `src/client/ai/` | ai、notifications |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/` | settings-ui、settings-draft、settings-config |
 | 便签标题三卡、正文模式文件名模板与预览 | `src/client/settings/note-title.js`、`note-title-pattern.js` | settings-ui、note-title-pattern、filename |
-| 浏览器端标题推导与编辑同步 | `src/client/reader/title-line.js` | title-parity、editor |
+| 标题推导、源行编辑与浏览器会话同步 | `src/shared/title.js`、`src/client/reader/use-note-editor.js` | title-parity、title-editing、host/title-display |
 | 图标、通用对话框与 toast | `src/client/components/` | ai、reader-layout、notifications |
 | localStorage 兼容与抽屉尺寸约束 | `src/client/preferences.js` | preferences、reader-layout |
 | 中英文文案 | `src/client/i18n/` | registration、settings-ui、ai |
@@ -70,7 +71,9 @@ Harness Web  → lib/client.js（生成）
 
 ## 基础能力
 
-`lib/files.js` 管路径、内容版本和原子/独占文件操作；`markdown.js` 管换行/block id/行内 Markdown 清洗；`title.js` 管三种标题模式与标题行写回；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`notes.js` 管 Markdown 解析与写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存（缓存 key 含标题模式）；`capture.js` 管新建笔记、标题行、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。
+`src/shared/markdown.js` 管换行/block id/行内 Markdown 清洗；`title.js` 管三种标题模式与标题行草稿；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`note-rules.js` 管两端共用的标题与文件名限额。`lib/` 中的对应入口导出共享实现。
+
+`lib/files.js` 管路径、内容版本和原子/独占文件操作；`notes.js` 管 Markdown 展示解析与用户操作后的写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存（缓存 key 含标题模式）；`capture.js` 管新建笔记、标题行、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。显示模式变化只派生视图，不调用文件写入。
 
 ## 开发与验证
 

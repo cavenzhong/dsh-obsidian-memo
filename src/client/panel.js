@@ -77,7 +77,7 @@ function StickyNotesPanel(props) {
   });
   const titleMode = normalizeTitleMode(view.settings && view.settings.titleMode);
   const {
-    noteDrawer, noteDrawerRef, editing, editingRef, bodyDraft, titleDraft, handleTitleChange, savingNote,
+    noteDrawer, noteDrawerRef, editing, editingRef, editTitleMode, bodyDraft, titleDraft, handleTitleChange, savingNote,
     savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer, handleBodyChange, startEditing,
     toggleTask, cancelEditing, saveEditing,
   } = useNoteEditor({
@@ -340,7 +340,7 @@ function StickyNotesPanel(props) {
       onToggleTask: toggleTask,
       taskBusy: taskBusy,
       titleDraft: titleDraft,
-      titleMode: titleMode,
+      titleMode: editTitleMode,
       onTitleChange: handleTitleChange,
       onResizeStart: startDrawerResize,
       onResizeReset: resetDrawerWidth,

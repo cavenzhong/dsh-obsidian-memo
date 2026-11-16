@@ -14,6 +14,9 @@ export const PATTERN_CASES = [
   { pattern: '{unknown}-{date}', title: 'x', expected: '{unknown}-2026-11-13' },
   { pattern: '{title}', title: '字'.repeat(81), expected: '字'.repeat(80) },
   { pattern: '{title}-{date}', title: '想法', expected: '想法-2026-11-13' },
+  { pattern: '  {title}-{date}  ', title: '想法', expected: '想法-2026-11-13' },
+  { pattern: '\u0000{title}\u0000', title: '想法', expected: '想法' },
+  { pattern: 'x'.repeat(121), title: '想法', expected: 'x'.repeat(120) },
 ]
 
 export const TRUNCATE_CASES = [

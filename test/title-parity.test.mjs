@@ -1,9 +1,22 @@
-/** Host / Client 标题行为一致性：同一组 fixture 分别跑 lib/title.js 与 reader/title-line.js。 */
+/** 两端入口兼容与真实标题行为；入口必须共享同一份纯函数。 */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as host from '../lib/title.js'
 import * as client from '../src/client/reader/title-line.js'
 import { SANITIZE_CASES, TITLE_CASES, WRITE_CASES } from '../test-support/title-parity-fixtures.mjs'
+
+test('标题：Host 与 Client 入口导出同一个实现', () => {
+  for (const name of Object.keys(client)) assert.equal(client[name], host[name], name)
+})
+
+test('标题编辑：只替换目标源行，其他换行、空白与 BOM 保持原样，改回原值恢复原文', () => {
+  const body = '\uFEFF前言  \r\n\r\n# **Cafe\u0301** ^anchor\r\n\r\n正文  \r\n'
+  const edit = client.createTitleEdit(body, 'heading')
+  assert.equal(client.applyTitleEdit(edit, '新标题'), '\uFEFF前言  \r\n\r\n# 新标题 ^anchor\r\n\r\n正文  \r\n')
+  assert.equal(client.applyTitleEdit(edit, 'Café'), body)
+  assert.equal(client.applyTitleEdit(edit, ''), '\uFEFF前言  \r\n\r\n^anchor\r\n\r\n正文  \r\n')
+  assert.equal(edit.body, body, '快照不被编辑操作修改')
+})
 
 test('title parity：findTitleLine / deriveTitle 在三种模式下逐项一致', () => {
   for (const item of TITLE_CASES) {
@@ -42,6 +55,8 @@ test('title parity：stripTitleLine 去掉标题行、保留其余正文', () =>
     ['heading', '前言\n\n# 标题\n\n正文', '前言\n\n\n正文'],
     ['heading', '没有一级标题\n正文', '没有一级标题\n正文'],
     ['filename', '标题\n正文', '标题\n正文'],
+    ['firstLine', '标题 ![[图.png]] ^anchor\n\n正文', '![[图.png]] ^anchor\n\n正文'],
+    ['heading', '# 标题 ![图](<附件/图 片.png>)\n\n正文', '![图](<附件/图 片.png>)\n\n正文'],
   ]
   for (const [mode, body, expected] of cases) {
     assert.equal(host.stripTitleLine(body, mode), expected)

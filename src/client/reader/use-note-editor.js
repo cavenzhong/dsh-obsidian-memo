@@ -3,13 +3,13 @@ import { DEFAULT_TITLE_MODE } from '../constants.js';
 import { clearStoredPinnedNote } from '../preferences.js';
 import { React } from '../react.js';
 import { callRpc } from '../runtime.js';
-import { deriveTitle, replaceTitleLine } from './title-line.js';
+import { applyTitleEdit, createTitleEdit, deriveTitle, normalizeTitleMode } from './title-line.js';
 import { isAbortError } from '../utils.js';
 
 function useNoteEditor(options) {
   const { tRef, aliveRef, controllersRef, request, refreshNow, replaceNote, replaceRenamedNote,
   pushToast, pushErrorToast, onOpen, onClose } = options;
-  const titleMode = typeof options.titleMode === 'string' ? options.titleMode : DEFAULT_TITLE_MODE;
+  const titleMode = normalizeTitleMode(options.titleMode || DEFAULT_TITLE_MODE);
   const [noteDrawer, setNoteDrawer] = React.useState(null); // { path, summary, full, loading, error }
   const noteDrawerRef = React.useRef(null);
   const drawerAbortRef = React.useRef(null);
@@ -23,6 +23,7 @@ function useNoteEditor(options) {
   titleModeRef.current = titleMode;
   // 本次编辑会话使用的模式：编辑期间设置变化不打断当前草稿。
   const editModeRef = React.useRef(titleMode);
+  const titleEditRef = React.useRef(null);
   const [savingNote, setSavingNote] = React.useState(false);
   const savingNoteRef = React.useRef(false);
   const [taskBusy, setTaskBusy] = React.useState(false);
@@ -63,6 +64,7 @@ function useNoteEditor(options) {
     onClose();
     editingRef.current = false;
     bodyDraftRef.current = '';
+    titleEditRef.current = null;
     updateTitleDraft('');
     savingNoteRef.current = false;
     setEditing(false);
@@ -117,6 +119,7 @@ function useNoteEditor(options) {
     onOpen();
     editingRef.current = false;
     bodyDraftRef.current = '';
+    titleEditRef.current = null;
     savingNoteRef.current = false;
     setEditing(false);
     setBodyDraft('');
@@ -131,7 +134,8 @@ function useNoteEditor(options) {
     setBodyDraft(value);
     // 正文模式：在正文里改首行 / H1 时，标题框跟着变（可能为空）。
     if (editModeRef.current !== 'filename') {
-      const derived = deriveTitle(value, editModeRef.current);
+      titleEditRef.current = createTitleEdit(value, editModeRef.current);
+      const derived = titleEditRef.current.source.title;
       if (derived !== titleDraftRef.current) updateTitleDraft(derived);
     }
   }
@@ -140,16 +144,13 @@ function useNoteEditor(options) {
     const mode = editModeRef.current;
     updateTitleDraft(value);
     if (mode === 'filename') return;
-    // 正文模式：标题框改动实时写回正文草稿的首行 / 第一个 H1。
-    const next = replaceTitleLine(bodyDraftRef.current, mode, value);
+    // 同一轮标题输入始终基于原始目标；清空、** 等中间态不重新定位。
+    const edit = titleEditRef.current;
+    if (!edit) return;
+    const next = applyTitleEdit(edit, value);
     if (next !== bodyDraftRef.current) {
       bodyDraftRef.current = next;
       setBodyDraft(next);
-    }
-    // 清空标题会删掉标题行，下一行随即成为标题；同步显示，避免之后误覆盖下一行。
-    if (String(value).trim() === '') {
-      const derived = deriveTitle(next, mode);
-      if (derived !== titleDraftRef.current) updateTitleDraft(derived);
     }
   }
 
@@ -162,12 +163,13 @@ function useNoteEditor(options) {
     updateDrawer(Object.assign({}, current, { loading: false }));
     const mode = titleModeRef.current;
     editModeRef.current = mode;
+    titleEditRef.current = createTitleEdit(current.full.body, mode);
     bodyDraftRef.current = current.full.body;
     setBodyDraft(current.full.body);
     // 正文模式用正文派生标题（不是可能回退到文件名的 full.title），无标题行时标题框为空。
     updateTitleDraft(mode === 'filename'
       ? (current.full.name || current.full.title || '')
-      : deriveTitle(current.full.body, mode));
+      : titleEditRef.current.source.title);
     editingRef.current = true;
     setEditing(true);
   }
@@ -199,6 +201,7 @@ function useNoteEditor(options) {
     }
     editingRef.current = false;
     bodyDraftRef.current = '';
+    titleEditRef.current = null;
     setEditing(false);
     setBodyDraft('');
     if (current) loadNote(current.path);
@@ -206,7 +209,7 @@ function useNoteEditor(options) {
 
   function saveEditing() {
     const current = noteDrawerRef.current;
-    if (!current || savingNoteRef.current) return;
+    if (!current || !editingRef.current || savingNoteRef.current) return;
     const path = current.path;
     const session = editorSessionRef.current;
     const body = bodyDraftRef.current;
@@ -222,6 +225,7 @@ function useNoteEditor(options) {
     if (body === original && (mode !== 'filename' || name === originalName)) {
       editingRef.current = false;
       bodyDraftRef.current = '';
+      titleEditRef.current = null;
       setEditing(false);
       setBodyDraft('');
       return;
@@ -248,6 +252,7 @@ function useNoteEditor(options) {
           }
           editingRef.current = false;
           bodyDraftRef.current = '';
+          titleEditRef.current = null;
           setEditing(false);
           setBodyDraft('');
           updateTitleDraft(savedNote
@@ -269,7 +274,8 @@ function useNoteEditor(options) {
   }
 
   // setTitleDraft 保留旧接口语义，但同样经由 handleTitleChange，避免只改 state 不更新 ref。
-  return { noteDrawer, noteDrawerRef, editing, editingRef, bodyDraft, titleDraft, setTitleDraft: handleTitleChange,
+  return { noteDrawer, noteDrawerRef, editing, editingRef, editTitleMode: editing ? editModeRef.current : titleMode,
+  bodyDraft, titleDraft, setTitleDraft: handleTitleChange,
   savingNote, savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer,
   handleBodyChange, handleTitleChange, startEditing, toggleTask, cancelEditing, saveEditing };
 }

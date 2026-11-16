@@ -189,7 +189,7 @@ test('编辑 hook 0.16.8：firstLine 标题 ↔ 正文双向同步，保存 payl
   assert.equal(editor.editing, false)
 })
 
-test('编辑 hook 0.16.8：正文模式清空标题删除标题行，下一行成为标题', async (t) => {
+test('编辑 hook：清空标题保持空输入，再输入时仍修改原来的标题位置', async (t) => {
   const runner = hookRunner(t)
   const full = { path: '/A.md', name: '文件名', title: '旧标题', body: '旧标题\n\n正文\n', contentRevision: 'v1' }
   runner.connect(async () => ({ ok: true, value: full }))
@@ -203,7 +203,10 @@ test('编辑 hook 0.16.8：正文模式清空标题删除标题行，下一行�
   editor.handleTitleChange('')
   editor = runner.render(runner.api.hooks.useNoteEditor, options)
   assert.equal(editor.bodyDraft, '\n正文\n')
-  assert.equal(editor.titleDraft, '正文', '清空后下一行立即成为标题，避免误覆盖')
+  assert.equal(editor.titleDraft, '', '输入中间态不把下一段正文接管为标题')
+  editor.handleTitleChange('新标题')
+  editor = runner.render(runner.api.hooks.useNoteEditor, options)
+  assert.equal(editor.bodyDraft, '新标题\n\n正文\n', '再次输入仍保留整段正文')
 })
 
 test('编辑 hook 0.16.8：heading 无一级标题时标题框为空，输入标题会插入 # 行', async (t) => {
