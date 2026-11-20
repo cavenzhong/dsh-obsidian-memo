@@ -37,8 +37,8 @@
 
 ### KI-17-05 项目 AI 的格式遵从度随模型/服务变化
 - 位置：`lib/ai.js` `revisionRequest` 与 `lib/project-revision.js` 的解析/校验。
-- 现象：默认 `deepseek-flash` 的格式已按当前协议测试；用户改选其他模型/服务时，可能出现不同的标题、JSON 包裹或截断行为。Host 会安全拒写，但需要用户重试。
-- 建议：发布前至少跑默认 + 一个非默认 provider 的验收；后续把真实模型 eval 固定在 `acceptance/project-0.17/`，每次改提示词或协议都跑。
+- 现象：默认 `deepseek-flash` 的格式已按当前协议测试；用户改选其他模型/服务时，可能出现不同的标题、JSON 包裹或截断行为。Host 会安全拒写，但需要用户重试。`deepseek-v4-pro` 与 `timcc/gpt-6.2-astra` 的 05 已成功；`neko-gemini` 因 provider 过载未验证内容。不支持思考档位的 provider 现在会去掉档位重试一次。
+- 建议：每次改提示词或协议都把真实模型 eval 固定在 `acceptance/project-0.17/`，至少跑默认 + 一个非默认 provider。
 - 优先级：P1（stable 前）。
 - 触发：在“项目 AI”里选择非默认模型/服务。
 

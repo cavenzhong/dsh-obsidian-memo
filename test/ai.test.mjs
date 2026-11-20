@@ -277,6 +277,35 @@ test('generateText：请求没带思考档位时回退默认模型的档位', as
   assert.equal(ctx.calls[0].reasoningEffort, 'max')
 })
 
+test('generateText：provider 不接受思考档位时去掉 effort 重试一次', async () => {
+  const calls = []
+  const ctx = {
+    get(name) {
+      if (name === 'llm') {
+        return {
+          async *stream(options) {
+            calls.push(options)
+            if (calls.length === 1) {
+              const error = new Error('provider "neko-gemini" model "gemini-4-argon" does not support reasoning effort "high"')
+              error.code = 'UNSUPPORTED_REASONING_EFFORT'
+              throw error
+            }
+            yield { type: 'text-delta', text: 'ok' }
+            yield { type: 'finish', reason: { kind: 'stop' } }
+          },
+        }
+      }
+      if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'neko-gemini', model: 'gemini-4-argon' }) }
+      return undefined
+    },
+  }
+  const generated = await generateText(ctx, { ...REQUEST, reasoningEffort: 'high' })
+  assert.equal(generated.text, 'ok')
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].reasoningEffort, 'high')
+  assert.equal(calls[1].reasoningEffort, undefined)
+})
+
 test('generateText：llm 服务缺失 → llm-unavailable', async () => {
   await assert.rejects(
     generateText({ get: () => undefined }, REQUEST),

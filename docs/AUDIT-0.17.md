@@ -26,4 +26,5 @@
 - `project-revision-invalid` 改为可重试提示：客户端显示“两份文件都没有改动”，提供“重试 / 知道了”；重试复用同一条便签与项目，源文件未改。
 - 修复后复测：05 连续 10 次全部进入待验收（10/10），每次撤销都精确回到操作前；完整 01→05 跑两轮，每轮 4 次补充全部成功（共 8/8），05 撤销后项目回到该轮 04 的已验收字节，源便签回到无 `PROJECT` 的原字节。
 - 05 成功样本明确写“排期已恢复，但未定场次、未接待观众”，04 写“A 通过、B 仍缺签字、暂停未解除”；手记和旧历史逐字节保留。
-- 仍未完成：真实拖放 UI、3 秒取消/生成中终止的实机检查、默认 + 非默认 provider 的对照验收；这三项仍是发布前手动验收项。
+- 模型对照：`deepseek-v4-pro` 与 `timcc/gpt-6.2-astra` 的 05 均成功；`neko-gemini/gemini-4-argon` 首次因 provider 不支持 `high` effort 失败，补上去档位重试后 provider 返回 500 过载，内容未验证。`generateText` 现在遇到 `UNSUPPORTED_REASONING_EFFORT` / “does not support reasoning effort”会去掉思考档位重试一次，并有单测。
+- 仍未完成：真实拖放 UI、3 秒取消/生成中终止的实机检查；非默认 provider 已跑 timcc 成功、neko-gemini 因 provider 过载未验。
