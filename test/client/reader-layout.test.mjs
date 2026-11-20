@@ -220,6 +220,62 @@ test('长标题编辑随内容折行，编辑区可滚动而保存栏在外；�
   assert.equal(edited, 2)
 })
 
+test('恢复编辑位置：回到原输入框、保留反向选区与滚动，普通重渲染不重置位置', (t) => {
+  const { api, render, unmount } = hookRunner(t)
+  const position = { field: 'title', start: 2, end: 20, direction: 'backward', top: 30, left: 4, contentTop: 64 }
+  const editPositionRef = { current: position }
+  const content = { scrollTop: 0 }, events = []
+  let fields
+  function textarea(field, value) {
+    return {
+      value, selectionStart: 0, selectionEnd: 0, selectionDirection: 'none', scrollTop: 0, scrollLeft: 0,
+      focus(options) {
+        events.push([field, 'focus', options])
+        fields[field].onFocus({ currentTarget: this })
+      },
+      setSelectionRange(start, end, direction) {
+        events.push([field, 'selection', start, end, direction])
+        Object.assign(this, { selectionStart: start, selectionEnd: end, selectionDirection: direction })
+      },
+    }
+  }
+  const title = textarea('title', '原标题太长'), body = textarea('body', '正文有两段\n看这里')
+  const props = {
+    t: (key) => key, drawer: { path: '/vault/note.md', full: {} }, editing: true, titleMode: 'filename',
+    titleDraft: title.value, bodyDraft: body.value, editPositionRef,
+    onEditPositionChange: (next) => { editPositionRef.current = next },
+  }
+  function draw() {
+    render(api.components.NoteDrawer, props, (tree) => {
+      const find = (className) => captureNodes(tree).find((node) => node.props.className === className).props
+      fields = { title: find('SN_titleEditor'), body: find('SN_noteEditor'), content: find('SN_noteEditContent') }
+      fields.title.ref.current = title
+      fields.body.ref.current = body
+      fields.content.ref.current = content
+    })
+  }
+  draw()
+  assert.equal(fields.title.autoFocus, false)
+  assert.equal(fields.body.autoFocus, false)
+  assert.deepEqual(events, [['title', 'focus', { preventScroll: true }], ['title', 'selection', 2, 5, 'backward']])
+  assert.equal(editPositionRef.current, position, '恢复过程的 focus 事件不能覆盖原选区')
+  assert.deepEqual([title.scrollTop, title.scrollLeft, content.scrollTop], [30, 4, 64])
+
+  body.selectionStart = body.selectionEnd = 6
+  fields.body.onSelect({ currentTarget: body })
+  body.scrollTop = 88
+  fields.body.onScroll({ currentTarget: body })
+  fields.title.onScroll({ currentTarget: title })
+  content.scrollTop = 128
+  fields.content.onScroll({ target: content, currentTarget: content })
+  assert.deepEqual(editPositionRef.current, { field: 'body', start: 6, end: 6, direction: 'none', top: 88, left: 0, contentTop: 128 })
+  draw()
+  assert.equal(events.length, 2, '同一编辑会话内的渲染不会抢焦点')
+
+  unmount(); draw()
+  assert.deepEqual(events.slice(2), [['body', 'focus', { preventScroll: true }], ['body', 'selection', 6, 6, 'none']])
+})
+
 test('评论区折叠仍显示四个 AI 按钮和提示，只有非零评论显示计数', (t) => {
   const api = loadClient(t).mod.__test
   let toggles = 0, selected = null

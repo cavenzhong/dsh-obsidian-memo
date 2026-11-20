@@ -54,8 +54,11 @@ const captureStyles = `
 .SN_captureDock[data-drop='archive']::after,.SN_captureDock[data-drop='project']::after,.SN_captureDock[data-drop='delete']::after{opacity:1}
 .SN_dropActions{position:absolute;z-index:2;left:clamp(12px,3vw,36px);right:clamp(12px,3vw,36px);bottom:24px;max-width:860px;margin:0 auto;pointer-events:auto}
 .SN_dropHint{text-align:center;margin:0 0 10px;font-size:11px;line-height:1.5;color:var(--dsw-alias-label-secondary,#6f6861);font-weight:500;text-shadow:0 1px 4px rgba(255,255,255,.95)}
-.SN_dropRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--sn-capture-line);border-radius:22px;background:var(--sn-capture-surface);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);overflow:visible;box-shadow:0 6px 28px rgba(55,42,30,.07)}
+.SN_dropRow{--sn-drop-radius:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--sn-capture-line);border-radius:var(--sn-drop-radius);background:var(--sn-capture-surface);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);overflow:visible;box-shadow:0 6px 28px rgba(55,42,30,.07)}
 .SN_dropItem{position:relative;min-width:0;min-height:70px;padding:12px 8px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;color:var(--dsw-alias-label-secondary,#7e756c);transition:background .2s,color .2s;user-select:none}
+/* 只裁圆角高亮背景，不裁从归档格上方伸出的目录菜单。 */
+.SN_dropItem:first-child{border-radius:calc(var(--sn-drop-radius) - 1px) 0 0 calc(var(--sn-drop-radius) - 1px)}
+.SN_dropItem:last-child{border-radius:0 calc(var(--sn-drop-radius) - 1px) calc(var(--sn-drop-radius) - 1px) 0}
 .SN_dropItem+.SN_dropItem::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--sn-capture-line)}
 .SN_dropItem[aria-disabled='true']{opacity:.45}
 .SN_dropItem[data-active='true'][data-action='archive']{color:#286c55;background:rgba(55,133,107,.14)}
@@ -76,10 +79,11 @@ const captureStyles = `
 .SN_dragFollow{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);z-index:2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;width:max-content;max-width:var(--sn-drag-hint-width,270px);padding:8px 12px;border-radius:7px;background:#514c47;color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.2);font-size:12px;font-weight:600;line-height:1.3;pointer-events:none;white-space:nowrap}
 .SN_dragFollow span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .SN_dragFollow svg{display:block;flex:none}
+.SN_dragFollow.SN_dragTargetHint{position:fixed;bottom:auto;z-index:10001;transform:translate(-50%,-100%);font-family:${SANS}}
 .SN_dragFollow[data-action='archive']{background:#286c55}
 .SN_dragFollow[data-action='project']{background:#4565a3}
 .SN_dragFollow[data-action='delete']{background:#b93d45}
-.SN_dragLayer[data-settling='true'] .SN_dragFollow,.SN_dragLayer[data-parked='true'] .SN_dragFollow{visibility:hidden}
+.SN_dragLayer:is([data-settling='true'],[data-parked='true']) .SN_dragFollow,.SN_dragLayer:is([data-settling='true'],[data-parked='true'])+.SN_dragTargetHint{visibility:hidden}
 .SN_backTop{position:absolute;z-index:2;top:-22px;left:50%;transform:translateX(-50%);width:32px;height:32px;border:1px solid var(--sn-capture-line);border-radius:50%;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#7e756c);box-shadow:0 3px 14px rgba(55,42,30,.08);display:grid;place-items:center;pointer-events:auto;cursor:pointer}
 .SN_backTop:hover{color:var(--sn-accent);border-color:var(--sn-accent)}
 body[data-ds-dark-theme] .SN_captureDock{--sn-capture-surface:rgba(43,40,47,.54);--sn-capture-line:rgba(255,255,255,.12)}

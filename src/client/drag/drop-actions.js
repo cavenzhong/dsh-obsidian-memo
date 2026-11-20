@@ -6,7 +6,7 @@ function DropActions({ t, active, activeTargetId, targets, parked, onHover, onAr
   function enter(event, kind, targetId = null) {
     event.preventDefault(); event.stopPropagation();
     event.dataTransfer.dropEffect = kind === 'archive' && targets.length === 0 ? 'none' : 'move';
-    onHover(kind, targetId);
+    onHover(kind, targetId, targetId ? event.currentTarget.parentElement : null);
   }
   function drop(event, kind, targetId = null) {
     event.preventDefault(); event.stopPropagation();
@@ -35,7 +35,10 @@ function DropActions({ t, active, activeTargetId, targets, parked, onHover, onAr
         'data-active': activeTargetId === target.id ? 'true' : 'false',
         onDragEnter: (event) => enter(event, 'archive', target.id),
         onDragOver: (event) => enter(event, 'archive', target.id),
-        onDragLeave: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) onHover('archive', null); },
+        onDragLeave: (event) => {
+          if (event.relatedTarget?.closest?.('.SN_dropTarget')?.parentElement === event.currentTarget.parentElement) return;
+          if (!event.currentTarget.contains(event.relatedTarget)) onHover('archive', null);
+        },
         onDrop: (event) => drop(event, 'archive', target.id),
         onClick: (event) => { event.stopPropagation(); if (parked) onArchiveChoose(target.id); },
       }, target.label || target.id)))

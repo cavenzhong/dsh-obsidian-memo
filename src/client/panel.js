@@ -77,12 +77,13 @@ function StickyNotesPanel(props) {
   });
   const titleMode = normalizeTitleMode(view.settings && view.settings.titleMode);
   const {
-    noteDrawer, noteDrawerRef, editing, editingRef, editTitleMode, bodyDraft, titleDraft, handleTitleChange, savingNote,
+    noteDrawer, noteDrawerRef, editing, editingRef, restoringDraftRef, editTitleMode, bodyDraft, titleDraft, handleTitleChange, savingNote,
     savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer, handleBodyChange, startEditing,
-    toggleTask, cancelEditing, saveEditing,
+    toggleTask, cancelEditing, saveEditing, editPositionRef, handleEditPositionChange,
   } = useNoteEditor({
     tRef, aliveRef, controllersRef, request, refreshNow, replaceNote, replaceRenamedNote, pushToast, pushErrorToast,
     titleMode: titleMode,
+    notesForRestore: view.loaded && view.configured ? view.notes : null,
     onOpen() {
       pinnedUserClosedRef.current = false;
       setDrawerArchive(false);
@@ -123,7 +124,7 @@ function StickyNotesPanel(props) {
     refreshNow, request, setDrawerArchive, setHoverPath, tRef, titleMode, updateView, viewRef,
   });
   const {
-    dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, endCardDrag,
+    dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
     startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop,
   } = useCardDrag({
     aliveRef, archiveTargets, findTarget, openProjectDialog, panelRef, pushToast, runArchive, runDelete,
@@ -135,7 +136,7 @@ function StickyNotesPanel(props) {
   );
   const sortedNotes = React.useMemo(() => sortNotes(filteredNotes, sortId), [filteredNotes, sortId]);
 
-  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, savingNoteRef, sortedNotes, view });
+  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view });
   const { visibleLimit, loadingMore, loadMoreRef } = useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view });
   const dateRangeLabel = t(dateFilterOption(dateFilter).labelKey);
   const includeSubfolders = currentSettings.includeSubfolders !== false;
@@ -348,6 +349,8 @@ function StickyNotesPanel(props) {
       onRetry: () => loadNote(noteDrawer.path),
       onStartEdit: startEditing,
       onBodyChange: handleBodyChange,
+      editPositionRef: editPositionRef,
+      onEditPositionChange: handleEditPositionChange,
       onSave: saveEditing,
       onCancelEdit: cancelEditing,
     }
@@ -409,7 +412,7 @@ function StickyNotesPanel(props) {
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
     h(ToastStack, { toasts: toasts, onDismiss: dismissToast }),
-    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targets: archiveTargets, t }) : null,
+    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, targets: archiveTargets, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {
         t: t,

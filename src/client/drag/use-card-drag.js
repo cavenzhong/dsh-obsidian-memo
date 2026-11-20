@@ -91,11 +91,12 @@ function useCardDrag({
     setDrawerArchive(false); setSortMenu(false); setDateMenu(false);
   }
 
-  function hoverDragAction(kind, targetId) {
+  function hoverDragAction(kind, targetId, anchor = null) {
     if (!dragSessionRef.current || dragSessionRef.current.ending || dragSessionRef.current.parked) return;
     setDropTarget((current) => {
       if (!kind) return current ? null : current;
-      return current?.kind === kind && current.id === (targetId || null) ? current : { kind, id: targetId || null };
+      const id = targetId || null;
+      return current?.kind === kind && current.id === id && current.anchor === anchor ? current : { kind, id, anchor };
     });
   }
 
@@ -143,7 +144,7 @@ function useCardDrag({
     endCardDrag().then(() => { if (aliveRef.current && path === note.path) openProjectDialog(note); });
   }
 
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop };
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop };
 }
 
 export { useCardDrag };

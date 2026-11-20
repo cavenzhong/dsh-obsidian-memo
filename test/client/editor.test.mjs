@@ -117,6 +117,7 @@ test('编辑 hook：同时保存标题正文后抽屉跟随新路径并结束编
   assert.equal(editor.noteDrawer.path, '/B.md')
   assert.equal(editor.editing, false)
   assert.equal(editor.savingNote, false)
+  assert.equal(runner.storage.getItem('dsh-sticky-notes.editorDraft.v1'), null, '保存成功清除本地恢复记录')
 })
 
 test('client __test：replaceNoteAtPath 改名后乐观替换旧 path（保留 pending / 其他字段）', (t) => {
@@ -246,4 +247,115 @@ test('编辑 hook 0.16.8：filename 模式仍发送 name，保持原改名行为
   editor.saveEditing()
   await flush()
   assert.equal(calls[0].payload.name, '乙')
+})
+
+test('编辑草稿：切走后恢复同一篇、文件名和最后一次正文修改，仍用编辑前版本校验保存', async (t) => {
+  const runner = hookRunner(t), writes = [], errors = []
+  const key = 'dsh-sticky-notes.editorDraft.v1'
+  const summary = { path: '/vault/note.md', name: '原文件名' }
+  let full = { ...summary, body: '原正文', contentRevision: 'original' }
+  runner.connect(async (_channel, endpoint) => {
+    assert.equal(endpoint, 'note')
+    return { ok: true, value: full }
+  })
+  const options = editorOptions({
+    notesForRestore: [summary],
+    request: async (endpoint, payload) => {
+      writes.push({ endpoint, payload })
+      throw Object.assign(new Error('已有外部修改'), { code: 'conflict' })
+    },
+    pushErrorToast: (error) => errors.push(error),
+  })
+  const render = () => runner.render(runner.api.hooks.useNoteEditor, options)
+  render().openNoteDrawer(summary)
+  await flush()
+  render().startEditing()
+  const body = '最后一键也保留\n- [ ] 待办\n'
+  render().handleTitleChange('未保存的新文件名')
+  render().handleBodyChange(body)
+  runner.unmount() // 写入计时尚未触发，清理必须冲刷最后一次变更。
+  assert.equal(JSON.parse(runner.storage.getItem(key)).body, body)
+  full = { ...full, body: '外部修改的正文', contentRevision: 'newer' }
+  render(); await flush()
+  const resumed = render()
+  assert.equal(resumed.noteDrawer.path, summary.path)
+  assert.equal(resumed.editing, true)
+  assert.equal(resumed.bodyDraft, body)
+  assert.equal(resumed.titleDraft, '未保存的新文件名')
+  assert.equal(writes.length, 0, '恢复不是自动保存')
+  resumed.saveEditing(); await flush()
+  assert.deepEqual(writes[0], { endpoint: 'saveNote', payload: { path: summary.path, name: '未保存的新文件名', body, expectedRevision: 'original' } })
+  assert.equal(errors[0].code, 'conflict')
+  assert.equal(render().bodyDraft, body)
+  render().cancelEditing(); await flush()
+  runner.unmount(); render(); await flush()
+  assert.equal(runner.storage.getItem(key), null)
+  assert.equal(render().editing, false, '主动取消后不再恢复')
+})
+
+test('编辑草稿：只移动光标也会跨面板保留；无效位置不影响正文恢复', async (t) => {
+  const runner = hookRunner(t), { storage } = runner
+  const key = 'dsh-sticky-notes.editorDraft.v1'
+  const note = { path: '/vault/note.md', name: '便签', body: '第一段\n第二段' }
+  const options = editorOptions({ notesForRestore: [note] })
+  const render = () => runner.render(runner.api.hooks.useNoteEditor, options)
+  runner.connect(async () => ({ ok: true, value: note }))
+  render().openNoteDrawer(note); await flush()
+  render().startEditing()
+  const position = { field: 'body', start: 5, end: 5, direction: 'none', top: 42, left: 0, contentTop: 16 }
+  render().handleEditPositionChange(position)
+  runner.unmount()
+  const stored = JSON.parse(storage.getItem(key))
+  assert.deepEqual(stored.position, position)
+  render(); await flush()
+  assert.equal(render().editing, true)
+  assert.deepEqual(render().editPositionRef.current, position)
+  runner.unmount()
+
+  storage.setItem(key, JSON.stringify({ ...stored, body: '未保存的正文', position: { ...position, start: -1 } }))
+  render(); await flush()
+  const resumed = render()
+  assert.equal(resumed.editing, true)
+  assert.equal(resumed.bodyDraft, '未保存的正文')
+  assert.equal(resumed.editPositionRef.current, null)
+})
+
+test('编辑草稿：钉住面板仍优先恢复日期筛选外的便签；正文标题延续原来编辑的行', async (t) => {
+  const runner = hookRunner(t), { api, storage } = runner
+  const previousDocument = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+  const draft = { path: '/vault/old.md', name: '旧便签', body: '原首行\n\n第二段', contentRevision: 'old', created: 1 }
+  const recent = { path: '/vault/today.md', name: '今天', created: Date.now() }
+  let read = null
+  runner.connect(async (_channel, endpoint, payload) => {
+    if (endpoint === 'state') return { ok: true, value: { configured: true, revision: '1', notes: [recent, draft], settings: { titleMode: 'firstLine' } } }
+    assert.equal(endpoint, 'note')
+    if (read) return read.promise
+    assert.equal(payload.path, draft.path)
+    return { ok: true, value: draft }
+  })
+  const edit = () => runner.render(api.hooks.useNoteEditor, editorOptions({ titleMode: 'firstLine' }))
+  edit().openNoteDrawer(draft); await flush()
+  edit().startEditing(); edit().handleTitleChange('')
+  const position = { field: 'title', start: 0, end: 0, direction: 'none', top: 0, left: 0, contentTop: 0 }
+  edit().handleEditPositionChange(position)
+  runner.unmount()
+  storage.setItem(api.PINNED_KEY, '1')
+  storage.setItem(api.DATE_FILTER_ENABLED_KEY, '1')
+  storage.setItem('dsh-sticky-notes.dateFilter.v1', 'today')
+  read = deferred()
+  const panel = () => captureNodes(runner.render(api.components.StickyNotesPanel, { t: (key) => key }))
+  const drawer = (tree) => tree.find((node) => node.type === api.components.NoteDrawer)
+  panel(); await flush()
+  panel() // 提交恢复的 effect，此时读全文还在飞，钉住逻辑不得立刻改选。
+  assert.equal(drawer(panel()).props.drawer.path, draft.path)
+  read.resolve({ ok: true, value: draft }); await flush()
+  const resumed = drawer(panel())
+  assert.equal(resumed.props.drawer.path, draft.path)
+  assert.equal(resumed.props.editing, true)
+  assert.equal(resumed.props.titleDraft, '')
+  assert.deepEqual(resumed.props.editPositionRef.current, position)
+  resumed.props.onTitleChange('替换旧首行')
+  assert.equal(drawer(panel()).props.bodyDraft, '替换旧首行\n\n第二段')
 })

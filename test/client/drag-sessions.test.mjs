@@ -70,7 +70,7 @@ test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽�
   const calls = [], active = []
   const menu = captureNodes(api.components.DropActions({
     t: (key) => key, active: null, activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
-    onHover: (kind, targetId) => active.push([kind, targetId]),
+    onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
     onArchive: (_, targetId) => calls.push(['archive', targetId]),
     onProject: () => calls.push(['project']),
     onDelete: () => calls.push(['delete']),
@@ -85,14 +85,15 @@ test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽�
   assert.deepEqual(calls, [['archive', null], ['project'], ['delete']])
   const archiveMenu = captureNodes(api.components.DropActions({
     t: (key) => key, active: 'archive', activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
-    onHover: (kind, targetId) => active.push([kind, targetId]),
+    onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
     onArchive: (_, targetId) => calls.push(['archive', targetId]), onProject() {}, onDelete() {},
   }))
   const target = archiveMenu.find((node) => node.props.className === 'SN_dropTarget')
-  target.props.onDragOver(event)
+  const menuElement = {}
+  target.props.onDragOver({ ...event, currentTarget: { parentElement: menuElement } })
   target.props.onDrop(event)
   assert.deepEqual(calls[3], ['archive', 'work'])
-  assert.ok(active.some(([kind, targetId]) => kind === 'archive' && targetId === 'work'))
+  assert.ok(active.some(([kind, targetId, anchor]) => kind === 'archive' && targetId === 'work' && anchor === menuElement))
   const props = { enabled: true, t: (key) => key }
   let nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
   nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } })

@@ -5,14 +5,17 @@ import { NoteBlock, NoteComment } from './blocks.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { formatTime } from '../utils.js';
 import { emojiLabel } from '../wall/model.js';
+import { useEditorPosition } from './use-editor-position.js';
 
 function NoteDrawer(props) {
   const {
     t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, titleMode, pinned,
     inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
     onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
+    editPositionRef, onEditPositionChange,
   } = props;
   const editFromTitle = React.useRef(false);
+  const editorPosition = useEditorPosition({ editing, path: drawer.path, editPositionRef, onEditPositionChange });
   const drawerStyle = typeof drawerWidth === 'number' && Number.isFinite(drawerWidth)
     ? {
       width: drawerWidth + 'px',
@@ -226,9 +229,9 @@ function NoteDrawer(props) {
             rows: 1,
             wrap: 'soft',
             spellCheck: false,
-            autoFocus: editFromTitle.current,
+            disabled: saving,
             'aria-label': titleMode === 'filename' ? t('drawer.titleAria') : t('drawer.titleAriaBody'),
-            onChange: (event) => onTitleChange(event.target.value.replace(/[\r\n]+/g, ' ')),
+            ...editorPosition.fieldProps('title', editFromTitle.current, (value) => onTitleChange(value.replace(/[\r\n]+/g, ' '))),
             onKeyDown: (event) => {
               // 标题是一行数据，允许视觉折行但不输入换行。
               if (event.key === 'Enter' && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229) {
@@ -299,16 +302,15 @@ function NoteDrawer(props) {
     }),
     editing
       ? h(Fragment, null,
-        h('div', { className: 'SN_noteEditContent' },
+        h('div', { className: 'SN_noteEditContent', ...editorPosition.contentProps },
           headNode,
           h('textarea', {
             className: 'SN_noteEditor',
             value: bodyDraft,
             spellCheck: false,
-            autoFocus: !editFromTitle.current,
             disabled: saving,
             'aria-label': t('drawer.bodyAria'),
-            onChange: (event) => onBodyChange(event.target.value),
+            ...editorPosition.fieldProps('body', !editFromTitle.current, onBodyChange),
           }),
         ),
         h('div', { className: 'SN_noteEditBar' },

@@ -187,3 +187,12 @@ test('v0.16.8 sortNotes：name-asc 按展示标题排序（文件名模式下与
   ]
   assert.deepEqual(api.sortNotes(filenameMode, 'name-asc').map((note) => note.path), ['/a', '/b'])
 })
+
+test('sortNotes：相同创建时间按路径打破平局，正文标题和修改时间不改变排序', (t) => {
+  const api = getTestApi(loadClient(t).mod)
+  const a = { path: '/a.md', title: 'Z', created: 4, mtime: 5 }
+  const b = { path: '/b.md', title: 'B', created: 4, mtime: 10 }
+  assert.deepEqual(api.sortNotes([b, a], 'created-desc'), [a, b])
+  assert.deepEqual(api.sortNotes([b, a], 'created-asc'), [a, b])
+  assert.deepEqual(api.sortNotes([a, b], 'mtime-desc'), [b, a])
+})

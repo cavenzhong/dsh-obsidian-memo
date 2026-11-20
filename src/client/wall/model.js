@@ -102,6 +102,9 @@ function sortNotes(notes, sortId) {
     else order = noteCreated(a) - noteCreated(b);
     if (order !== 0) return order;
     // 同值兜底：保持稳定可预期。
+    if (id === 'created-desc' || id === 'created-asc') {
+      return String(a.relPath ?? a.path ?? '').localeCompare(String(b.relPath ?? b.path ?? ''));
+    }
     if (id === 'name-asc') return noteCreated(a) - noteCreated(b) || compareNoteName(a, b);
     return compareNoteName(a, b) || noteMtime(a) - noteMtime(b);
   });

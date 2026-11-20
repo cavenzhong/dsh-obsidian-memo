@@ -2,7 +2,7 @@
 import { readStoredPinnedNote, storePinnedNote } from '../preferences.js';
 import { React } from '../react.js';
 
-function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, savingNoteRef, sortedNotes, view }) {
+function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view }) {
   React.useEffect(() => {
     if (!pinned) return;
     if (noteDrawer && typeof noteDrawer.path === 'string' && noteDrawer.path !== '') storePinnedNote(noteDrawer.path);
@@ -20,6 +20,8 @@ function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteD
 
   React.useEffect(() => {
     if (!view.loaded) return;
+    // 恢复的便签可能不在日期筛选里，全文返回前也不能自动切走。
+    if (restoringDraftRef?.current) return;
     // 编辑中不切走/不关闭：日期筛选变化等触发的自动切换会重置草稿；等保存/取消后再跟随。
     if (editingRef.current) return;
     // 保存请求还在飞（尤其改名）：等乐观更新/refresh 落地后再判断，避免误关抽屉。

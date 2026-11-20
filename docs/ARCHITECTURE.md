@@ -52,7 +52,7 @@ Harness Web  → lib/client.js（生成）
 | 顶栏与全局快捷键 | `src/client/panel/` | preferences、reader-layout |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
-| 阅读块、抽屉编辑、宽度、钉住恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
+| 阅读块、抽屉编辑、宽度、钉住和编辑草稿恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
 | 快速记录、文字草稿持久化、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
 | 拖拽浮层、动作栏、动画与会话 | `src/client/drag/` | drag-motion、drag-sessions |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |

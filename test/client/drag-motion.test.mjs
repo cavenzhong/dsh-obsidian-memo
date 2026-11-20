@@ -36,11 +36,41 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   assert.equal(renderedCard.props.draggable, false)
   assert.equal(renderedCard.props.tabIndex, -1)
   assert.equal(nodes.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], '工作')
-  assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(layer, document\.body\)/)
+  assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(overlay, document\.body\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*bottom:calc\(100% \+ 8px\);z-index:2/)
   assert.match(CLIENT_SOURCE, /\.SN_dragPreview\{[^}]*z-index:1/)
   assert.match(CLIENT_SOURCE, /\.SN_dragLayer::before\{[^}]*box-shadow:/, '阴影按缩略图真实尺寸绘制，不随内部 1/3 缩放变淡')
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*left:50%;transform:translateX\(-50%\)/, '提示位于卡片上方居中')
+})
+
+test('归档目录命中时，提示另挂在菜单上方，不随便签遮挡菜单；回主操作区恢复跟随', (t) => {
+  const runner = hookRunner(t), positions = [], listeners = new Map()
+  const win = { innerWidth: 1024, addEventListener: (kind, fn) => listeners.set(kind, fn), removeEventListener: (kind) => listeners.delete(kind) }
+  let rect = { left: 60, top: 340, width: 210 }
+  const anchor = { ownerDocument: { defaultView: win }, getBoundingClientRect: () => rect }
+  const props = { note: { path: 'a.md' }, point: {}, action: 'archive', targets: [{ id: 'work', label: '工作' }],
+    t: (key, vars) => vars?.label || key }
+  const { CardDragOverlay } = runner.api.components
+  const overlay = CardDragOverlay({ ...props, targetId: 'work', targetAnchor: anchor })
+  assert.equal(captureNodes(overlay).some((node) => node.props.className === 'SN_dragFollow'), false)
+  const hint = overlay.children[1]
+  assert.equal(hint.props.anchor, anchor)
+  assert.equal(hint.props.text, '工作')
+  const style = { set top(val) { positions.push(val) }, left: '', maxWidth: '' }
+  const hintNode = runner.render(hint.type, hint.props, (result) => { result.props.ref.current = { style } })
+  assert.equal(hintNode.props.className, 'SN_dragFollow SN_dragTargetHint')
+  assert.equal(style.left, '165px')
+  assert.deepEqual(positions, ['332px'], '提示底边与菜单顶边相隔 8px')
+  rect = { ...rect, top: 380 }
+  listeners.get('resize')()
+  assert.deepEqual(positions, ['332px', '372px'])
+  runner.unmount()
+  assert.equal(listeners.size, 0)
+  const main = CardDragOverlay(props)
+  assert.equal(captureNodes(main).find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], 'drag.releaseArchive')
+  assert.match(CLIENT_SOURCE, /\.SN_dropItem:first-child\{border-radius:calc\(var\(--sn-drop-radius\) - 1px\)/)
+  assert.match(CLIENT_SOURCE, /\.SN_dropItem:last-child\{border-radius:0 calc\(var\(--sn-drop-radius\) - 1px\)/)
+  assert.match(CLIENT_SOURCE, /\.SN_dropRow\{[^}]*overflow:visible/, '圆角不应把垂直目录菜单裁掉')
 })
 
 test('v0.15 拖拽性能：1000 次移动合并为一帧，只写 transform，无 React 更新与布局读取', (t) => {

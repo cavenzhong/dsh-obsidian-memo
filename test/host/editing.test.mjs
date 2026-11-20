@@ -1,7 +1,7 @@
 /** host: editing regression coverage. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, stat, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { LIMITS } from '../../lib/shared.js'
 import { caseInsensitiveFilesystem, exists, makeCase, saveNote, waitForJob } from '../../test-support/host.mjs'
@@ -60,6 +60,52 @@ test('saveNote：只替换正文，frontmatter 原样保留并补结尾换行', 
   assert.equal(full.ok, true)
   assert.equal(full.value.body, '# 新标题\n\n新正文\n')
   assert.equal(full.value.blocks[0].text, '新标题')
+})
+
+test('macOS：更新已有便签保留文件创建时间，旧便签不跳到新便签前面', { skip: process.platform !== 'darwin' }, async () => {
+  const c = await makeCase({ notes: { '旧便签.md': '原文\n', '新便签.md': '更新的便签\n' } })
+  const path = c.seeded['旧便签.md'], recent = c.seeded['新便签.md']
+  const createdAt = new Date('2021-02-03T04:05:06.789Z')
+  const editedAt = new Date('2022-03-04T05:06:07.890Z')
+  await utimes(path, createdAt, createdAt)
+  await utimes(path, editedAt, editedAt)
+  const original = await stat(path)
+  assert.equal(Math.round(original.birthtimeMs), createdAt.getTime())
+  assert.deepEqual((await c.call('state')).value.notes.map((note) => note.path), [recent, path])
+
+  async function remainsOlder(updatedPath = path) {
+    const updated = await stat(updatedPath)
+    assert.ok(Math.abs(updated.birthtimeMs - original.birthtimeMs) < 0.002)
+    assert.ok(updated.mtimeMs > original.mtimeMs, '修改时间照常更新')
+    const { notes } = (await c.call('state')).value
+    assert.deepEqual(notes.map((note) => note.path), [recent, updatedPath])
+    assert.equal(notes[1].created, createdAt.getTime())
+  }
+
+  const body = '新正文\n\n- [ ] 任务\n'
+  const saved = await saveNote(c, { path, body })
+  assert.equal(saved.ok, true)
+  assert.equal(saved.value.note.created, createdAt.getTime())
+  await remainsOlder()
+  const note = (await c.call('note', { path })).value
+  const sourceLine = note.blocks.find((block) => block.kind === 'li').sourceLine
+  assert.equal((await c.call('toggleTask', { path, sourceLine, checked: true, expectedBody: note.body })).ok, true)
+  await remainsOlder()
+  const started = await c.call('comment', { path, emojiId: 'devil' })
+  assert.equal((await waitForJob(c.call, started.value.jobId)).status, 'done')
+  await remainsOlder()
+  const [comment] = (await c.call('note', { path })).value.comments
+  const deleted = await c.call('deleteComment', { path, index: 0, expectedTitle: comment.title, expectedTime: comment.time })
+  assert.equal(deleted.ok, true)
+  await remainsOlder()
+  assert.equal((await c.call('undoDeleteComment', { undoToken: deleted.value.undoToken })).ok, true)
+  await remainsOlder()
+  const project = await c.call('openProject', { path, name: '项目甲' })
+  assert.equal((await waitForJob(c.call, project.value.jobId)).link, 'linked')
+  await remainsOlder()
+  const moved = await saveNote(c, { path, name: '旧便签改名', body: '再次编辑正文' })
+  assert.equal(moved.ok, true)
+  await remainsOlder(join(c.notesDir, '旧便签改名.md'))
 })
 
 test('saveNote：正文规范化（去首尾空白、CRLF → LF）', async () => {
