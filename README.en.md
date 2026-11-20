@@ -1,24 +1,29 @@
-# Obsidian MEMO
+<p align="center">
+  <img src="icon.svg" width="52" height="52" alt="">
+</p>
 
-`dsh-obsidian-memo` · an Obsidian sticky-note wall for DeepSeek Harness
+<h1 align="center">Obsidian MEMO</h1>
 
-**Capture as you work. Drag the ideas worth pursuing into a project. Your notes stay in your vault as Markdown.**
+<p align="center"><strong>Read and edit Obsidian notes on a sticky-note wall inside DeepSeek Harness.</strong></p>
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![npm](https://img.shields.io/npm/v/dsh-obsidian-memo?style=flat-square&color=111)](https://www.npmjs.com/package/dsh-obsidian-memo) [![MIT](https://img.shields.io/badge/license-MIT-111?style=flat-square)](LICENSE) · [简体中文](README.md)
+<p align="center">Jot down an idea, paste a picture, or get AI feedback in Harness. Then pick up where you left off in Obsidian.<br>Both work with the same local Markdown files. No imports or migration.</p>
 
-[Install](#install) · [From note to project](#from-note-to-project) · [Everyday use](#everyday-use) · [FAQ](#faq)
+<p align="center">
+  <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square" alt="DeepSeek Harness 0.2.x">
+  <a href="https://www.npmjs.com/package/dsh-obsidian-memo"><img src="https://img.shields.io/npm/v/dsh-obsidian-memo?style=flat-square&amp;color=111" alt="dsh-obsidian-memo on npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111?style=flat-square" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#install"><ins>Install</ins></a> ·
+  <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
+  <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
+  <a href="#everyday-use"><ins>Everyday use</ins></a> ·
+  <a href="#faq"><ins>FAQ</ins></a> ·
+  <a href="README.md"><ins>简体中文</ins></a>
+</p>
 
 ![The sticky note wall with the quick capture bar](docs/assets/cover.png)
-
-- **Capture in place** — `Enter` saves a title, `Tab` adds a body, `⌘ / Ctrl + Enter` submits text and images. Paste or drag images in; they’re compressed to WebP by default.
-- **See everything, work on one** — notes are color-coded by subfolder and filterable by date. Open a card and pin the reader to tick off tasks side by side.
-- **A second opinion when you’re stuck** — four emoji personas reuse Harness’s default model and write back as an Obsidian callout.
-- **Turn a note into a project** — drag it to **To project**; AI revises the current overview and appends a progress entry. The note stays put and gains one link.
-- **Notes still belong to Obsidian** — nothing is imported or migrated; only the folders you pick are read and written, frontmatter preserved.
-
-> **Data boundary:** apart from the AI comments and project updates you trigger, the plugin makes no network requests of its own and stores no API key.
-
-It is not an Obsidian replacement: no full-text search, backlinks, or plugin ecosystem, and no mobile-specific layout yet.
 
 ## Install
 
@@ -36,6 +41,23 @@ target: dsh-obsidian-memo
 ```
 
 `dsh-sticky-notes` on npm is a different DSH notes plugin and is unrelated to this one. Updates and uninstalling happen on the Plugins page; uninstalling only removes the plugin registration and never deletes your notes.
+
+## AI comments: Four perspectives
+
+No need to paste a note into chat. Open it and pick an emoji in the comments panel. AI leaves a comment from that perspective at the end of the original note, where you can also read it in Obsidian.
+
+| Perspective | When to use it |
+| --- | --- |
+| 😈 **Devil’s take** (毒舌) | Use sharp humor to call out what you’re missing. |
+| ✨ **Another angle** (另一面) | Get unstuck with an angle you hadn’t considered. |
+| 🧭 **Practical next step** (落地) | Find one concrete step and a way to tell if it worked. |
+| 😇 **Honest encouragement** (真心话) | See what you’re already doing right and find an easy place to start. |
+
+![One note’s comments panel with four emoji presets and two example comments: Devil’s take and Practical next step](docs/assets/ai-comments.png)
+
+*Two takes on the same audio-postcard idea: keep it simple, or test a rough version with three listeners.*
+
+Customize the four presets under **Settings → AI**.
 
 ## From note to project
 
@@ -63,7 +85,7 @@ In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ 
 
 ### Browse on the left, work on a note on the right
 
-Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Need a nudge? Pick an emoji for an AI comment. The 🧭 preset suggests a next step you can try. You can also drag a note to archive it or open it in Obsidian.
+Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Drag a note to archive it, or select **Open in Obsidian** to keep writing there.
 
 ![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/reader.png)
 
@@ -77,7 +99,7 @@ Notes are color-coded by subfolder, and you can filter them by date. Open a card
 
 **Which systems are supported?** Developed and verified on macOS. The path and “Open in Obsidian” code also covers Windows and Linux but is untested there. There’s no mobile-specific layout; it’s desktop-first.
 
-**Are my notes uploaded?** Notes and images stay in the local vault. Only when you use AI comments or project features are the relevant note and any needed project content sent to your configured model provider.
+**Are my notes uploaded?** Notes and images stay in the local vault. The plugin has no telemetry. Only when you use AI comments or project features are the relevant note and any needed project content sent to your configured model provider.
 
 **What if I delete a note by accident?** It goes to the vault’s `.trash`, not straight to permanent deletion. Undo from the notification while it’s visible, or recover the note from the vault’s trash later.
 

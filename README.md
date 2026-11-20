@@ -1,24 +1,29 @@
-# Obsidian MEMO
+<p align="center">
+  <img src="icon.svg" width="52" height="52" alt="">
+</p>
 
-`dsh-obsidian-memo` · DeepSeek Harness 的 Obsidian 便签墙插件
+<h1 align="center">Obsidian MEMO</h1>
 
-**随手记，值得继续的想法拖成项目。笔记始终是你仓库里的 Markdown。**
+<p align="center"><strong>在 DeepSeek Harness 里，用便签墙读写 Obsidian 笔记。</strong></p>
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![npm](https://img.shields.io/npm/v/dsh-obsidian-memo?style=flat-square&color=111)](https://www.npmjs.com/package/dsh-obsidian-memo) [![MIT](https://img.shields.io/badge/license-MIT-111?style=flat-square)](LICENSE) · [English](README.en.md)
+<p align="center">在 Harness 随手记、贴图、请 AI 点评；回 Obsidian 接着整理。<br>两边读写的是同一份本地 Markdown，不用导入，也不用迁移。</p>
 
-[安装](#安装) · [把便签变成项目](#把便签变成项目) · [日常用法](#日常用法) · [常见问题](#常见问题)
+<p align="center">
+  <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square" alt="DeepSeek Harness 0.2.x">
+  <a href="https://www.npmjs.com/package/dsh-obsidian-memo"><img src="https://img.shields.io/npm/v/dsh-obsidian-memo?style=flat-square&amp;color=111" alt="dsh-obsidian-memo on npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111?style=flat-square" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#安装"><ins>安装</ins></a> ·
+  <a href="#日常用法"><ins>日常用法</ins></a> ·
+  <a href="#ai-评论四种视角"><ins>AI 评论</ins></a> ·
+  <a href="#把便签变成项目"><ins>把便签变成项目</ins></a> ·
+  <a href="#常见问题"><ins>常见问题</ins></a> ·
+  <a href="README.en.md"><ins>English</ins></a>
+</p>
 
 ![便签墙与底部快速记录栏](docs/assets/cover.png)
-
-- **想到就记**：`Enter` 存标题，`Tab` 写正文，`⌘ / Ctrl + Enter` 提交图文；图片可粘贴或拖入，默认压缩成 WebP。
-- **一边看全局，一边处理一张**：子文件夹分色、按日期筛选；点开卡片钉住右侧面板，边浏览边勾待办。
-- **卡住时，让 AI 换个角度**：四种 emoji 评论复用 Harness 的默认模型，结果以 callout 写回原笔记。
-- **把便签变成项目**：拖到「到项目」，AI 更新当前概况、追加进展记录；源便签不动，只多一条双链。
-- **笔记仍归 Obsidian**：不导入、不迁移，只读写你选定的文件夹，frontmatter 原样保留。
-
-> **数据边界**：除你主动触发的 AI 评论和项目更新外，插件不主动联网，也不单独保存 API Key。
-
-它不是 Obsidian 的替代品：不做全文搜索、双链和插件生态，也还没适配移动端。
 
 ## 安装
 
@@ -37,6 +42,37 @@ target: dsh-obsidian-memo
 
 npm 上的 `dsh-sticky-notes` 是另一款 DSH 便签插件，与本项目无关。更新和卸载都在插件页完成，卸载只移除插件注册，不会删除你的笔记。
 
+## 日常用法
+
+### 想到就记，直接贴图
+
+底部输入栏里，`Enter` 存标题，`Tab` 展开正文，`⌘ / Ctrl + Enter` 提交图文。图片可以直接粘贴或拖进去，默认压缩成 WebP。
+
+![快速记录栏：已填写标题、正文，并添加两张参考图](docs/assets/capture.png)
+
+### 左边看全局，右边处理一张
+
+便签墙按子文件夹分色，可按日期筛选。点开卡片、钉住右侧面板，就能一边浏览一边勾待办；双击标题或正文可编辑。也可以拖去归档，或点 **在 Obsidian 打开** 接着写。
+
+![便签墙与钉住的阅读面板并排，展示任务清单和「落地」AI 评论](docs/assets/reader.png)
+
+## AI 评论：四种视角
+
+不用把笔记复制到聊天里。打开便签，在评论区点一个 emoji，AI 就会从那个角度留一条评论。评论会追加到原笔记末尾，回 Obsidian 也能看到。
+
+| 视角 | 适合什么时候用 |
+| --- | --- |
+| 😈 **毒舌** | 想听一句不拐弯的，用幽默点破盲点。 |
+| ✨ **另一面** | 思路卡住时，从没想过的人或场景看这件事。 |
+| 🧭 **落地** | 想知道先做什么，拿到一个可验证的下一步。 |
+| 😇 **真心话** | 想要一点支持，看看自己已经做对了什么。 |
+
+![同一张便签的评论区：顶部有四个视角，下面展示「毒舌」和「落地」两条示例评论](docs/assets/ai-comments.png)
+
+*同一个「声音明信片」点子：毒舌提醒别把它做复杂，落地建议先找三个人试听。*
+
+四个预设都可以在 **设置 → AI** 里自定义。
+
 ## 把便签变成项目
 
 拖一张便签到 **「到项目」**，可以新建项目，也可以补充到已有项目。源便签留在原处，只多一条指向项目的 Obsidian 双链。
@@ -53,19 +89,7 @@ npm 上的 `dsh-sticky-notes` 是另一款 DSH 便签插件，与本项目无关
 
 [看看项目文档示例](docs/GUIDE.md#项目文档怎么读怎么补充)。
 
-## 日常用法
 
-### 想到就记，直接贴图
-
-底部输入栏里，`Enter` 存标题，`Tab` 展开正文，`⌘ / Ctrl + Enter` 提交图文。图片可以直接粘贴或拖进去，默认压缩成 WebP。
-
-![快速记录栏：已填写标题、正文，并添加两张参考图](docs/assets/capture.png)
-
-### 左边看全局，右边处理一张
-
-便签墙按子文件夹分色，可按日期筛选。点开卡片、钉住右侧面板，就能一边浏览一边勾待办；双击标题或正文可编辑。卡住了？点一个 emoji，让 AI 写条评论，例如 🧭 **落地** 会给出一个可试的下一步。也可以拖去归档，或回 Obsidian 继续。
-
-![便签墙与钉住的阅读面板并排，展示任务清单和「落地」AI 评论](docs/assets/reader.png)
 
 ## 常见问题
 
@@ -77,7 +101,7 @@ npm 上的 `dsh-sticky-notes` 是另一款 DSH 便签插件，与本项目无关
 
 **支持哪些系统？** 主要在 macOS 上开发验证；Windows / Linux 的路径与「在 Obsidian 打开」已实现但未实测，移动端没有专门适配，以桌面为主。
 
-**笔记会上传吗？** 笔记和附件留在本地仓库。只有你主动使用 AI 评论或项目功能时，相关便签及所需的项目内容才会发给配置的模型服务。
+**笔记会上传吗？** 笔记和附件留在本地仓库，插件没有遥测。只有你主动使用 AI 评论或项目功能时，相关便签及所需的项目内容才会发给配置的模型服务。
 
 **误删便签怎么办？** 便签移入仓库内的 `.trash`，不是直接永久删除。删除后可以在提示消失前撤回；错过了也可以从库内回收站找回。
 
