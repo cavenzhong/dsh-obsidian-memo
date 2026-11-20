@@ -82,7 +82,7 @@ function NoteDrawer(props) {
       commentPending
         ? h('span', { className: 'SN_pending', role: 'status' },
           h('span', { className: 'SN_pendingDot', 'aria-hidden': 'true' }),
-          t('card.pending'),
+          t(drawerActions.pending.textKey || 'card.pending', { name: drawerActions.pending.name }),
         )
         : null,
       emojiButtons.length === 0

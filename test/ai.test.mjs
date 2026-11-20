@@ -12,6 +12,7 @@ import {
   buildProjectRequest,
   cleanupModelText,
   generateText,
+  modelCatalog,
   renderNoteForModel,
   sourceWikilink,
 } from '../lib/ai.js'
@@ -100,7 +101,8 @@ test('buildProjectRequest：建档提示词进 system，项目名与便签内容
     '建档提示词',
     '新项目',
   )
-  assert.equal(request.system, '建档提示词')
+  assert.ok(request.system.startsWith('建档提示词'))
+  assert.match(request.system, /只返回 JSON/)
   assert.match(request.prompt, /项目名：新项目/)
   assert.match(request.prompt, /标题：标题/)
   assert.equal(request.maxTokens, 8192)
@@ -169,6 +171,54 @@ function mockCtx({ chunks = [], throwAt, selection = { provider: 'mock', model: 
 }
 
 const REQUEST = { system: 'sys', prompt: 'user' }
+
+
+test('modelCatalog：遍历已注册 provider 的模型目录，默认模型排最前并去重', async () => {
+  const calls = []
+  const result = await modelCatalog({
+    get(name) {
+      if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'deepseek-account', model: 'deepseek-flash' }) }
+      if (name === 'llm') return {
+        listProviders: () => [
+          { id: 'deepseek-account', name: 'DeepSeek' },
+          { id: 'neko-gemini', name: 'NEKO-GEMINI4' },
+          { id: 'broken', name: 'Broken' },
+        ],
+        listModels: async (provider) => {
+          calls.push(provider)
+          if (provider === 'broken') throw new Error('no adapter')
+          return provider === 'deepseek-account'
+            ? [
+              { provider: 'deepseek-account', id: 'deepseek-flash', name: 'DeepSeek Flash' },
+              { provider: 'deepseek-account', id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' },
+            ]
+            : [{ provider: 'neko-gemini', id: 'gemini-4-argon', name: 'gemini-4-argon' }]
+        },
+      }
+      return undefined
+    },
+  })
+  // 每个 listModels 都必须带显式 provider；失败的那个 provider 不能拖垮整个目录。
+  assert.deepEqual(calls, ['deepseek-account', 'neko-gemini', 'broken'])
+  assert.deepEqual(result.models.map((item) => `${item.provider}/${item.model}`), [
+    'deepseek-account/deepseek-flash',
+    'deepseek-account/deepseek-reasoner',
+    'neko-gemini/gemini-4-argon',
+  ])
+  assert.equal(result.models[0].label, 'DeepSeek / DeepSeek Flash')
+})
+
+test('modelCatalog：没有默认模型时仍列出模型目录', async () => {
+  const result = await modelCatalog({
+    get: (name) => name === 'llm' ? {
+      listProviders: () => ['solo'],
+      listModels: async () => [{ provider: 'solo', id: 'm1', name: 'M1' }],
+    } : undefined,
+  })
+  assert.equal(result.default, null)
+  assert.deepEqual(result.models, [{ provider: 'solo', model: 'm1', label: 'solo / M1' }])
+})
+
 
 test('generateText：拼接 text-delta，忽略 finish stop', async () => {
   const generated = await generateText(
@@ -305,4 +355,23 @@ test('generateText：评论与开档分别限长，字符裁切也标记 truncat
   const project = await generateText(ctx, buildProjectRequest({ body: '正文' }, '开档', '项目'))
   assert.equal(project.text.length, 5000)
   assert.equal(project.truncated, false)
+})
+
+test('模型目录支持异步 provider 列表，同时隔离同步抛错与异步拒绝', async () => {
+  const llm = { listProviders: async () => ['async-fail', 'sync-fail', 'ok'], listModels(provider) {
+    if (provider === 'async-fail') return Promise.reject(new Error('offline'))
+    if (provider === 'sync-fail') throw new Error('NO_ADAPTER')
+    return [{ id: 'm' }]
+  } }
+  const ctx = { get: name => name === 'llm' ? llm : null }
+  assert.deepEqual((await modelCatalog(ctx)).models.map(m => m.provider), ['ok'])
+  llm.listProviders = async () => { throw new Error('offline') }
+  assert.deepEqual((await modelCatalog(ctx)).models, [])
+})
+test('项目指定引擎时不读取默认模型', async () => {
+  const model = { provider: 'chosen', model: 'm' }
+  const ctx = { get(name) { assert.equal(name, 'llm'); return { async *stream(opts) {
+    assert.equal(opts.provider, model.provider); yield { type: 'text-delta', text: 'ok' }
+  } } } }
+  assert.equal((await generateText(ctx, { ...REQUEST, model })).text, 'ok')
 })

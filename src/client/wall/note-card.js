@@ -34,6 +34,14 @@ function cardExcerptContent(text, multiline, t) {
   return parts;
 }
 
+function projectTexture(meta) {
+  const target = meta?.match?.(/\[\[([^|\]#]+)(?:[|#][^\]]*)?\]\]/u)?.[1];
+  if (!target) return undefined;
+  let hash = 0;
+  for (const ch of target.trim().replace(/\.md$/iu, '').normalize('NFC')) hash = (31 * hash + ch.codePointAt(0)) >>> 0;
+  return ['dot', 'grid', 'linen', 'diagonal', 'ruled', 'cross'][hash % 6];
+}
+
 const NoteCard = React.memo(function NoteCard(props) {
   const {
     note, emojis, pending, hoverActive, drawerOpen, actions,
@@ -64,6 +72,7 @@ const NoteCard = React.memo(function NoteCard(props) {
     'data-menu': menuVisible ? 'true' : 'false',
     'data-images': hasImages ? 'true' : 'false',
     'data-body': excerpt ? 'true' : 'false',
+    'data-texture': projectTexture(note.projects),
     'data-drawer': drawerOpen ? 'true' : 'false',
     'data-dragging': props.dragging ? 'true' : 'false',
     draggable: !disabled && !props.preview,
@@ -166,7 +175,7 @@ const NoteCard = React.memo(function NoteCard(props) {
         ? h('div', { className: 'SN_cardActions', 'data-visible': 'true', onDoubleClick: stop },
           h('span', { className: 'SN_pending' },
             h('span', { className: 'SN_pendingDot', 'aria-hidden': 'true' }),
-            t('card.pending'),
+            t(pending.textKey || 'card.pending', { name: pending.name }),
           ),
         )
         : drawerOpen

@@ -3,11 +3,12 @@ import { focusCaptureOnTab } from '../capture/keyboard.js';
 import { React } from '../react.js';
 
 function useCardDrag({
-  aliveRef, archiveTargets, findTarget, openProjectDialog, panelRef, pushToast, runArchive, runDelete,
+  aliveRef, archiveTargets, findTarget, projectTargets, queueProjectDrop, panelRef, pushToast, runArchive, runDelete,
   setDateMenu, setDrawerArchive, setHoverPath, setSortMenu, tRef,
 }) {
   const [dragSession, setDragSession] = React.useState(null);
   const dragSessionRef = React.useRef(null), dragMotionRef = React.useRef(null), captureFocusRef = React.useRef(false);
+  const leaveTimer = React.useRef(null);
   const dragNote = dragSession?.note || null;
 
   React.useLayoutEffect(() => {
@@ -38,7 +39,7 @@ function useCardDrag({
     };
     const key = (event) => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); endCardDrag(); }
-      else if (event.key === 'Enter' && dragSessionRef.current?.parked) {
+      else if (event.key === 'Enter' && dragSessionRef.current?.parked && !event.target?.closest?.('.SN_dropTarget')) {
         const panel = panelRef.current;
         focusCaptureOnTab(event, {
           panel, form: panel?.querySelector('.SN_capture'), busy: false,
@@ -48,7 +49,7 @@ function useCardDrag({
       }
     };
     const dismissParked = (event) => {
-      if (!dragSessionRef.current?.parked || event.target?.closest?.('.SN_dropItem[data-action="archive"]')) return;
+      if (!dragSessionRef.current?.parked || event.target?.closest?.('.SN_dropItem[data-action="archive"],.SN_dropItem[data-action="project"]')) return;
       endCardDrag();
     };
     document.addEventListener('dragenter', accept, true);
@@ -59,6 +60,7 @@ function useCardDrag({
     document.addEventListener('focusin', dismissParked, true);
     window.addEventListener('blur', end);
     return () => {
+      clearTimeout(leaveTimer.current);
       document.removeEventListener('dragenter', accept, true);
       document.removeEventListener('dragover', accept, true);
       document.removeEventListener('drop', end);
@@ -71,7 +73,7 @@ function useCardDrag({
   function endCardDrag(mode = 'return', operation) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return session?.finished || Promise.resolve();
-    session.ending = true;
+    session.ending = true; clearTimeout(leaveTimer.current);
     if (session.parked) setDropTarget(null);
     // drop 与 dragend 共用一次收尾；文件操作并行进行，不先闪回原卡片再移除。
     const animation = dragMotionRef.current?.finish(mode, session.source);
@@ -93,8 +95,16 @@ function useCardDrag({
 
   function hoverDragAction(kind, targetId, anchor = null) {
     if (!dragSessionRef.current || dragSessionRef.current.ending || dragSessionRef.current.parked) return;
+    clearTimeout(leaveTimer.current);
+    // Chromium may report a null relatedTarget between the button and its floating rows.
+    if (!kind) {
+      const session = dragSessionRef.current;
+      leaveTimer.current = setTimeout(() => {
+        if (dragSessionRef.current === session && !session.parked && !session.ending) setDropTarget(null);
+      }, 150);
+      return;
+    }
     setDropTarget((current) => {
-      if (!kind) return current ? null : current;
       const id = targetId || null;
       return current?.kind === kind && current.id === id && current.anchor === anchor ? current : { kind, id, anchor };
     });
@@ -136,15 +146,30 @@ function useCardDrag({
     endCardDrag('drop', runArchive(session.note, targetId));
   }
 
-  function projectDrop(event) {
+  function projectDrop(event, targetId) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return;
     const note = session.note;
     const path = event.dataTransfer.getData('application/x-dsh-memo');
-    endCardDrag().then(() => { if (aliveRef.current && path === note.path) openProjectDialog(note); });
+    if (path !== note.path) { endCardDrag(); return; }
+    const target = targetId && targetId !== '__new__' ? projectTargets.find((item) => item.id === targetId) : null;
+    if (targetId === '__new__') { endCardDrag('drop', queueProjectDrop(note)); return; }
+    if (target) { endCardDrag('drop', queueProjectDrop(note, target)); return; }
+    const anchor = event.currentTarget?.closest?.('.SN_dropItem[data-action="project"]');
+    if (!anchor) { endCardDrag(); return; }
+    session.parked = true;
+    dragMotionRef.current?.park(anchor);
+    setDragSession(Object.assign({}, session));
+    setDropTarget({ kind: 'project', id: null });
   }
 
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop };
+  function chooseProjectTarget(target) {
+    const session = dragSessionRef.current;
+    if (!session?.parked || session.ending || !target) return;
+    endCardDrag('drop', queueProjectDrop(session.note, target.id === '__new__' ? null : target));
+  }
+
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop, chooseProjectTarget };
 }
 
 export { useCardDrag };

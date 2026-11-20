@@ -127,7 +127,16 @@ const settingsStyles = `
 .SN_dialog{width:min(440px,100%);display:flex;flex-direction:column;gap:14px;padding:20px 22px 18px;border:.5px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 18px 60px rgba(0,0,0,.28);animation:SN_toastIn .18s ease}
 .SN_dialogTitle{margin:0;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
 .SN_dialogText{margin:0;font-size:12.5px;line-height:1.7;color:var(--dsw-alias-label-secondary)}
+.SN_projectModes{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}
+.SN_projectModes label{display:inline-flex;align-items:center;gap:4px}
+.SN_projectCheck{padding:12px 14px;border-radius:9px;background:color-mix(in srgb,#b48c38 12%,transparent);font-size:13px}
+.SN_projectCheck[data-level='符合']{background:color-mix(in srgb,#58876a 13%,transparent)}
+.SN_projectCheck[data-level='不建议']{background:color-mix(in srgb,#ba776f 13%,transparent)}
+.SN_projectCheck p{margin:5px 0 0;line-height:1.55}
 .SN_dialogActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
+
+/* 提示词被改过时，恢复动作紧贴编辑器，避免误以为是另一项设置。 */
+.SN_promptRestore{align-self:flex-start;margin-top:-4px;border:0;background:transparent;color:var(--dsw-alias-brand-primary);font-size:11px;padding:2px 0;cursor:pointer}.SN_promptRestore:disabled{opacity:.55;cursor:not-allowed}
 
 `;
 

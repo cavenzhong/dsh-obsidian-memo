@@ -95,12 +95,17 @@ interface AiBudget {
 interface Settings {
   vaultPath: string            // Obsidian 仓库根目录绝对路径；'' = 未配置
   notesDir: string             // 绝对路径；'' = 未配置
-  projectDir: string           // 开档目录绝对路径；'' = 未配置
+  projectDir: string           // Project 索引目录绝对路径；项目文件直接写为「名称-项目.md」'' = 未配置
+  projectKey: string           // 便签 frontmatter 项目字段，默认 PROJECT
+  projectCheckPrompt: string   // 新建前的成立性判断提示词
+  projectAddPrompt: string     // 补充已有项目的进度提示词
   attachmentDir: string        // 新建图片目录绝对路径；'' = notesDir/_attachments
   archiveTargets: { id: string; label: string; path: string }[]  // path 绝对
   emojis: { id: string; emoji: string; label: string; prompt: string; callout: string; ai: AiBudget }[]
   projectPrompt: string        // 开档结构化文档的提示词（可编辑）
-  projectAi: AiBudget          // 0.13 新增：开档生成项目文档的 token 预算
+  projectAi: AiBudget          // 0.13 新增：项目 AI 生成的 token 预算
+  projectDropConfirmEnabled: boolean // 拖放新建和补充项目时是否等待 3 秒
+  projectModel: { provider: string; model: string } | null // 在设置「AI」页选择；null = DSH 当前默认模型
   imageCompression: { enabled: boolean; quality: number; maxDimension: number } // 0.14：默认 true / 70 / 2048
   includeSubfolders: boolean   // 0.13 新增：是否扫描便签目录的子文件夹；缺省/非 false 一律 true
   titleMode: 'filename' | 'firstLine' | 'heading' // 0.16.8：标题来源；默认 filename（旧配置升级不变）
@@ -108,6 +113,7 @@ interface Settings {
 }
 ```
 
+- **模型目录（0.17）**：`aiModels` 用 `ctx.llm.listProviders()` 列出已注册 provider，再对每个 provider `await ctx.llm.listModels(provider)` 汇总模型（必须显式 provider；缺省会抛 `NO_ADAPTER`）。当前默认模型固定排第一，目录里存在同项时沿用其显示名；单个 provider 失败只跳过该 provider（`Promise.allSettled`），不产生未处理的 rejection——DSH 会把 `unhandledRejection` 当致命错误并退出 Host。
 - **AI 预算（0.13）**：每枚评论 emoji 各一份 `ai`，开档另有全局 `projectAi`。三档预设固定映射：`low = off / 2048`、`medium = low / 4096`、`high = high / 8192`（默认档 = `high`，即「一直用 high」）。`preset !== 'custom'` 时 Host 与 Client 都以预设数值为准；`custom` 才使用自定义的 `reasoningEffort` + `maxTokens`（`maxTokens` 夹到 256..65536 并取整，effort 非法回退 `high`）。旧 settings.json 没有这些字段时补默认 `high`。
 - `callout` 取值：`note | abstract | info | todo | tip | success | question | warning | failure | danger | bug | example | quote`。
 - Host 保存时会规范化：空串保留；路径不是绝对路径时相对 `vaultPath` 解析；emoji 去重 id；空 prompt 用默认值。
@@ -158,7 +164,7 @@ interface NoteFull extends NoteSummary {
   body: string          // 原始正文（不含 frontmatter，编辑模式直接编辑它）
   blocks: { kind: 'p' | 'h' | 'li' | 'quote' | 'code' | 'hr' | 'image'; text: string; checked?: boolean; sourceLine?: number; marker?: string; source?: string; alt?: string; wiki?: boolean }[]  // sourceLine 为去掉 frontmatter 后正文的零基行号；image 带 source/alt/wiki
   comments: Comment[]   // 全部评论（最多 30 条）
-  projects: string | null  // frontmatter 里 PROJECTS 的值（原文）
+  projects: string | null  // frontmatter 里 项目字段的值（原文）
 }
 ```
 
@@ -167,21 +173,23 @@ interface NoteFull extends NoteSummary {
 ```ts
 interface Job {
   id: string
-  kind: 'comment' | 'project'
+  kind: 'comment' | 'project-check' | 'project' | 'project-add'
   path: string
   emojiId?: string
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'error' | 'cancelled' | 'accepted' | 'undone'
   error?: string
   errorCode?: string     // 0.13：失败错误码（如 'llm-token-budget'），Client 据此给可操作提示
-  truncated?: true       // 0.13：撞上 token 上限但仍有正文（评论/文档已写入，可能被截断）
+  truncated?: true       // 0.13：撞上 token 上限但仍有正文（评论已写入；项目整稿截断一律拒写）
   startedAt: number
   finishedAt?: number
+  review?: boolean       // 项目已写入，等待验收或撤销
+  summary?: string       // 本次整稿的一句变化；写入成功才公开，不带整篇文档
   projectPath?: string   // kind === 'project' 时：目标 md 的绝对路径
   link?: 'linked' | 'non-empty' | 'added' | 'updated' | 'created'  // 开档后源便签 PROJECTS 的处理结果
 }
 ```
 
-Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client 用 `jobs` 变化驱动刷新。
+Host 保留运行中或待验收的任务，以及最近 2 分钟内结束的其他任务；Client 用 `jobs` 变化驱动刷新。
 
 ### 3.5 卡片淡色（Host 分配，Client 不自己算）
 
@@ -222,7 +230,10 @@ Host 只保留运行中的任务和最近 2 分钟内结束的任务；Client �
 | `undoDeleteComment` | `{ undoToken: string }` | `{ restoredTo: string, note: NoteSummary }` | **0.16.7**：仅在删除后文件未被再次修改时整份写回原文；token 过期 `not-found`，内容已变 `conflict` |
 | `archive` | `{ path: string, targetId: string }` | `{ undoToken: string, to: string, targetId: string }` | 移动到归档目录 |
 | `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档 |
-| `openProject` | `{ path: string, name: string }` | `{ jobId: string, projectPath: string }` | 建目录 + 生成项目 md（异步） |
+| `projectCheck` | `{ path: string, expectedProjectDir?: string }` | `{ jobId: string }` | 扫描 `projectDir` 的 `*-项目.md` 并由 AI 判断等级/推荐名/匹配项；不写盘。 |
+| `openProject` | `{ path: string, name: string, sourceRevision?: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 生成 `projectDir/名称-项目.md`，源便签只写入一个项目双链；异步且可验收。 |
+| `addProject` | `{ path: string, filename: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 结合新证据修订整个项目索引；旧历史只追加，快照等待验收。 |
+| `acceptProject` / `undoProject` / `cancelProject` / `inspectProject` | `{ jobId: string }` | 状态对象 | 验收、原子撤销、终止生成、打开待验收项目。 |
 | `openInObsidian` | `{ path: string }` | `{ url: string }` | **0.13.8**：用系统打开器打开 `obsidian://open?path=<绝对路径>`（macOS `open` / Windows `cmd start` / Linux `xdg-open`）；只允许仓库内已存在的文件；失败 `open-failed` |
 | `settings` | `{ knownRevision?: string }` | `{ configured, version, revision, settings, unchanged? }` | 兼容用的轻量配置读取，不含 notes/jobs |
 | `saveSettings` | `{ settings: Settings, expected?: string }` | `{ settings: Settings }` | 规范化后落盘；仅扫描范围变化清空扫描缓存 |
@@ -269,12 +280,18 @@ interface StateValue {
 
   0.13：Host 在 `NoteSummary.commentKinds` 里给出已有评论的 emoji 去重集合；Client 在生成同 emoji 评论前先弹确认（见 7.7）。
 - **删除评论（0.16.7）**：`deleteComment` 先按 `parseNote(..., { withRanges: true })` 找到第 `index` 条 callout 的正文行号，校验标题与时间后删掉整段 callout；前后各有一个空行时只收掉一个。通过 `replaceNoteFile` 原子写盘，随后失效并重扫。撤回 token 由实例 session 持有 5 秒，记录删除前原文与删除后的内容版本；撤回请求不带路径，端点自己对同一文件加写锁，只有版本仍等于删除后的版本才整份写回，否则返回 `conflict`。抽屉里删除成功后刷新便签墙，并给 5 秒 toast 撤回。
-- **AI 预算（0.13）**：评论按该 emoji 的 `ai`、开档按 `projectAi` 传 `maxTokens` / `reasoningEffort`。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；撞上限但有正文 → `Job.truncated = true`，内容照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
+- **AI 预算（0.13）**：评论按该 emoji 的 `ai`、开档按 `projectAi` 传 `maxTokens` / `reasoningEffort`。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；评论撞上限但有正文 → `Job.truncated = true`，评论照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
 - **子文件夹**：`settings.includeSubfolders === false` 时只扫描便签目录顶层 md（不再递归，tag 全为 null）；true 时递归到 5 层（隐藏目录 / `.obsidian` / 符号链接照旧跳过）。设置变化写入 revision，触发整份 notes 刷新。
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
 - **归档**：移动文件到目标目录；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。
 - **在 Obsidian 打开（0.13.8）**：校验 `path` 在仓库内且是已存在的文件后，构造 `obsidian://open?path=<encodeURIComponent(绝对路径)>`，用 argv 形式调系统打开器（darwin `open` / win32 `cmd /c start "" <url>` / 其他 `xdg-open`；5s 超时）；成功返回 `{ url }`，失败 `open-failed`。不写任何文件。
-- **开档**：`<projectDir>/<项目名>/<项目名>.md`；生成结构化文档；源便签 frontmatter 的 `PROJECTS` 为空时写回项目 wikilink（已有值不覆盖，value 里会有说明）。
+- **Project（0.17）**：项目就是 `<projectDir>/<项目名>-项目.md`，不移动源便签。拖入先选择新建或已有项目，默认等待 3 秒，可取消且不调用 AI。新建才执行 `projectCheck`；分析中只有可终止的小提示，成功后才弹出命名和评估确认框，确认后才建档。补充直接执行 `addProject`，不弹新建框。源便签的可配置 frontmatter 字段（默认 `PROJECT`）只允许一个项目双链；旧 `PROJECTS` 仍可读。补充时 AI 阅读完整旧稿与新便签；Host 组装并写入新版项目后在现有验收提示显示 `job.summary`；任务保留旧文本和新文本，用户可验收或撤销；外部文件在此期间变化则返回 conflict，不覆盖。
+- **模型写作协议**（新建/补充共用，不改 RPC）：只返回 JSON `{overview, entry, summary}`，依次是完整最新概况、本次新增的一条历史正文、单句验收摘要（最多展示 160 个码点）。正文可用段落、列表及三级以下标题，不可另起 H1/H2 或使用未闭合的代码围栏。Host 提供真实来源目标路径而非预填文件名别名；由模型直接写 Markdown 双链、选择证据与别名。不按字符位置回填、不要求链接数量、不对概况另设字数配额。
+- **Host 合并**：无须模型返回受保护文字。建档使用确认的项目名、两个 H2 容器和 Host 记录时间；更新保留既有标题、YAML/BOM、前言及独立二级章节的原始文本。只替换 `## 当前概况` 的正文，在 `## 进展记录` 末尾插入带时间的新条目；旧历史逐字节保留，已有独立章节保持位置，不将围栏代码示例识别成章节。新增文字沿用文件换行风格，原有保护区即使混用换行也不规范化。
+- **首次修订旧布局**：归并原版四个概况标题；旧 `## 进展 · 时间` 快照由 Host 按旧到新换成同名 H3，保留正文和来源，独立章节从原文件拷入。无法唯一定位的重复或倒置容器拒写，不碰未操作的项目。历史版本的原厂建档/补充提示按全文精确迁移，自定义文本不覆盖。
+- 新建采用独占写入：即使同名文件在 AI 生成期间才出现，也不覆盖。确认框回传评估时源文件的 `sourceRevision`；源文件已变须重新检查。拖放绑定当时的项目目录，切换目录不把操作转给同名项目。
+- 项目归属兼容自定义字段、`PROJECT` 和 `PROJECTS` 的标量与 YAML 列表；空值可写，已有值不可覆盖，保留 BOM 与原始换行。待验收的备份仅属于本次 Host 实例，不跨重启；验收不回写文件，撤销前核对两份文件。新建、补充和撤销完成后更新菜单，下次进入菜单也重新读目录。
+
 - **标题来源（0.16.8）**：`filename`（默认）= md 文件名；`firstLine` = 正文第一个非空行（ATX 标题取标题文字）；`heading` = 正文第一个一级标题（跳过代码围栏；空 H1 继续找）。正文模式取不到标题时回退文件名；标题行在阅读视图里不重复渲染，但保留在正文与编辑草稿中。
 - **保存时改名**：`saveNote` 带 `name` 时先写正文再改名（0.16.8 起正文模式不传 `name`，因此不重命名）；目标同名拒绝。新建、改名、归档、归档撤回与删除恢复共用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
 - **不渲染 meta**：frontmatter 不进卡片内容。
@@ -353,7 +370,7 @@ function apply(ctx) {
 ### 7.1 布局
 
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；便签墙占满剩余高度，0.14 起底部浮岛 `CaptureComposer` 绝对定位在墙下方（不占 flex 高度），由 `.SN_wallWrap[data-capture='true']` 给墙/空态补底部 padding，`--sn-capture-height` 由 `ResizeObserver` 按实际高度更新。
-- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.16.9`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
+- 顶栏（约 56px）：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.17.0`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。可加一行极小的当前目录路径（省略号截断）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
@@ -390,7 +407,7 @@ function apply(ctx) {
   - **锁定面板恢复（0.13.4）**：锁定态打开的那篇便签路径写入 `localStorage['dsh-sticky-notes.pinnedNote']`。切到别的面板/重进（组件重挂）时不隐藏抽屉，而是自动恢复上次打开的便签；若它已被移出当前筛选/归档/改名，或存储里没有可恢复的路径，则**自动打开当前日期筛选结果排序后的第一篇**（没有便签则保持关闭，等有便签再打开）。未锁定态仍按旧行为：便签不在列表里就关闭抽屉。
   - 拖宽两种模式都可用；锁定态上限 = `max(320, min(960, 面板宽 - 260))`（给墙留至少 260px）；双击把手恢复默认宽度。
   - 锁定按钮本身也使用统一紫色选中样式（见 7.8）。
-- **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；`header` 分割线下方是**抽屉操作条（见 7.3.2）**；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECTS；**评论固定在底部独立区域**（见下条）。
+- **查看态**：顶部标题（**双击标题进入编辑态**；标题不带到 byline）+ tag + 锁定 / 关闭按钮；`header` 分割线下方是**抽屉操作条（见 7.3.2）**；正文区渲染 `blocks`（段落/标题/列表/引用/代码；任务项渲染复选框）+ PROJECT；**评论固定在底部独立区域**（见下条）。
 - **macOS 窗口拖动区（0.16.6，DSH 0.2.2-rc.2 兼容）**：DSH 0.2.2-rc.2 起只在 `data-window-drag` 行或 `data-window-drag-controls` 范围内自动把控件设为 `no-drag`，不再全局排除。抽屉、设置抽屉、遮罩、toast 与对话框遮罩都盖在自绘顶栏（`.SN_head`，`-webkit-app-region:drag`）的拖动行上，必须按 DSH 迁移指引在这些可见容器上声明 `data-window-drag-exclude`；否则头部锁定/关闭等按钮会被当成窗口拖动而失效。
 - **评论固定区（0.13，0.16.7 扩展）**：阅读态抽屉结构 = head / body（自己的滚动）/ comments（固定底部、`flex:none`、默认 `max-height:42%`、`min-height:96px`、自身滚动、上边框）。正文滚动不影响评论区；评论多时只在评论区内滚。零评论时显示一行「暂无评论」占位（高度小）。**编辑态隐藏评论区**。
   - **高度可拖（0.16.7）**：评论区顶边即拖拽线（10px 热区、`row-resize`、悬停/拖动显示 2px 紫色高亮，与宽度拖拽线一致）。拖动范围 `[96px, max(96, min(72% 抽屉高, 抽屉高 - 260px))]`（头部+操作条约 120px，正文至少留 140px；拖拽时按实际测得的顶部偏移再收紧）；松手把像素值写入 `localStorage['dsh-sticky-notes.commentsHeight.v1']`，下次打开按当前抽屉高度由 CSS `max-height` 夹取；双击拖拽线清除记录、恢复默认 42%。拖拽时禁止选中文本、光标保持 `row-resize`。
@@ -444,7 +461,7 @@ function apply(ctx) {
 - 设置从面板齿轮打开 `min(420px,92%)` 的右侧抽屉，读写独立配置 JSON；分类为「文件夹」「便签」「AI」「管理与关于」。底部保存 / 取消；Esc 或遮罩关闭抽屉。
 - 仓库根目录保留文本框和系统目录选择；其他文件夹统一显示仓库相对路径，使用共享下拉组件：顶部加号在当前仓库新建文件夹，其下为系统选择、搜索、最近使用和仓库文件夹列表。所有字段共享选择历史；系统取消不修改草稿。
 - 便签文件夹、项目文件夹、图片文件夹和归档文件夹均使用该组件。禁止选择仓库外、隐藏目录或通过符号链接越界的文件夹；图片文件夹为空仍默认便签目录下的 _attachments。
-- Emoji 为横向标签，末尾固定加号（最多 12 个）；一次编辑当前角色的 emoji、名称、callout、提示词及 AI 预算，至少保留一个。callout 仍为 13 项单选菜单，AI 预算保持原映射与范围。项目提示词及预算折叠在同一 AI 分类。
+- Emoji 为横向标签，末尾固定加号（最多 12 个）；一次编辑当前角色的 emoji、名称、callout、提示词及 AI 预算，至少保留一个。callout 仍为 13 项单选菜单，AI 预算保持原映射与范围。项目提示词在「项目」页，项目模型、预算与拖放等待开关在「AI」页。
 - 图片分类包含压缩开关、质量和最大边长，沿用既有范围。
 - 配置分类显示当前 JSON 路径，主操作为「打开配置」（打开所在文件夹）和「加载配置」；更多菜单提供打开 JSON 文件、重载、另存并使用三项。加载直接弹出原生文件选择窗，选中 JSON 即加载；三个主控件等宽等高，「更多」隐藏原生下拉箭头，另存目标已存在时拒绝覆盖；加载和重载替换草稿；配置损坏保留原文件与上次有效值；旧草稿保存按配置版本拒绝覆盖更新。
 - 回收站分类单独提供 Finder 入口与「移至系统垃圾桶」确认操作，将仓库 .trash 整体移入系统垃圾桶，5 秒撤回窗口内禁止清理；普通删除和撤回逻辑不变。
@@ -536,7 +553,7 @@ function apply(ctx) {
 - [ ] 仓库字段支持系统选择器和手填；库内文件夹共用含新建、选择与历史的下拉菜单
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
 - [ ] 归档 → toast + 撤销 → 文件移动/恢复
-- [ ] 开档 → 对话框 → 进度 → 生成 md 与 PROJECTS 链接（Host 侧完成，Client 展示结果）
+- [ ] 开档 → 对话框 → 进度 → 生成 md 与 PROJECT 双链（Host 侧完成，Client 展示结果）
 - [ ] 设置抽屉：目录点选、emoji 增删改、保存后即时生效
 - [ ] 未配置/空目录/错误 三种空态
 - [ ] 深浅主题下都可读；字体对比明确；无 console 报错
@@ -545,7 +562,7 @@ function apply(ctx) {
 
 所有便签、附件和写入目标都校验用户路径与真实位置；尚未创建的路径解析最近的已有父目录。悬空符号链接不视作新建目录。归档撤销也须符合当前仓库与便签目录边界。
 
-AI 输入使用去掉 frontmatter 后的原始 Markdown（含已有评论），不复用展示 blocks；输入总上限 12000 字符，裁切时向模型附加明确提示。评论与开档输出上限分别为 4000 和 24000 字符；字符裁切与 token 截断均设置 `Job.truncated`。开档目标占用、任务去重、部分完成和卸载策略保持原状。
+评论/新建检查使用便签正文（不含 frontmatter，含已有评论），不复用展示 blocks；上限 12,000 字符，裁切有明确提示。评论输出上限 4,000 字符。建档/补充则传入完整便签标题和正文；补充另传完整旧项目（含末尾与 YAML）。两份输入分别上限 64,000 Unicode 码点，最终项目也限 64,000；超长不取片段。模型输出截断（包括 max-tokens）、缺字段或无法安全划分章节，均不发布项目、不写源便签归属、不进入验收；文件写入及撤销继续受版本和路径校验保护。
 
 ## 11. v0.14 快速记录与图片处理
 

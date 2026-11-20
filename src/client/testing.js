@@ -1,4 +1,5 @@
 /** 集中组装调试与测试接口，业务模块不反向依赖这里。 */
+import { useProjectDialog } from './ai/use-project-dialog.js';
 import { useJobNotifications } from './ai/use-job-notifications.js';
 import { useToasts } from './components/use-toasts.js';
 import { CaptureComposer } from './capture/composer.js';
@@ -65,7 +66,7 @@ const __test = {
   captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, focusPanelForCapture, captureRefocusField, cardDragLayout, createCardDragMotion,
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
-    useNotesData, useNoteEditor, useSettingsDraft, useJobNotifications, useToasts,
+    useNotesData, useNoteEditor, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
     useCommentActions, useCommentsLayout,
   },
   PINNED_KEY: PINNED_KEY,

@@ -145,7 +145,7 @@ test('v0.16.6 DSH 0.2.2-rc.2 窗口拖动区：盖住顶栏拖动行的浮层声
   // 顶部居中的 toast（撤销 / 去设置）和对话框遮罩同样落在拖动行内。
   const toasts = captureNodes(api.components.ToastStack({ toasts: [{ id: 't', kind: 'success', text: 'ok', action: { label: 'undo', run() {} } }] }))
   assert.equal(toasts.find((node) => node.props.className === 'SN_toast').props['data-window-drag-exclude'], '')
-  for (const dialog of [api.components.ProjectDialog({ t: (key) => key, note: { title: 'x' }, name: '', onName() {}, onConfirm() {}, onCancel() {} }),
+  for (const dialog of [api.components.ProjectDialog({ t: (key) => key, check: { level: '符合', reason: '可跟踪' }, name: 'x', onName() {}, onConfirm() {}, onCancel() {} }),
     api.components.ConfirmDialog({ t: (key) => key, title: 'x', text: 'y', onConfirm() {}, onCancel() {} })]) {
     assert.equal(captureNodes(dialog).find((node) => node.props.className === 'SN_dialogLayer').props['data-window-drag-exclude'], '')
   }

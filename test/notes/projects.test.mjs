@@ -73,3 +73,15 @@ test('setProjectsLink：wikilink 里的双引号被转义', () => {
   const result = setProjectsLink('body', '[[a|say "hi"]]')
   assert.equal(result.text.includes('PROJECTS: "[[a|say \\"hi\\"]]"'), true)
 })
+
+test('0.17 自定义或旧键：识别 YAML 列表、不改已有归属，空字段写入保留混合换行和 BOM', () => {
+  for (const key of ['PROJECT', 'PROJECTS', '事项']) {
+    for (const indent of ['', '  ']) {
+      const source = `---\r\n"${key}":\r\n# 注释\r\n${indent}- "[[原项目|原]]"\r\n---\r\n正文\n`
+      assert.match(readProjects(source, key), /原项目/)
+      assert.equal(setProjectsLink(source, '[[新]]', key).changed, false)
+    }
+    const raw = `\uFEFF---\r\n${key}: []\r\n...\r\n\r\n正文\n混合行尾\r\n`
+    assert.equal(setProjectsLink(raw, '[[新]]', key).text, raw.replace('[]', '"[[新]]"'))
+  }
+})

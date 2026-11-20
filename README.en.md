@@ -10,7 +10,7 @@ Harness sidebar panel · local Markdown · uses your default model · one-click 
 
 [What it is](#what-it-is) · [Install](#install) · [Usage](#usage) · [Data & privacy](#data--privacy) · [FAQ](#faq) · [简体中文](README.md)
 
-![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.16.9](https://img.shields.io/badge/version-0.16.9-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
+![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-111?style=flat-square) [![MIT](https://img.shields.io/badge/MIT-open%20source-111?style=flat-square)](LICENSE) ![version 0.17.0](https://img.shields.io/badge/version-0.17.0-111?style=flat-square) [![Star](https://img.shields.io/github/stars/cavenzhong/dsh-obsidian-memo?style=flat-square&color=111&label=Star)](https://github.com/cavenzhong/dsh-obsidian-memo/stargazers)
 
 ## What it is
 
@@ -86,18 +86,19 @@ Install with `target: link:/absolute/path/to/dsh-obsidian-memo` for development 
 
 **2. Pick folders and start writing**
 
-Open settings from the gear in the top-right corner of the memo panel. Settings are grouped into Folders, Notes, AI, and Manage & about. The Notes page starts with the title mode cards and the filename template for body-title modes. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
+Open settings from the gear in the top-right corner of the memo panel. Settings are grouped into Folders, Notes, Project, AI, and Manage & about. The AI page starts with a separate Project AI block (model and budget), followed by the comment personas. The Notes page starts with the title mode cards and the filename template for body-title modes. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
 
 | Setting | Required | Notes |
 | --- | --- | --- |
 | Vault root | Yes | Your Obsidian vault, e.g. `~/Documents/MyVault`. |
 | Notes folder | Yes | The folder you want on the wall, e.g. `Inbox`. |
-| Project folder | For projects | Where generated project documents are stored. |
+| Project index folder | For projects | Stores `<name>-项目.md` directly; no per-project subfolders are created. |
 | Note title | No | File name (default), first body line, or first level-1 heading; the last two use an editable filename template (`{title}`/`{date}`/`{time}`/`{timestamp}`). |
 | Archive folders | No | Add several; the archive button lists these targets. |
 | Image folder | No | Defaults to `_attachments/` inside the notes folder; must be inside the vault and not a dot-hidden folder. |
 | Image processing | No | WebP compression is on by default: quality 70, max edge 2048px. Adjustable or off. |
 | AI personas & budget | No | Four comment personas, prompts, callout style, and token budget (default "high"). |
+| Project AI engine | No | A separate block on the AI page: the model and token budget used when creating or updating projects. The list comes from the model services enabled in DSH; unset follows the DSH default model. |
 
 All folders must live in the same Obsidian vault. Notes from subfolders are included by default and can be toggled in the header.
 
@@ -148,7 +149,7 @@ Comments are appended to the Markdown as Obsidian callouts, so they remain reada
 
 The drag preview has a soft shadow, with its action hint centered above it. The archive folder menu sits above the Archive zone with a subtle shadow. Releasing over the main zone parks the preview at its center and temporarily hides the icon and label. Click a folder to archive; clicking outside, moving focus outside, losing window focus, or pressing Esc returns the card. Enter returns it and focuses capture.
 
-Dragging a card replaces capture with Archive / To project / Delete. Archive reveals the configured archive folders, To project opens the project name dialog, and Delete acts on release. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
+Dragging a card replaces capture with Archive / To project / Delete. Archive reveals configured folders; To project reveals New project plus existing project files sorted by update time. Both start after a cancelable 3-second delay by default. Only New project opens a confirmation dialog, after AI analysis finishes. An empty dashed outline remains at the original position. The preview follows the pointer at one third of the card's width and height, with an opaque action tag above it on a higher layer. The dock gradient changes with the target while staying clear of the reader panel. Below the AI comment controls, the card menu only contains Copy and Open in Obsidian.
 Pointer movement updates only the preview layer, and switching the dock keeps the layout stable. Cancelling animates the card back; archive and delete fade it out and keep the placeholder until the operation completes, preventing a brief flash of the original card. Reduced-motion preferences skip these animations.
 
 - **Copy:** use the button on a card or in the reader to copy the current title on its own line followed by the full Markdown body, without frontmatter (body-title modes do not duplicate the title line), with a success message.
@@ -157,7 +158,7 @@ Pointer movement updates only the preview layer, and switching the dock keeps th
 
 ### To project, archive, open in Obsidian
 
-- **Open project:** enter a project name; AI creates `<name>/<name>.md` in the project folder with needs, current state, findings, next steps, and open questions, then writes the link back to the source note's `PROJECTS` field.
+- **Open project:** choose New project or an existing index. New projects are checked by AI before creating `<name>-项目.md`; after the short cancelable delay, AI reads the entire index and the new note, then writes the revised overview and one new entry. The host preserves existing history and independent handwritten sections directly from the file. The current overview explains the status, next step and blockers; the progress log is append-only. Evidence can be linked inline. The existing review notice names the change and lets you inspect, keep or undo it. The note stays in place and stores one configurable project wikilink in frontmatter.
 - **Archive:** moves the Markdown file to the chosen archive folder, with a 6-second undo.
 - **Open in Obsidian:** the host opens `obsidian://open?path=<absolute note path>`. Only existing files inside the vault are allowed, and nothing is written.
 
@@ -180,11 +181,11 @@ Pointer movement updates only the preview layer, and switching the dock keeps th
 
 - **Notes and images stay in your vault, including deleted files in its `.trash` folder.** The plugin reads and writes the Obsidian folder you choose; it does not import, copy, or maintain a second library.
 - **Settings live in an independent user `config.json`, with a customizable location.** No config is written to your Obsidian vault.
-- **No separate API key.** AI uses Harness's current default model and is called only when you click a comment or Open project; it does not start a conversation or write chat logs.
+- **No separate API key.** Comments use Harness's current default model, while projects can pick a model. Calls happen only when you click a comment or Open project; it does not start a conversation or write chat logs.
 - **No telemetry.** The plugin makes no analytics or tracking calls. Remote images inside notes are loaded by the browser, as with any Markdown file.
 - **Model calls send the relevant note content to your configured model provider.** That content is the input for the requested comment or project document and is limited to the current note.
 - **File boundaries are enforced.** Note, archive, project, and image paths must stay inside the vault; the image folder cannot be a dot-hidden folder; existing files are written atomically and new notes never overwrite a same-name file.
-- **Frontmatter is preserved.** Only "Open project" touches frontmatter, updating `PROJECTS`, and an existing non-empty value is never overwritten.
+- **Frontmatter is preserved.** Only "Open project" touches frontmatter, updating `PROJECT`, and an existing non-empty value is never overwritten.
 - **Concurrent edits are guarded by a version check.** There is no cross-process file lock; an external write in the very short window between check and write can still race.
 
 ## Compatibility & limits
@@ -200,7 +201,7 @@ Pointer movement updates only the preview layer, and switching the dock keeps th
 
 - Local images support PNG / JPEG / GIF / WebP / SVG / AVIF, up to 8 MB each; card thumbnails only load images up to 1.5 MB (larger ones still open in the reading panel).
 - Quick capture accepts up to 8 images: 32 MB each / 64 MB total before compression, 8 MB each / 16 MB total after.
-- AI input is capped at 12,000 characters; comments at 4,000 and project documents at 24,000; truncation is reported.
+- Comments and pre-creation checks read up to 12,000 characters; comment output is capped at 4,000. For project creation and revision, the source note input and the project document each have a 64,000-character limit. Oversized or truncated revisions leave both files untouched.
 - The plugin is desktop-first; touch devices are not specifically adapted, and the date-range menu has limitations there.
 
 ## FAQ
@@ -227,7 +228,7 @@ Obsidian must be installed and the `obsidian://` protocol registered; only exist
 
 **Will it damage my notes?**
 
-It won't restructure them: editing replaces only the body after frontmatter, comments are appended at the end, and Open project only updates `PROJECTS`. Obsidian block IDs are hidden in the plugin's display but kept in the file. If an external edit happened meanwhile, the save is refused by the version check.
+It won't restructure them: editing replaces only the body after frontmatter, comments are appended at the end, and Open project only updates `PROJECT`. Obsidian block IDs are hidden in the plugin's display but kept in the file. If an external edit happened meanwhile, the save is refused by the version check.
 
 **Does uninstalling delete my notes?**
 

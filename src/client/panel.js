@@ -114,7 +114,7 @@ function StickyNotesPanel(props) {
   const currentSettings = view.settings && typeof view.settings === 'object' ? view.settings : EMPTY_SETTINGS;
   const emojis = Array.isArray(currentSettings.emojis) ? currentSettings.emojis : [];
   const archiveTargets = Array.isArray(currentSettings.archiveTargets) ? currentSettings.archiveTargets : [];
-  const { projectTarget, projectName, setProjectName, projectBusy, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setSortMenu, t, tRef, watchedJobsRef });
+  const { projectTarget, projectName, setProjectName, projectBusy, projectTargets, refreshProjectTargets, queueProjectDrop, notices, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, jobs: view.jobs, projectDir: currentSettings.projectDir, vaultPath: currentSettings.vaultPath, notesDir: currentSettings.notesDir, projectKey: currentSettings.projectKey, projectDropConfirmEnabled: currentSettings.projectDropConfirmEnabled !== false, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setSortMenu, t });
   const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setHoverPath, tRef, viewRef, watchedJobsRef });
   const { deletingIndex: deletingCommentIndex, deleteComment } = useCommentActions({
     aliveRef, noteDrawerRef, request, loadNote, refreshNow, replaceNote, pushToast, pushErrorToast, tRef,
@@ -125,11 +125,12 @@ function StickyNotesPanel(props) {
   });
   const {
     dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
-    startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop,
+    startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop, chooseProjectTarget,
   } = useCardDrag({
-    aliveRef, archiveTargets, findTarget, openProjectDialog, panelRef, pushToast, runArchive, runDelete,
+    aliveRef, archiveTargets, findTarget, projectTargets, queueProjectDrop, panelRef, pushToast, runArchive, runDelete,
     setDateMenu, setDrawerArchive, setHoverPath, setSortMenu, tRef,
   });
+  React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
   const filteredNotes = React.useMemo(
     () => filterNotesByDate(view.notes, dateFilter, dateRealtime, nowTick, undefined, dateEnabled),
     [view.notes, dateFilter, dateRealtime, nowTick, dateEnabled],
@@ -386,8 +387,8 @@ function StickyNotesPanel(props) {
         renderContent(),
         h(CaptureComposer, {
           t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
-          dragNote, archiveParked: Boolean(dragSession?.parked), dropAction, dropTargetId, archiveTargets,
-          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onArchiveChoose: chooseArchiveTarget, onProjectDrop: projectDrop, onDeleteDrop: deleteDrop,
+          dragNote, archiveParked: Boolean(dragSession?.parked), dropAction, dropTargetId, archiveTargets, projectTargets,
+          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onArchiveChoose: chooseArchiveTarget, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop,
           showBackTop,
           onBackTop: () => panelRef.current?.querySelector('.SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
           onCreate: (payload) => request('createNote', payload),
@@ -411,8 +412,8 @@ function StickyNotesPanel(props) {
     !pinned && noteDrawerProps
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
-    h(ToastStack, { toasts: toasts, onDismiss: dismissToast }),
-    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, targets: archiveTargets, t }) : null,
+    h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast }),
+    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, targets: archiveTargets, projectTargets, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {
         t: t,
@@ -435,6 +436,7 @@ function StickyNotesPanel(props) {
         note: projectTarget,
         name: projectName,
         busy: projectBusy,
+        check: projectTarget.check,
         onName: setProjectName,
         onConfirm: confirmProject,
         onCancel: closeProjectDialog,

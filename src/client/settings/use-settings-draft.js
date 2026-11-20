@@ -42,7 +42,7 @@ function useSettingsDraft(options) {
     const draft = cloneJson(settings);
     settingsSessionRef.current += 1;
     baseSettingsRef.current = cloneJson(settings);
-    setSettingsTab(focus === 'ai' ? 'ai' : 'folders');
+    setSettingsTab(focus === 'ai' ? 'ai' : focus === 'project' ? 'project' : 'folders');
     // 旧 Host 没有 includeSubfolders 时补上当前语义（缺省 = true），保存时整份回传不丢字段。
     if (draft && typeof draft === 'object' && draft.includeSubfolders === undefined) {
       draft.includeSubfolders = settings.includeSubfolders !== false;

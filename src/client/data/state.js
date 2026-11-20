@@ -1,11 +1,11 @@
 /** 合并 Host 快照、复用未变对象并叠加运行中任务状态。 */
 import { EMPTY_STATE } from '../constants.js';
 
-function runningCommentJobs(jobs) {
+function runningNoteJobs(jobs) {
   const running = new Map();
   if (!Array.isArray(jobs)) return running;
   for (const job of jobs) {
-    if (!job || job.kind !== 'comment' || job.status !== 'running') continue;
+    if (!job || !['comment', 'project', 'project-check', 'project-add'].includes(job.kind) || job.status !== 'running') continue;
     if (typeof job.path !== 'string') continue;
     running.set(job.path, job);
   }
@@ -13,6 +13,9 @@ function runningCommentJobs(jobs) {
 }
 
 function pendingFromJob(job, settings) {
+  if (job.kind === 'project-check') return { emoji: '🔎', label: '分析项目', textKey: 'project.analyzing' };
+  if (job.kind === 'project-add') return { emoji: '↻', label: '更新项目', textKey: 'project.updating', name: job.name || '' };
+  if (job.kind === 'project') return { emoji: '✦', label: '建立项目', textKey: 'toast.projectStarted', name: job.name || '' };
   const emojis = settings && Array.isArray(settings.emojis) ? settings.emojis : [];
   const emoji = emojis.find((item) => item && item.id === job.emojiId);
   if (emoji) return { emoji: emoji.emoji || '✍️', label: emoji.label || '' };
@@ -21,7 +24,7 @@ function pendingFromJob(job, settings) {
 
 function decorateNotes(notes, jobs, settings) {
   if (!Array.isArray(notes)) return [];
-  const running = runningCommentJobs(jobs);
+  const running = runningNoteJobs(jobs);
   let changed = false;
   const next = notes.map((note) => {
     if (!note || typeof note.path !== 'string') return note;
@@ -29,7 +32,7 @@ function decorateNotes(notes, jobs, settings) {
     const pending = job ? pendingFromJob(job, settings) : null;
     const current = note.pending || null;
     if (pending === null && current === null) return note;
-    if (pending !== null && current !== null && pending.emoji === current.emoji && pending.label === current.label) return note;
+    if (pending !== null && current !== null && pending.emoji === current.emoji && pending.label === current.label && pending.textKey === current.textKey && pending.name === current.name) return note;
     changed = true;
     return Object.assign({}, note, { pending: pending });
   });

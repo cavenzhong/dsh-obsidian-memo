@@ -1,6 +1,6 @@
-# 代码结构与修改入口（0.16.9）
+# 代码结构与修改入口（0.17.0）
 
-先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
+先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。本次升级回归与实机验收项见 [0.17 复核](AUDIT-0.17.md)。
 
 ## 运行与源码
 
@@ -34,7 +34,8 @@ Harness Web  → lib/client.js（生成）
 | 当前仓库与便签路径 | `lib/host/vault.js` | 读取最新配置并校验真实路径 |
 | 全文与模型输入读取 | `lib/host/note-content.js` | 读原始 Markdown，不复用展示摘要 |
 | 本地图片读取与附件查找 | `lib/host/images.js` | 持有命中/负缓存；切库和删除后清理 |
-| AI 评论与开档 | `lib/host/ai-jobs.js` | 使用同一份任务表与写锁，保留现有并发/部分完成策略 |
+| AI 评论 / 项目跟踪 | `lib/host/ai-jobs.js`、`lib/host/projects.js` | 共用任务表与写锁；项目服务持有取消句柄及双文件验收快照 |
+| 项目文档 / 归属字段 | `lib/project.js`、`lib/project-revision.js`、`lib/project-meta.js` | 评估协议、AI 概况与新增记录、Host 原文合并、便签归属字段；不执行文件操作 |
 | 评论删除与撤回 | `lib/host/comments.js`、`lib/comments.js` | 按序号定位 callout；撤回 token 与删除前原文由实例 session 持有 |
 | 任务、撤回 token、过期回收 | `lib/host/session.js` | 持有当前实例的 jobs、归档与删除 token |
 | 归档、删除、撤回、系统回收站 | `lib/host/mutations.js` | 复用现有独占移动与整组回滚 |

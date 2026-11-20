@@ -86,7 +86,7 @@ test('v0.16 设置：四分类与横向 Emoji 标签切换，末尾加号不随�
   ] }
   const props = { t: (key) => key, draft, picking: null, initialTab: 'ai' }
   let nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, props))
-  assert.equal(nodes.filter((node) => node.props.className === 'SN_settingsTab').length, 4)
+  assert.equal(nodes.filter((node) => node.props.className === 'SN_settingsTab').length, 5)
   assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'folders').props.hidden, true)
   assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'ai').props.hidden, false)
   let groups = nodes.filter((node) => node.props.className === 'SN_emojiGroup')
@@ -135,13 +135,34 @@ test('v0.16.8 设置：标签顺序为 文件夹/便签/AI/管理与关于', (t)
   const nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, { t: (key) => key, draft, initialTab: 'notes' }))
   const tabs = nodes.filter((node) => node.props.className === 'SN_settingsTab')
   assert.deepEqual(tabs.map((node) => node.children[0]), [
-    'settings.tab.folders', 'settings.tab.notes', 'settings.tab.ai', 'settings.tab.config',
+    'settings.tab.folders', 'settings.tab.notes', 'settings.tab.project', 'settings.tab.ai', 'settings.tab.config',
   ])
   assert.equal(tabs.some((node) => node.children[0] === 'settings.tab.images'), false, '旧「图片」标签应移除')
   const page = nodes.find((node) => node.props['data-settings-tab'] === 'notes')
   assert.ok(page, '「便签」页应存在')
   assert.equal(page.props.hidden, false)
   assert.equal(nodes.some((node) => node.props['data-settings-tab'] === 'images'), false)
+})
+
+test('v0.17 设置：项目 AI 引擎放在「AI」页独立成块，模型列表来自 DSH 目录', (t) => {
+  const runner = hookRunner(t)
+  const draft = {
+    vaultPath: '/v', notesDir: '/v/n', emojis: [],
+    projectModel: { provider: 'deepseek-account', model: 'deepseek-flash' },
+    projectAi: { preset: 'high' },
+  }
+  const nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, { t: (key) => key, draft, initialTab: 'ai' }))
+  assert.equal(nodes.find((node) => node.props['data-settings-tab'] === 'ai').props.hidden, false)
+  const projectAi = nodes.find((node) => node.props['data-settings-tab'] === 'ai-project')
+  assert.ok(projectAi, 'AI 页应有独立的项目 AI 区块')
+  const select = captureNodes(projectAi).find((node) => node.type === 'select' && node.props['aria-label'] === 'settings.projectModel')
+  assert.ok(select, '项目 AI 引擎下拉应在 AI 页')
+  // 目录还没加载时，已保存但不在列表里的模型仍要显示为可选项，不能静默空白。
+  const optionValues = captureNodes(select).filter((node) => node.type === 'option').map((node) => node.props.value)
+  assert.deepEqual(optionValues, ['', 'deepseek-account\u0000deepseek-flash'])
+  const projectPage = nodes.find((node) => node.props['data-settings-tab'] === 'project')
+  assert.equal(captureNodes(projectPage).some((node) => node.type === 'select'), false, '「项目」页不再放模型下拉')
+  assert.equal(captureNodes(projectPage).some((node) => node.props.className === 'SN_aiBudgetRow'), false)
 })
 
 test('v0.16.8 设置：三张 role=radio 大卡、条件提示、方向键与禁用态', (t) => {

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { DEFAULT_SETTINGS, normalizeSettings, readSettingsFile, resolveUserPath, settingsEqual, writeSettingsFile } from '../../lib/settings.js'
-import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, LEGACY_EMOJIS, LIMITS } from '../../lib/shared.js'
+import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, DEFAULT_PROJECT_ADD, PREVIOUS_PROJECT_PROMPT, PREVIOUS_PROJECT_ADD, FULLTEXT_PROJECT_PROMPT, FULLTEXT_PROJECT_ADD, LEGACY_PROJECT_PROMPT, LEGACY_EMOJIS, LIMITS } from '../../lib/shared.js'
 
 test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', () => {
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
@@ -18,7 +18,8 @@ test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', ()
     DEFAULT_SETTINGS.emojis.map((item) => item.id),
     DEFAULT_EMOJIS.map((item) => item.id),
   )
-  assert.equal(DEFAULT_PROJECT_PROMPT.includes('## 诉求'), true)
+  assert.match(DEFAULT_PROJECT_PROMPT, /## 当前概况/)
+  assert.match(DEFAULT_PROJECT_ADD, /## 进展记录/)
 })
 
 test('DEFAULT_SETTINGS / DEFAULT_EMOJIS：0.12 四枚评论人格（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）', () => {
@@ -371,4 +372,15 @@ test('settings 0.16.8：settingsEqual 受标题模式与模板影响', () => {
   assert.equal(settingsEqual(base, { ...base, titleMode: 'heading' }), false)
   assert.equal(settingsEqual(base, { ...base, fileNamePattern: '便签-{date}' }), false)
   assert.equal(settingsEqual({ ...base, titleMode: 'heading' }, { ...base, titleMode: 'heading' }), true)
+})
+
+
+test('项目整稿提示词：精确升级两代建档默认值与上一版补充默认值，不改用户定制', () => {
+  for (const projectPrompt of [FULLTEXT_PROJECT_PROMPT, PREVIOUS_PROJECT_PROMPT, LEGACY_PROJECT_PROMPT]) {
+    const saved = normalizeSettings({ projectPrompt, projectAddPrompt: PREVIOUS_PROJECT_ADD })
+    assert.equal(saved.projectPrompt, DEFAULT_PROJECT_PROMPT); assert.equal(saved.projectAddPrompt, DEFAULT_PROJECT_ADD)
+  }
+  assert.equal(normalizeSettings({ projectAddPrompt: FULLTEXT_PROJECT_ADD }).projectAddPrompt, DEFAULT_PROJECT_ADD)
+  const custom = normalizeSettings({ projectPrompt: '我的概况', projectAddPrompt: PREVIOUS_PROJECT_ADD + ' 我的定制' })
+  assert.equal(custom.projectPrompt, '我的概况'); assert.equal(custom.projectAddPrompt, PREVIOUS_PROJECT_ADD + ' 我的定制')
 })

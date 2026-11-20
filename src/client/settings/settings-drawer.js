@@ -10,6 +10,13 @@ import { StyleSelect } from './style-select.js';
 import { TrashSettings } from './trash.js';
 import { baseName, resolvedPath } from '../utils.js';
 
+function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
+  const changed = typeof defaultValue === 'string' && value !== defaultValue;
+  return h('label', { className: 'SN_field' }, label,
+    h('textarea', { className: 'SN_textArea', rows: 5, value: value || '', disabled, 'aria-label': label, onChange: (e) => onChange(e.target.value) }),
+    changed ? h('button', { type: 'button', className: 'SN_promptRestore', disabled, onClick: () => onChange(defaultValue) }, t('settings.restorePrompt')) : null);
+}
+
 function SettingsDrawer(props) {
   const {
     t, draft, picking, saving, onPatch, onPick, onRemoveArchive, onPatchEmoji, onRemoveEmoji, onAddEmoji,
@@ -17,6 +24,7 @@ function SettingsDrawer(props) {
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
   const [activeEmoji, setActiveEmoji] = React.useState(null);
+  const [modelOptions, setModelOptions] = React.useState([]);
   const previousCount = React.useRef(draft?.emojis?.length || 0);
   const emojis = Array.isArray(draft?.emojis) ? draft.emojis : [];
   React.useEffect(() => {
@@ -24,11 +32,18 @@ function SettingsDrawer(props) {
     previousCount.current = emojis.length;
   }, [emojis.length]);
   React.useEffect(() => { if (props.initialTab) setTab(props.initialTab); }, [props.initialTab]);
+  React.useEffect(() => {
+    if (typeof request !== 'function' || tab !== 'ai' || modelOptions.length) return;
+    request('aiModels', {}).then((result) => setModelOptions(Array.isArray(result?.models) ? result.models : [])).catch(() => {});
+  }, [tab, modelOptions.length]);
   if (!draft) return null;
   const archiveTargets = Array.isArray(draft.archiveTargets) ? draft.archiveTargets : [];
   const emojiIndex = Math.max(0, emojis.findIndex((item) => item.id === activeEmoji));
   const folderProps = { vaultPath: draft.vaultPath, history: draft.folderHistory, request };
   const disabled = Boolean(saving);
+  const projectModelValue = draft.projectModel ? `${draft.projectModel.provider}\u0000${draft.projectModel.model}` : '';
+  // 已保存的模型可能已被 DSH 移除：保留一个占位选项，别让下拉静默变成空白。
+  const projectModelFallback = projectModelValue !== '' && !modelOptions.some((item) => `${item.provider}\u0000${item.model}` === projectModelValue);
 
   return h(Fragment, null,
     h('div', { className: 'SN_scrim', role: 'presentation', 'data-window-drag-exclude': '', onClick: saving ? undefined : onCancel }),
@@ -53,7 +68,7 @@ function SettingsDrawer(props) {
         }, h(CloseIcon, null)),
       ),
       h('div', { className: 'SN_settingsTabs', role: 'tablist', 'aria-label': t('settings.title') },
-        ['folders', 'notes', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
+        ['folders', 'notes', 'project', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
           'aria-selected': tab === id, onClick: () => setTab(id) }, t('settings.tab.' + id)))),
       h('div', { className: 'SN_drawerBody' },
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
@@ -74,19 +89,6 @@ function SettingsDrawer(props) {
             hint: t('settings.notesHint'),
             value: draft.notesDir,
             field: 'notesDir',
-            disabled: disabled,
-            picking: picking,
-            onPatch: onPatch,
-            onPick: onPick,
-          }),
-        ),
-        h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
-          h(SettingsPathField, { ...folderProps,
-            t: t,
-            label: t('settings.project'),
-            hint: t('settings.projectHint'),
-            value: draft.projectDir,
-            field: 'projectDir',
             disabled: disabled,
             picking: picking,
             onPatch: onPatch,
@@ -136,97 +138,95 @@ function SettingsDrawer(props) {
               t, label: t('settings.attachmentDir'), hint: t('settings.attachmentDirHint'),
               value: draft.attachmentDir, field: 'attachmentDir', disabled, picking, onPatch, onPick,
             }))),
-        h('div', { className: 'SN_drawerSection', hidden: tab !== 'ai', 'data-settings-tab': 'ai' },
-          h('div', { className: 'SN_drawerSectionHead' },
-            h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.emoji')),
+        h('div', { className: 'SN_settingsPage', hidden: tab !== 'ai', 'data-settings-tab': 'ai' },
+          h('section', { className: 'SN_drawerSection', 'data-settings-tab': 'ai-project' },
+            h('div', { className: 'SN_drawerSectionHead' },
+              h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectAi')),
+            ),
+            h('p', { className: 'SN_drawerSectionHint' }, t('settings.projectAiHint')),
+            h('label', { className: 'SN_field' }, t('settings.projectModel'), h('select', {
+              className: 'SN_textInput',
+              'aria-label': t('settings.projectModel'),
+              disabled,
+              value: projectModelValue,
+              onChange: (e) => { const item = modelOptions.find((candidate) => `${candidate.provider}\u0000${candidate.model}` === e.target.value); onPatch({ projectModel: item ? { provider: item.provider, model: item.model } : null }); },
+            },
+              h('option', { value: '' }, t('settings.projectModelDefault')),
+              projectModelFallback ? h('option', { value: projectModelValue }, `${draft.projectModel.provider} / ${draft.projectModel.model}`) : null,
+              modelOptions.map((item) => h('option', { key: `${item.provider}\u0000${item.model}`, value: `${item.provider}\u0000${item.model}` }, item.label || `${item.provider} / ${item.model}`)))),
+            h('label', { className: 'SN_imageSettingToggle' }, h('input', { type: 'checkbox', disabled, checked: draft.projectDropConfirmEnabled !== false,
+              onChange: (e) => onPatch({ projectDropConfirmEnabled: e.target.checked }) }), t('settings.projectDropConfirm')),
+            h(AiBudgetRow, { t, ai: draft.projectAi, disabled, onChange: (ai) => onPatch({ projectAi: ai }) }),
           ),
-          h('p', { className: 'SN_drawerSectionHint' }, t('settings.emojiHint')),
-          h('div', { className: 'SN_emojiTabs', role: 'tablist', 'aria-label': t('settings.emoji') },
-            h('div', { className: 'SN_emojiTabScroll' }, emojis.map((item, index) => h('button', { key: item.id, type: 'button', role: 'tab',
-              'aria-selected': emojiIndex === index, 'aria-label': item.label || item.emoji, title: item.label,
-              className: 'SN_emojiTab', disabled, onClick: () => setActiveEmoji(item.id) }, item.emoji))),
-            h('button', { type: 'button', className: 'SN_emojiTab SN_emojiAdd', disabled: disabled || emojis.length >= 12,
-              onClick: onAddEmoji, 'aria-label': t('settings.addEmoji'), title: t('settings.addEmoji') }, '＋')),
-          emojis.map((emoji, index) => h('div', { key: emoji.id || index, className: 'SN_emojiGroup', hidden: index !== emojiIndex },
-            h('div', { className: 'SN_emojiTop' },
-              h('input', {
-                type: 'text',
-                className: 'SN_emojiInput',
-                value: emoji.emoji || '',
-                disabled: disabled,
-                'aria-label': t('settings.emoji'),
-                placeholder: t('settings.emojiPlaceholder'),
-                onChange: (event) => onPatchEmoji(index, { emoji: event.target.value }),
-              }),
-              h('input', {
-                type: 'text',
-                className: 'SN_labelInput',
-                value: emoji.label || '',
-                disabled: disabled,
-                'aria-label': t('settings.labelPlaceholder'),
-                placeholder: t('settings.labelPlaceholder'),
-                onChange: (event) => onPatchEmoji(index, { label: event.target.value }),
-              }),
-              // 0.13.8：callout 样式按钮与 emoji / 名称同排（和 emoji 输入同高），点开菜单打勾。
-              h(StyleSelect, {
+          h('section', { className: 'SN_drawerSection', 'data-settings-tab': 'ai-emoji' },
+            h('div', { className: 'SN_drawerSectionHead' },
+              h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.emoji')),
+            ),
+            h('p', { className: 'SN_drawerSectionHint' }, t('settings.emojiHint')),
+            h('div', { className: 'SN_emojiTabs', role: 'tablist', 'aria-label': t('settings.emoji') },
+              h('div', { className: 'SN_emojiTabScroll' }, emojis.map((item, index) => h('button', { key: item.id, type: 'button', role: 'tab',
+                'aria-selected': emojiIndex === index, 'aria-label': item.label || item.emoji, title: item.label,
+                className: 'SN_emojiTab', disabled, onClick: () => setActiveEmoji(item.id) }, item.emoji))),
+              h('button', { type: 'button', className: 'SN_emojiTab SN_emojiAdd', disabled: disabled || emojis.length >= 12,
+                onClick: onAddEmoji, 'aria-label': t('settings.addEmoji'), title: t('settings.addEmoji') }, '＋')),
+            emojis.map((emoji, index) => h('div', { key: emoji.id || index, className: 'SN_emojiGroup', hidden: index !== emojiIndex },
+              h('div', { className: 'SN_emojiTop' },
+                h('input', {
+                  type: 'text',
+                  className: 'SN_emojiInput',
+                  value: emoji.emoji || '',
+                  disabled: disabled,
+                  'aria-label': t('settings.emoji'),
+                  placeholder: t('settings.emojiPlaceholder'),
+                  onChange: (event) => onPatchEmoji(index, { emoji: event.target.value }),
+                }),
+                h('input', {
+                  type: 'text',
+                  className: 'SN_labelInput',
+                  value: emoji.label || '',
+                  disabled: disabled,
+                  'aria-label': t('settings.labelPlaceholder'),
+                  placeholder: t('settings.labelPlaceholder'),
+                  onChange: (event) => onPatchEmoji(index, { label: event.target.value }),
+                }),
+                // 0.13.8：callout 样式按钮与 emoji / 名称同排（和 emoji 输入同高），点开菜单打勾。
+                h(StyleSelect, {
+                  t: t,
+                  value: emoji.callout || 'note',
+                  disabled: disabled,
+                  onChange: (callout) => onPatchEmoji(index, { callout: callout }),
+                }),
+                h('button', {
+                  type: 'button',
+                  className: 'SN_removeBtn',
+                  disabled: disabled || emojis.length <= 1,
+                  'aria-label': t('settings.remove'),
+                  title: t('settings.remove'),
+                  onClick: () => onRemoveEmoji(index),
+                }, '×'),
+              ),
+              h('div', { className: 'SN_emojiMain' },
+                h(PromptEditor, { t, label: t('settings.promptPlaceholder'), value: emoji.prompt || '', defaultValue: draft.promptDefaults?.emojis?.[emoji.id] ?? draft.promptDefaults?.customEmoji, disabled,
+                  onChange: (prompt) => onPatchEmoji(index, { prompt }) }),
+              ),
+              // 0.13：这枚 emoji 的 AI 预算（低/中/高/自定义）。
+              h(AiBudgetRow, {
                 t: t,
-                value: emoji.callout || 'note',
+                ai: emoji.ai,
                 disabled: disabled,
-                onChange: (callout) => onPatchEmoji(index, { callout: callout }),
+                onChange: (ai) => onPatchEmoji(index, { ai: ai }),
               }),
-              h('button', {
-                type: 'button',
-                className: 'SN_removeBtn',
-                disabled: disabled || emojis.length <= 1,
-                'aria-label': t('settings.remove'),
-                title: t('settings.remove'),
-                onClick: () => onRemoveEmoji(index),
-              }, '×'),
-            ),
-            h('div', { className: 'SN_emojiMain' },
-              h('textarea', {
-                className: 'SN_textArea',
-                rows: 7,
-                value: emoji.prompt || '',
-                disabled: disabled,
-                'aria-label': t('settings.promptPlaceholder'),
-                placeholder: t('settings.promptPlaceholder'),
-                onChange: (event) => onPatchEmoji(index, { prompt: event.target.value }),
-              }),
-            ),
-            // 0.13：这枚 emoji 的 AI 预算（低/中/高/自定义）。
-            h(AiBudgetRow, {
-              t: t,
-              ai: emoji.ai,
-              disabled: disabled,
-              onChange: (ai) => onPatchEmoji(index, { ai: ai }),
-            }),
+            )),
           )),
-
-        ),
-        h('div', { className: 'SN_drawerSection', hidden: tab !== 'ai', 'data-settings-tab': 'ai' },
-          h('div', { className: 'SN_drawerSectionHead' },
-            h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectPrompt')),
-          ),
-          h('details', { className: 'SN_projectSettings' }, h('summary', null, t('settings.projectPromptHint')),
-          h('p', { className: 'SN_drawerSectionHint' }, t('settings.projectPromptHint')),
-          h('textarea', {
-            className: 'SN_textArea',
-            rows: 6,
-            value: draft.projectPrompt || '',
-            disabled: disabled,
-            'aria-label': t('settings.projectPrompt'),
-            onChange: (event) => onPatch({ projectPrompt: event.target.value }),
-          }),
-          h('p', { className: 'SN_fieldHint' }, t('settings.aiProjectHint')),
-          // 0.13：开档（项目文档）自己的 AI 预算。
-          h(AiBudgetRow, {
-            t: t,
-            ai: draft.projectAi,
-            disabled: disabled,
-            onChange: (ai) => onPatch({ projectAi: ai }),
-          }),
-          ),
+        h('section', { className: 'SN_drawerSection', hidden: tab !== 'project', 'data-settings-tab': 'project' },
+          h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectTab')),
+          h(SettingsPathField, { ...folderProps, t, label: t('settings.project'), hint: t('settings.projectHint'),
+            value: draft.projectDir, field: 'projectDir', disabled, picking, onPatch, onPick }),
+          h('label', { className: 'SN_field' }, t('settings.projectKey'), h('input', { className: 'SN_textInput',
+            value: draft.projectKey ?? 'PROJECT', disabled, maxLength: 64, onChange: (e) => onPatch({ projectKey: e.target.value }) })),
+          h('p', { className: 'SN_fieldHint' }, t('settings.projectKeyHint')),
+          ['projectCheckPrompt', 'projectPrompt', 'projectAddPrompt'].map((key) => h(PromptEditor, { key, t, label: t('settings.' + key), value: draft[key] || '', defaultValue: draft.promptDefaults?.[key], disabled,
+            onChange: (value) => onPatch({ [key]: value }) })),
         ),
 
         h('div', { className: 'SN_settingsPage', hidden: tab !== 'config', 'data-settings-tab': 'config' },

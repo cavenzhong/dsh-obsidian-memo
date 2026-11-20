@@ -194,6 +194,12 @@ for (const exit of ['pointerdown', 'focusin', 'blur', 'Escape', 'Enter', 'choose
       finish(mode, element) { assert.equal(element, source); modes.push(mode); return animation.promise },
     }
     let composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
+    if (exit === 'choose') {
+      composer.props.onDragHover('project'); composer.props.onDragHover(null)
+      assert.equal(captureNodes(render()).find(n => n.type === runner.api.components.CaptureComposer).props.dropAction, 'project', '短暂离开不能同步卸载项目菜单')
+      composer.props.onDragHover('project', '__new__', anchor)
+      composer.props.onDragHover('archive')
+    }
     composer.props.onArchiveDrop({ dataTransfer: { getData: () => note.path }, currentTarget: { closest: () => anchor } })
     card.props.actions.current.onDragEnd()
     assert.deepEqual(parked, [anchor])
@@ -209,6 +215,7 @@ for (const exit of ['pointerdown', 'focusin', 'blur', 'Escape', 'Enter', 'choose
     composer.props.onDragHover(null)
     assert.deepEqual(modes, [], '在归档区内移动焦点或鼠标不关闭菜单')
     if (exit === 'choose') {
+      listeners.get('keydown:true')({ key: 'Enter', target: { closest: () => anchor }, preventDefault() { assert.fail('菜单项 Enter 应走原生点击') } })
       composer.props.onArchiveChoose('missing')
       assert.deepEqual(modes, [])
       const menu = captureNodes(runner.api.components.DropActions({ t: props.t, active: 'archive', targets, parked: true, onArchiveChoose: composer.props.onArchiveChoose }))

@@ -59,6 +59,7 @@ test('client 字典：AI 预算与预算提示文案中英文齐全', (t) => {
     'settings.aiPresetDetail.low', 'settings.aiPresetDetail.medium', 'settings.aiPresetDetail.high', 'settings.aiPresetDetail.custom',
     'settings.aiEffort', 'settings.aiEffort.off', 'settings.aiEffort.low', 'settings.aiEffort.high', 'settings.aiEffort.max',
     'settings.aiMaxTokens', 'settings.aiTokensUnit', 'settings.aiProjectHint',
+    'settings.projectAi', 'settings.projectAiHint', 'settings.projectModel', 'settings.projectModelDefault',
     'toast.budgetFailed', 'toast.budgetCommentTruncated', 'toast.budgetProjectTruncated',
     'toast.budgetAction', 'toast.budgetAck',
   ]
@@ -150,9 +151,10 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
     assert.ok(select, 'AI 预算下拉缺失')
     return select.props.value
   })
-  assert.deepEqual(presetValues, ['high', 'custom', 'high'])
+  // 0.17：AI 页先放「项目 AI」预算，再是每枚 emoji 的预算
+  assert.deepEqual(presetValues, ['high', 'high', 'custom'])
   // 自定义行额外渲染「思考档位 + 输出上限」
-  const customRendered = collect(budgetRows[1].type(budgetRows[1].props))
+  const customRendered = collect(budgetRows[2].type(budgetRows[2].props))
   const effort = customRendered.find((node) => node && node.type === 'select' && node.props && node.props['aria-label'] === 'settings.aiEffort')
   const tokens = customRendered.find((node) => node && node.type === 'input' && node.props && node.props['aria-label'] === 'settings.aiMaxTokens')
   assert.equal(effort.props.value, 'max')
@@ -175,9 +177,11 @@ test('v0.16.8 开档：默认项目名优先展示标题，而不是自动文件
     if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator
   })
   const note = { path: '/A.md', name: '2026-11-13-1924', title: '展示标题', excerpt: '', comments: [], images: [], created: Date.now() }
-  runner.connect(async (channel, endpoint) => {
+  let projectJobs = []
+  runner.connect(async (channel, endpoint, payload) => {
+    if (endpoint === 'projectCheck') { projectJobs = [{ id: 'check', kind: 'project-check', status: 'done', result: { name: '展示事项', level: '符合', reason: '可持续跟踪', matches: [], candidates: [] } }]; return { ok: true, value: { jobId: 'check' } } }
     if (endpoint === 'state') {
-      return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [], archiveTargets: [], titleMode: 'heading' } } }
+      return { ok: true, value: { configured: true, notes: [note], revision: String(projectJobs.length), jobs: projectJobs, settings: { emojis: [], archiveTargets: [], titleMode: 'heading' } } }
     }
     if (endpoint === 'note') return { ok: true, value: { ...note, body: '# 展示标题\n\n正文', contentRevision: 'v' } }
     assert.fail('Unexpected endpoint ' + endpoint)
@@ -189,8 +193,10 @@ test('v0.16.8 开档：默认项目名优先展示标题，而不是自动文件
   await flush()
   const drawer = render().find((node) => node.type === runner.api.components.NoteDrawer)
   assert.ok(drawer)
-  drawer.props.drawerActions.onProject()
+  await drawer.props.drawerActions.onProject()
+  await flush()
+  render()
   const dialog = render().find((node) => node.type === runner.api.components.ProjectDialog)
   assert.ok(dialog)
-  assert.equal(dialog.props.name, '展示标题')
+  assert.equal(dialog.props.name, '展示事项')
 })

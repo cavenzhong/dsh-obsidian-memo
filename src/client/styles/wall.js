@@ -13,6 +13,13 @@ const wallStyles = `
 @keyframes SN_loadPulse{0%,80%,100%{opacity:.28;transform:scale(.8)}40%{opacity:.95;transform:scale(1)}}
 
 .SN_card{--sn-note-bg:var(--sn-card-bg,${DEFAULT_NOTE_COLOR});--sn-tag-ink:var(--sn-card-bg-dark,#2C2721);position:relative;height:208px;border-radius:11px;cursor:default;outline:none;transition:transform .16s ease,box-shadow .16s ease;box-shadow:0 1px 2px rgba(40,30,10,.05),0 0 0 .5px rgba(70,55,30,.10)}
+.SN_card[data-texture] .SN_cardClip::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;color:var(--dsw-alias-label-primary,#5c5142);opacity:.065;background-size:9px 9px;background-image:var(--sn-grain)}
+.SN_card[data-texture='dot']{--sn-grain:radial-gradient(currentColor 1px,transparent 1.3px)}
+.SN_card[data-texture='grid']{--sn-grain:linear-gradient(90deg,currentColor 1px,transparent 1px),linear-gradient(currentColor 1px,transparent 1px)}
+.SN_card[data-texture='linen']{--sn-grain:repeating-linear-gradient(90deg,currentColor 0 1px,transparent 1px 4px)}
+.SN_card[data-texture='diagonal']{--sn-grain:repeating-linear-gradient(135deg,currentColor 0 1px,transparent 1px 6px)}
+.SN_card[data-texture='ruled']{--sn-grain:linear-gradient(transparent 8px,currentColor 8px)}
+.SN_card[data-texture='cross']{--sn-grain:linear-gradient(45deg,transparent 45%,currentColor 49%,transparent 55%),linear-gradient(135deg,transparent 45%,currentColor 49%,transparent 55%)}
 .SN_card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(40,30,10,.12),0 0 0 .5px rgba(70,55,30,.12)}
 .SN_card:focus-visible{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px rgba(40,30,10,.16)}
 .SN_panel .SN_card[data-dragging='true']{outline:2px dashed var(--sn-ink-muted,#9a9085);outline-offset:-2px;box-shadow:none;transform:none;background:transparent}
@@ -98,6 +105,8 @@ const wallStyles = `
 .SN_toast[data-kind='error']{border-left-color:var(--dsw-alias-state-error-primary)}
 .SN_toast[data-kind='success']{border-left-color:var(--dsw-alias-brand-primary)}
 .SN_toastText{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.SN_toast[data-project-review]{flex-wrap:wrap}
+.SN_toast[data-project-review] .SN_toastText{display:block;flex:1 1 16ch}
 .SN_toastAction{flex:none;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:2px 4px}
 .SN_toastAction:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05))}
 

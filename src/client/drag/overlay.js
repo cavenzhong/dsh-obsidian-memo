@@ -5,7 +5,7 @@ import { Fragment, React, ReactDOM, h } from '../react.js';
 import { NoteCard } from '../wall/note-card.js';
 
 // 菜单提示在顶层 portal 中，避免被缩略卡盖住；只在锚点/窗口变化时读取菜单矩形。
-function ArchiveDragHint({ anchor, text }) {
+function DragTargetHint({ anchor, text, kind }) {
   const ref = React.useRef(null);
   React.useLayoutEffect(() => {
     const element = ref.current, win = anchor.ownerDocument.defaultView;
@@ -24,11 +24,11 @@ function ArchiveDragHint({ anchor, text }) {
     observer?.observe(anchor);
     return () => { win.removeEventListener('resize', place); observer?.disconnect(); };
   }, [anchor]);
-  return h('div', { ref, className: 'SN_dragFollow SN_dragTargetHint', 'data-action': 'archive', 'aria-hidden': 'true' },
-    h(ActionIcon, { kind: 'archive', size: 15 }), h('span', null, text));
+  return h('div', { ref, className: 'SN_dragFollow SN_dragTargetHint', 'data-action': kind, 'aria-hidden': 'true' },
+    h(ActionIcon, { kind, size: 15 }), h('span', null, text));
 }
 
-function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets, t, motionRef }) {
+function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets, projectTargets, t, motionRef }) {
   const layerRef = React.useRef(null);
   React.useLayoutEffect(() => {
     if (!layerRef.current || !motionRef) return undefined;
@@ -36,11 +36,16 @@ function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets,
     motionRef.current = motion;
     return () => { motion.dispose(); if (motionRef.current === motion) motionRef.current = null; };
   }, [point, motionRef]);
-  const target = (targets || []).find((item) => item.id === targetId);
-  const anchored = action === 'archive' && target && targetAnchor;
+  const targetList = action === 'project' ? (projectTargets || []) : (targets || []);
+  const target = action === 'project' && targetId === '__new__'
+    ? { id: '__new__', label: t('project.newTarget') }
+    : targetList.find((item) => item.id === targetId);
+  const anchored = (action === 'archive' || action === 'project') && target && targetAnchor;
   const text = action === 'archive'
     ? (target ? t('drag.releaseArchiveTarget', { label: target.label || target.id }) : t('drag.releaseArchive'))
-    : action === 'project' ? t('drag.releaseProject') : action === 'delete' ? t('drag.release') : '';
+    : action === 'project'
+      ? (target ? t('drag.releaseProjectTarget', { label: target.label || target.id }) : t('drag.releaseProject'))
+      : action === 'delete' ? t('drag.release') : '';
   // 初始定位只交给 React 一次；后续移动/停靠/窗口缩放由同一个 motion 持有。
   const layout = React.useMemo(() => cardDragLayout(point, { width: window.innerWidth || 1024, height: window.innerHeight || 768 }), [point]);
   const layer = h('div', {
@@ -52,7 +57,7 @@ function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets,
     ),
     text && !anchored ? h('div', { className: 'SN_dragFollow', 'data-action': action }, h(ActionIcon, { kind: action, size: 15 }), h('span', null, text)) : null,
   );
-  const overlay = anchored ? h(Fragment, null, layer, h(ArchiveDragHint, { anchor: targetAnchor, text })) : layer;
+  const overlay = anchored ? h(Fragment, null, layer, h(DragTargetHint, { anchor: targetAnchor, text, kind: action })) : layer;
   return typeof document !== 'undefined' && document.body ? ReactDOM.createPortal(overlay, document.body) : overlay;
 }
 

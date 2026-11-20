@@ -39,8 +39,13 @@ const FAKE_GENERATED = '# 测试项目\n\n## 诉求\n模拟内容\n'
 
 function fakeLlm() {
   return {
-    async *stream() {
-      yield { type: 'text-delta', text: FAKE_GENERATED }
+    async *stream(options) {
+      const prompt = options.messages[0].content[0].text
+      const name = /^项目名：(.+)$/mu.exec(prompt)?.[1]
+      const source = /^来源目标路径：(.+)$/mu.exec(prompt)?.[1]
+      const text = name && source ? JSON.stringify({ summary: '已建立模拟项目',
+        overview: `模拟内容：[[${source}|本次判断的依据]]。`, entry: '建档。' }) : FAKE_GENERATED
+      yield { type: 'text-delta', text }
       yield { type: 'finish', reason: { kind: 'stop' } }
     },
   }
