@@ -57,7 +57,7 @@ Harness Web  → lib/client.js（生成）
 | 快速记录、文字草稿持久化、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
 | 拖拽浮层、动作栏、动画与会话 | `src/client/drag/` | drag-motion、drag-sessions |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
-| 评论确认、开档对话框、任务通知 | `src/client/ai/` | ai、notifications |
+| 评论确认、到项目、任务通知 | `src/client/ai/` | ai、notifications |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/` | settings-ui、settings-draft、settings-config |
 | 便签标题三卡、正文模式文件名模板与预览 | `src/client/settings/note-title.js`、`note-title-pattern.js` | settings-ui、note-title-pattern、filename |
 | 标题推导、源行编辑与浏览器会话同步 | `src/shared/title.js`、`src/client/reader/use-note-editor.js` | title-parity、title-editing、host/title-display |

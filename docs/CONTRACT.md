@@ -1,6 +1,6 @@
 # dsh-obsidian-memo · 实现契约（Host ↔ Client）
 
-> 本文记录 Host 与 Client 的接口及当前行为。结构收敛保留单文件浏览器发布与零运行时依赖；开档任务流程的调整暂不纳入本次范围。
+> 本文记录 Host 与 Client 的接口及当前行为。结构收敛保留单文件浏览器发布与零运行时依赖；项目任务流程按 0.17 的活文档模型实现（见 §5）。
 
 ## 0. 一句话
 
@@ -102,7 +102,7 @@ interface Settings {
   attachmentDir: string        // 新建图片目录绝对路径；'' = notesDir/_attachments
   archiveTargets: { id: string; label: string; path: string }[]  // path 绝对
   emojis: { id: string; emoji: string; label: string; prompt: string; callout: string; ai: AiBudget }[]
-  projectPrompt: string        // 开档结构化文档的提示词（可编辑）
+  projectPrompt: string        // 项目文档的提示词（可编辑）
   projectAi: AiBudget          // 0.13 新增：项目 AI 生成的 token 预算
   projectDropConfirmEnabled: boolean // 拖放新建和补充项目时是否等待 3 秒
   projectModel: { provider: string; model: string } | null // 在设置「AI」页选择；null = DSH 当前默认模型
@@ -114,7 +114,7 @@ interface Settings {
 ```
 
 - **模型目录（0.17）**：`aiModels` 用 `ctx.llm.listProviders()` 列出已注册 provider，再对每个 provider `await ctx.llm.listModels(provider)` 汇总模型（必须显式 provider；缺省会抛 `NO_ADAPTER`）。当前默认模型固定排第一，目录里存在同项时沿用其显示名；单个 provider 失败只跳过该 provider（`Promise.allSettled`），不产生未处理的 rejection——DSH 会把 `unhandledRejection` 当致命错误并退出 Host。
-- **AI 预算（0.13）**：每枚评论 emoji 各一份 `ai`，开档另有全局 `projectAi`。三档预设固定映射：`low = off / 2048`、`medium = low / 4096`、`high = high / 8192`（默认档 = `high`，即「一直用 high」）。`preset !== 'custom'` 时 Host 与 Client 都以预设数值为准；`custom` 才使用自定义的 `reasoningEffort` + `maxTokens`（`maxTokens` 夹到 256..65536 并取整，effort 非法回退 `high`）。旧 settings.json 没有这些字段时补默认 `high`。
+- **AI 预算（0.13）**：每枚评论 emoji 各一份 `ai`，项目另有全局 `projectAi`。三档预设固定映射：`low = off / 2048`、`medium = low / 4096`、`high = high / 8192`（默认档 = `high`，即「一直用 high」）。`preset !== 'custom'` 时 Host 与 Client 都以预设数值为准；`custom` 才使用自定义的 `reasoningEffort` + `maxTokens`（`maxTokens` 夹到 256..65536 并取整，effort 非法回退 `high`）。旧 settings.json 没有这些字段时补默认 `high`。
 - `callout` 取值：`note | abstract | info | todo | tip | success | question | warning | failure | danger | bug | example | quote`。
 - Host 保存时会规范化：空串保留；路径不是绝对路径时相对 `vaultPath` 解析；emoji 去重 id；空 prompt 用默认值。
 - 默认值见 `lib/settings.js` 的 `DEFAULT_SETTINGS`（含 4 枚默认 emoji 与默认建档提示词）。
@@ -185,7 +185,7 @@ interface Job {
   review?: boolean       // 项目已写入，等待验收或撤销
   summary?: string       // 本次整稿的一句变化；写入成功才公开，不带整篇文档
   projectPath?: string   // kind === 'project' 时：目标 md 的绝对路径
-  link?: 'linked' | 'non-empty' | 'added' | 'updated' | 'created'  // 开档后源便签 PROJECTS 的处理结果
+  link?: 'linked' | 'non-empty' | 'added' | 'updated' | 'created'  // 到项目后源便签项目字段的处理结果
 }
 ```
 
@@ -280,7 +280,7 @@ interface StateValue {
 
   0.13：Host 在 `NoteSummary.commentKinds` 里给出已有评论的 emoji 去重集合；Client 在生成同 emoji 评论前先弹确认（见 7.7）。
 - **删除评论（0.16.7）**：`deleteComment` 先按 `parseNote(..., { withRanges: true })` 找到第 `index` 条 callout 的正文行号，校验标题与时间后删掉整段 callout；前后各有一个空行时只收掉一个。通过 `replaceNoteFile` 原子写盘，随后失效并重扫。撤回 token 由实例 session 持有 5 秒，记录删除前原文与删除后的内容版本；撤回请求不带路径，端点自己对同一文件加写锁，只有版本仍等于删除后的版本才整份写回，否则返回 `conflict`。抽屉里删除成功后刷新便签墙，并给 5 秒 toast 撤回。
-- **AI 预算（0.13）**：评论按该 emoji 的 `ai`、开档按 `projectAi` 传 `maxTokens` / `reasoningEffort`；若所选 provider 明确不支持该档位（`UNSUPPORTED_REASONING_EFFORT` 或 “does not support reasoning effort”），Host 去掉 `reasoningEffort` 重试一次，避免把模型能力差异变成整次失败。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；评论撞上限但有正文 → `Job.truncated = true`，评论照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
+- **AI 预算（0.13）**：评论按该 emoji 的 `ai`、项目按 `projectAi` 传 `maxTokens` / `reasoningEffort`；若所选 provider 明确不支持该档位（`UNSUPPORTED_REASONING_EFFORT` 或 “does not support reasoning effort”），Host 去掉 `reasoningEffort` 重试一次，避免把模型能力差异变成整次失败。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；评论撞上限但有正文 → `Job.truncated = true`，评论照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
 - **子文件夹**：`settings.includeSubfolders === false` 时只扫描便签目录顶层 md（不再递归，tag 全为 null）；true 时递归到 5 层（隐藏目录 / `.obsidian` / 符号链接照旧跳过）。设置变化写入 revision，触发整份 notes 刷新。
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
 - **归档**：移动文件到目标目录；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。
@@ -484,7 +484,7 @@ function apply(ctx) {
 
 ### 7.7 同类评论确认（0.13）
 
-- 点击卡片上的某个预设生成评论前，若 `note.commentKinds` 已包含该预设的 `emoji`，先弹确认框（与开档对话框同风格）：
+- 点击卡片上的某个预设生成评论前，若 `note.commentKinds` 已包含该预设的 `emoji`，先弹确认框（与到项目的确认框风格一致）：
   - 标题：`已有同类评论`
   - 正文：`这张便签已经有一条「<预设名>」评论，要再生成一条吗？`
   - 按钮：`再生成一条`（主）/ `取消`（次）
@@ -553,7 +553,7 @@ function apply(ctx) {
 - [ ] 仓库字段支持系统选择器和手填；库内文件夹共用含新建、选择与历史的下拉菜单
 - [ ] emoji 评论：pending 态 → callout 出现在卡片与 md
 - [ ] 归档 → toast + 撤销 → 文件移动/恢复
-- [ ] 开档 → 对话框 → 进度 → 生成 md 与 PROJECT 双链（Host 侧完成，Client 展示结果）
+- [ ] 到项目 → 新建/补充 → 生成或更新 md 与 PROJECT 双链（Host 侧完成，Client 展示结果）
 - [ ] 设置抽屉：目录点选、emoji 增删改、保存后即时生效
 - [ ] 未配置/空目录/错误 三种空态
 - [ ] 深浅主题下都可读；字体对比明确；无 console 报错
