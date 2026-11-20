@@ -12,15 +12,7 @@ function NoteDrawer(props) {
     inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
     onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
   } = props;
-  // 第 4 轮：标题编辑用多行 textarea 完整显示，高度随内容自适应（不支持 field-sizing 的浏览器靠这里）。
-  const titleEditorRef = React.useRef(null);
-  React.useEffect(() => {
-    const el = titleEditorRef.current;
-    if (!el || !editing) return;
-    el.style.height = 'auto';
-    const next = Math.min(132, Math.max(24, el.scrollHeight || 24));
-    el.style.height = next + 'px';
-  }, [editing, titleDraft]);
+  const editFromTitle = React.useRef(false);
   const drawerStyle = typeof drawerWidth === 'number' && Number.isFinite(drawerWidth)
     ? {
       width: drawerWidth + 'px',
@@ -54,6 +46,7 @@ function NoteDrawer(props) {
     if (target.closest('button')) return;
     const inText = target.closest('.SN_blockP, .SN_blockH, .SN_blockLi, .SN_blockQuote, .SN_blockCode, .SN_commentCard, .SN_projects');
     if (!inText && blocks.length > 0) return;
+    editFromTitle.current = false;
     onStartEdit();
   }
 
@@ -78,21 +71,26 @@ function NoteDrawer(props) {
     ) : null,
   );
 
-  // 0.16.6：AI emoji 评论按钮移到评论区标题行（标题右侧），与标题同一行；pending / 无预设也在这一行。
+  // 折叠只隐藏评论列表；预设始终可见，生成中禁用按钮而不替换它们。
   const emojiButtons = drawerActions && Array.isArray(drawerActions.emojis) ? drawerActions.emojis : [];
+  const commentPending = Boolean(drawerActions?.pending);
   const commentEmojiRow = drawerActions
     ? h('div', { className: 'SN_commentEmojiRow', role: 'group', 'aria-label': t('card.aiComment') },
-      drawerActions.pending
+      commentPending
         ? h('span', { className: 'SN_pending', role: 'status' },
           h('span', { className: 'SN_pendingDot', 'aria-hidden': 'true' }),
           t('card.pending'),
         )
-        : emojiButtons.length === 0
-          ? h('span', { className: 'SN_aiEmpty' }, t('card.noPresets'))
-          : emojiButtons.map((emoji) => h('button', {
+        : null,
+      emojiButtons.length === 0
+        ? (!commentPending ? h('span', { className: 'SN_aiEmpty' }, t('card.noPresets')) : null)
+        : [
+          h('span', { key: 'hint', className: 'SN_commentAIHint', 'aria-hidden': 'true' }, t('card.aiComment')),
+          ...emojiButtons.map((emoji) => h('button', {
             key: emoji.id || emoji.emoji,
             type: 'button',
             className: 'SN_aiBtn',
+            disabled: commentPending,
             'aria-label': emojiLabel(emoji) || emoji.emoji || t('card.aiComment'),
             onClick: (event) => {
               event.stopPropagation();
@@ -102,6 +100,7 @@ function NoteDrawer(props) {
             h('span', { className: 'SN_aiEmoji', 'aria-hidden': 'true' }, emoji.emoji || '✨'),
             h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, emoji.label || emoji.emoji || ''),
           )),
+        ],
     )
     : null;
 
@@ -113,6 +112,7 @@ function NoteDrawer(props) {
   const commentsStyle = commentsHeight === null || collapsed
     ? undefined
     : { height: commentsHeight + 'px', maxHeight: 'min(72%, calc(100% - 260px))' };
+  const commentsLabel = comments.length > 0 ? t('drawer.commentsCount', { count: comments.length }) : t('drawer.comments');
   const commentsToggle = h('button', {
     type: 'button',
     className: 'SN_commentToggle',
@@ -125,11 +125,11 @@ function NoteDrawer(props) {
     },
   },
     h(ChevronIcon, { collapsed: collapsed }),
-    h('span', { className: 'SN_noteViewSection' }, t('drawer.comments', { count: comments.length })),
+    h('span', { className: 'SN_noteViewSection' }, commentsLabel),
   );
   const commentsNode = h('section', {
     className: 'SN_noteDrawerComments',
-    'aria-label': t('drawer.comments', { count: comments.length }),
+    'aria-label': commentsLabel,
     'data-collapsed': collapsed ? 'true' : 'false',
     'data-resizing': resizingComments ? 'true' : 'false',
     style: commentsStyle,
@@ -139,16 +139,16 @@ function NoteDrawer(props) {
       role: 'separator',
       'aria-orientation': 'horizontal',
       'aria-label': t('drawer.commentsResize'),
+      'aria-hidden': collapsed || undefined,
       title: t('drawer.commentsResize'),
       'data-disabled': collapsed ? 'true' : 'false',
-      onPointerDown: commentsLayout && typeof commentsLayout.onResizeStart === 'function'
-        ? commentsLayout.onResizeStart : undefined,
-      onDoubleClick: commentsLayout && typeof commentsLayout.onResizeReset === 'function'
-        ? commentsLayout.onResizeReset : undefined,
+      'data-resizing': resizingComments ? 'true' : 'false',
+      onPointerDown: collapsed ? undefined : commentsLayout?.onResizeStart,
+      onDoubleClick: collapsed ? undefined : commentsLayout?.onResizeReset,
     }),
     h('div', { className: 'SN_noteDrawerCommentsHead' },
       commentsToggle,
-      collapsed ? null : commentEmojiRow,
+      commentEmojiRow,
     ),
     collapsed
       ? null
@@ -216,6 +216,67 @@ function NoteDrawer(props) {
       }, h(ObsidianIcon, null), h('span', { className: 'SN_obsidianText' }, t('card.obsidian'))),
     )
     : null;
+  const headNode = h('div', { className: 'SN_noteDrawerHead' },
+    h('div', { className: 'SN_noteDrawerHeadMain' },
+      editing
+        ? h('div', { className: 'SN_titleEditorFit', 'data-title': titleDraft },
+          h('textarea', {
+            className: 'SN_titleEditor',
+            value: titleDraft,
+            rows: 1,
+            wrap: 'soft',
+            spellCheck: false,
+            autoFocus: editFromTitle.current,
+            'aria-label': titleMode === 'filename' ? t('drawer.titleAria') : t('drawer.titleAriaBody'),
+            onChange: (event) => onTitleChange(event.target.value.replace(/[\r\n]+/g, ' ')),
+            onKeyDown: (event) => {
+              // 标题是一行数据，允许视觉折行但不输入换行。
+              if (event.key === 'Enter' && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229) {
+                event.preventDefault();
+              }
+            },
+          }),
+        )
+        : h('h2', {
+          className: 'SN_noteDrawerTitle',
+          title: title,
+          onDoubleClick: canEdit ? () => {
+            editFromTitle.current = true;
+            onStartEdit();
+          } : undefined,
+        }, title),
+      editing && titleMode && titleMode !== 'filename'
+        ? h('p', { className: 'SN_noteDrawerTitleHint' }, t(titleDraft.trim() === ''
+          ? 'drawer.titleEmptyHint'
+          : titleMode === 'heading' ? 'drawer.titleFromBodyHeading' : 'drawer.titleFromBodyFirstLine'))
+        : null,
+      h('div', { className: 'SN_noteDrawerMeta' },
+        tag ? h('span', { className: 'SN_noteDrawerTag', title: tag }, tag) : null,
+        updated ? h('span', null, updated) : null,
+      ),
+    ),
+    h('div', { className: 'SN_noteDrawerHeadActions' },
+      h('button', {
+        type: 'button',
+        className: 'SN_iconBtn',
+        'data-active': pinned ? 'true' : 'false',
+        'aria-pressed': pinned ? 'true' : 'false',
+        'aria-label': pinned ? t('drawer.unlock') : t('drawer.lock'),
+        title: pinned ? t('drawer.unlock') : t('drawer.lock'),
+        onClick: onTogglePinned,
+      }, h(PinIcon, { pinned: pinned })),
+      // 第 3 轮：锁定态不渲染关闭按钮（只留锁定/解锁）；Esc 仍可关。
+      pinned
+        ? null
+        : h('button', {
+          type: 'button',
+          className: 'SN_iconBtn',
+          onClick: onClose,
+          'aria-label': t('drawer.close'),
+          title: t('drawer.close'),
+        }, h(CloseIcon, null)),
+    ),
+  );
   const drawerNode = h('aside', {
     className: 'SN_noteDrawer',
     'data-pinned': pinned ? 'true' : 'false',
@@ -236,74 +297,20 @@ function NoteDrawer(props) {
       onPointerDown: onResizeStart,
       onDoubleClick: onResizeReset,
     }),
-    h('div', { className: 'SN_noteDrawerHead' },
-      h('div', { className: 'SN_noteDrawerHeadMain' },
-        editing
-          // 第 4 轮：标题编辑改成多行 textarea，完整换行显示，不再需要横向滚动到文件名尾部。
-          ? h('textarea', {
-            className: 'SN_titleEditor',
-            ref: titleEditorRef,
-            value: titleDraft,
-            rows: 1,
-            maxLength: titleMode === 'filename' ? 60 : undefined,
-            wrap: 'soft',
-            spellCheck: false,
-            'aria-label': titleMode === 'filename' ? t('drawer.titleAria') : t('drawer.titleAriaBody'),
-            onChange: (event) => onTitleChange(event.target.value.replace(/[\r\n]+/g, ' ')),
-            onKeyDown: (event) => {
-              // 文件名不能换行：Enter 不输入换行（保存仍用 Cmd/Ctrl+S 或按钮）。
-              if (event.key === 'Enter') event.preventDefault();
-            },
-          })
-          : h('h2', {
-            className: 'SN_noteDrawerTitle',
-            title: title,
-            // 0.13：双击标题进入编辑态（编辑态标题就是 input）；标题不再带 byline。
-            onDoubleClick: canEdit ? onStartEdit : undefined,
-          }, title),
-        editing && titleMode && titleMode !== 'filename'
-          ? h('p', { className: 'SN_noteDrawerTitleHint' }, t(titleDraft.trim() === ''
-            ? 'drawer.titleEmptyHint'
-            : titleMode === 'heading' ? 'drawer.titleFromBodyHeading' : 'drawer.titleFromBodyFirstLine'))
-          : null,
-        h('div', { className: 'SN_noteDrawerMeta' },
-          tag ? h('span', { className: 'SN_noteDrawerTag', title: tag }, tag) : null,
-          updated ? h('span', null, updated) : null,
-        ),
-      ),
-      h('div', { className: 'SN_noteDrawerHeadActions' },
-        h('button', {
-          type: 'button',
-          className: 'SN_iconBtn',
-          'data-active': pinned ? 'true' : 'false',
-          'aria-pressed': pinned ? 'true' : 'false',
-          'aria-label': pinned ? t('drawer.unlock') : t('drawer.lock'),
-          title: pinned ? t('drawer.unlock') : t('drawer.lock'),
-          onClick: onTogglePinned,
-        }, h(PinIcon, { pinned: pinned })),
-        // 第 3 轮：锁定态不渲染关闭按钮（只留锁定/解锁）；Esc 仍可关。
-        pinned
-          ? null
-          : h('button', {
-            type: 'button',
-            className: 'SN_iconBtn',
-            onClick: onClose,
-            'aria-label': t('drawer.close'),
-            title: t('drawer.close'),
-          }, h(CloseIcon, null)),
-      ),
-    ),
     editing
-      ? h('div', { className: 'SN_noteEdit' },
-        h('textarea', {
-          className: 'SN_noteEditor',
-          value: bodyDraft,
-          spellCheck: false,
-          autoFocus: true,
-          disabled: saving,
-          'aria-label': t('drawer.bodyAria'),
-          onChange: (event) => onBodyChange(event.target.value),
-        }),
+      ? h(Fragment, null,
+        h('div', { className: 'SN_noteEditContent' },
+          headNode,
+          h('textarea', {
+            className: 'SN_noteEditor',
+            value: bodyDraft,
+            spellCheck: false,
+            autoFocus: !editFromTitle.current,
+            disabled: saving,
+            'aria-label': t('drawer.bodyAria'),
+            onChange: (event) => onBodyChange(event.target.value),
+          }),
+        ),
         h('div', { className: 'SN_noteEditBar' },
           h('span', { className: 'SN_noteEditHint' }, saving ? t('drawer.saving') : t('drawer.shortcutHint')),
           h('div', { className: 'SN_noteEditActions' },
@@ -322,7 +329,7 @@ function NoteDrawer(props) {
           ),
         ),
       )
-      : h(Fragment, null, actionsNode, bodyNode, commentsNode),
+      : h(Fragment, null, headNode, actionsNode, bodyNode, commentsNode),
   );
 
   if (inline) return drawerNode;

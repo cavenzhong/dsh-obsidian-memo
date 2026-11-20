@@ -114,6 +114,29 @@ test('parseNote：excerpt 任务项带 ☐ / ☑ 前缀，且不残留 [ ] 标�
   assert.doesNotMatch(parsed.excerpt, /\[[ xX]\]/)
 })
 
+test('parseNote：无图卡片保留正文换行、列表标记和勾选状态；阅读块与旧摘要不变', () => {
+  const source = [
+    '---', 'private: meta', '---', '# 便签标题',
+    '第一行 **加粗** ^block-id', '第二行 [[folder/笔记|链接]]',
+    '%%隐藏备注', '不要显示%%', '',
+    '- 普通项目', '3) [ ] 有序待办', '- [x] 已完成', '7. 下一项',
+    '```md', '- [ ] 不显示代码内容', '```', '> [!note] 评论', '> 不显示评论正文',
+  ].join('\r\n')
+  const { cardPreview, ...parsed } = parseNote(source, { titleMode: 'heading', withCardPreview: true })
+  assert.equal(cardPreview, '第一行 加粗\n第二行 链接\n• 普通项目\n3) ☐ 有序待办\n☑ 已完成\n7. 下一项')
+  assert.deepEqual(parsed, parseNote(source, { titleMode: 'heading' }))
+  assert.equal(parsed.blocks[0].text, '第一行 加粗 第二行 链接')
+})
+
+test('parseNote：卡片预览限制长度，有图或与摘要相同时不重复返回正文', () => {
+  assert.equal(parseNote('单段文字', { withCardPreview: true }).cardPreview, null)
+  assert.equal(parseNote('图前\n图后\n\n![[a.png]]', { withCardPreview: true }).cardPreview, null)
+  const { cardPreview } = parseNote('第一行\n' + '文'.repeat(2000), { withCardPreview: true })
+  assert.equal(cardPreview.length, 361)
+  assert.ok(cardPreview.startsWith('第一行\n'))
+  assert.ok(cardPreview.endsWith('…'))
+})
+
 test('parseNote：空文本不炸', () => {
   const parsed = parseNote('')
   assert.equal(parsed.title, '')

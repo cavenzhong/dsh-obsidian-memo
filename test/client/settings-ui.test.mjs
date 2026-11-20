@@ -117,7 +117,7 @@ test('v0.16 管理与关于：共享设置页包含 GitHub 与作者信息', (t)
   assert.match(CLIENT_SOURCE, /\.SN_configActions>select\{appearance:none;-webkit-appearance:none;background-image:none/)
 })
 
-test('v0.16.6 DSH 0.2.2-rc.2：设置抽屉与遮罩声明 no-drag 排除，官方设置页铺满内容列', (t) => {
+test('DSH 桌面端：设置抽屉与遮罩声明 no-drag 排除', (t) => {
   const api = loadClient(t).mod.__test
   const draft = { vaultPath: '/vault', notesDir: '/vault/notes', emojis: [] }
   const drawer = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft }))
@@ -125,13 +125,7 @@ test('v0.16.6 DSH 0.2.2-rc.2：设置抽屉与遮罩声明 no-drag 排除，官�
   assert.equal(aside.props.className, 'SN_drawer')
   assert.equal(aside.props['data-window-drag-exclude'], '', '设置抽屉盖住顶栏拖动行，需要显式 no-drag')
   assert.equal(drawer.find((node) => node.props.className === 'SN_scrim').props['data-window-drag-exclude'], '')
-  // 官方设置页复用同一个组件，但它是内联内容，不应声明拖动排除。
-  const inline = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft, inline: true }))
-  assert.equal(inline.find((node) => node.type === 'aside').props['data-window-drag-exclude'], undefined)
-  assert.match(CLIENT_SOURCE, /\.SN_inlineSettings\{[^}]*width:100%;max-width:none;margin:0/,
-    '官方设置页内容应铺满设置列，不再 760px 居中')
-  assert.doesNotMatch(CLIENT_SOURCE, /max-width:760px/, '旧的居中宽度应移除')
-  assert.match(CLIENT_SOURCE, /\.SN_officialSettings\{[^}]*padding:16px 0\}/, '官方设置页不应再叠一层水平内边距')
+  assert.equal(aside.props['aria-modal'], 'true')
 })
 
 // 0.16.8：便签标题模式三卡与文件名模板

@@ -32,12 +32,12 @@ test('v0.15 输入岛：空正文失焦或 Backspace 收起，Esc 退出焦点�
   assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').type, 'textarea')
 })
 
-test('v0.15 Enter：卡片悬停/聚焦、按钮、阅读面板和菜单均进入输入岛，仅岛内与正文编辑放行', (t) => {
+test('v0.15 Enter：卡片悬停/聚焦、按钮、阅读面板和菜单均进入输入岛，仅岛内与便签编辑放行', (t) => {
   const api = loadClient(t).mod.__test
   let focused = 0, prevented = 0, stopped = 0, visible = true
   const root = {}, html = {}, blank = {}, outside = {}, islandTitle = {}, islandBody = {}
-  const control = { closest: (selector) => selector === '.SN_noteEditor' ? null : control }
-  const editor = { closest: (selector) => selector === '.SN_noteEditor' ? editor : null }
+  const control = { closest: (selector) => selector === '.SN_noteEditor, .SN_titleEditor' ? null : control }
+  const editor = { closest: (selector) => selector === '.SN_noteEditor, .SN_titleEditor' ? editor : null }
   const doc = { body: root, documentElement: html }
   const options = {
     panel: { ownerDocument: doc, getClientRects: () => visible ? [{}] : [], contains: (target) => target !== outside, querySelector: () => ({}) },
@@ -64,7 +64,7 @@ test('v0.15 Enter：卡片悬停/聚焦、按钮、阅读面板和菜单均进�
   assert.equal(api.dictionaries.en['card.openHint'], 'Click to open')
 })
 
-test('v0.15 Enter：实际输入岛 hook 在捕获阶段拦截卡片与按钮，岛内和右侧正文编辑仍可输入', (t) => {
+test('v0.15 Enter：实际输入岛 hook 在捕获阶段拦截卡片与按钮，岛内和右侧标题、正文编辑仍可输入', (t) => {
   const runner = hookRunner(t), registrations = [], removals = []
   const previous = globalThis.document
   const doc = {
@@ -85,14 +85,14 @@ test('v0.15 Enter：实际输入岛 hook 在捕获阶段拦截卡片与按钮，
   const [name, listener, capture] = registrations.find(([name]) => name === 'keydown')
   assert.equal(name, 'keydown')
   assert.equal(capture, true, '必须先于卡片/按钮的 React 处理器和浏览器默认点击')
-  const editor = { closest: (selector) => selector === '.SN_noteEditor' ? editor : null }
-  for (const target of [doc.body, { closest: () => null }, { closest: (selector) => selector === '.SN_noteEditor' ? null : {} }]) {
+  const editor = (className) => ({ closest(selector) { return selector.split(/\s*,\s*/).includes('.' + className) ? this : null } })
+  for (const target of [doc.body, { closest: () => null }, { closest: (selector) => selector === '.SN_noteEditor, .SN_titleEditor' ? null : {} }]) {
     let prevented = false, stopped = false
     listener({ key: 'Enter', target, preventDefault() { prevented = true }, stopPropagation() { stopped = true } })
     assert.equal(prevented, true)
     assert.equal(stopped, true)
   }
-  for (const target of [field, editor]) {
+  for (const target of [field, editor('SN_noteEditor'), editor('SN_titleEditor')]) {
     listener({ key: 'Enter', target, preventDefault() { assert.fail('输入区 Enter 不应被拦截') }, stopPropagation() { assert.fail('输入区 Enter 不应被拦截') } })
   }
   assert.equal(focused, 3)
@@ -123,6 +123,7 @@ test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败
   assert.deepEqual(saved, { title: '标题草稿', body: '正文草稿', images: [] })
   pending.reject(new Error('同名便签已存在'))
   await Promise.all([first, duplicate])
+  runner.unmount()
   nodes = render()
   assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '标题草稿')
   assert.equal(nodes.find((n) => n.props.className === 'SN_captureBody').props.value, '正文草稿')
@@ -130,9 +131,47 @@ test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败
   const second = nodes.find((n) => n.type === 'form').props.onSubmit()
   pending.resolve({ path: '/vault/标题草稿.md' })
   await second
+  runner.unmount()
   nodes = render()
   assert.equal(nodes.find((n) => n.props.className === 'SN_captureTitle').props.value, '')
   assert.equal(nodes.some((n) => n.props.className === 'SN_captureBody'), false)
+})
+
+test('快速记录：切走并重新挂载后恢复最后输入的标题和正文，不抢焦点', (t) => {
+  const runner = hookRunner(t)
+  const props = { enabled: true, t: (key) => key }
+  const render = (prepare) => captureNodes(runner.render(runner.api.components.CaptureComposer, props, prepare))
+  const byClass = (nodes, name) => nodes.find((node) => node.props.className === 'SN_capture' + name)
+  const title = byClass(render(), 'Title')
+  title.props.onChange({ target: { value: '未写完的标题' } })
+  title.props.onKeyDown({ key: 'Tab', preventDefault() {}, stopPropagation() {} })
+  const nodes = render()
+  const body = '\n准备续写的正文\n  '
+  byClass(nodes, 'Body').props.onChange({ target: { value: body, style: {}, scrollHeight: 90 } })
+  nodes.find((node) => node.type === 'form').props.onBlur({ currentTarget: { contains: () => false }, relatedTarget: null })
+  runner.unmount()
+  let focused = false
+  const field = { style: {}, scrollHeight: 90, focus() { focused = true } }
+  const restored = render((node) => { byClass(captureNodes(node), 'Body').props.ref.current = field })
+  assert.equal(byClass(restored, 'Title').props.value, '未写完的标题')
+  assert.equal(byClass(restored, 'Body').props.value, body)
+  assert.equal(field.style.height, '90px')
+  assert.equal(focused, false)
+})
+
+test('快速记录：较早提交在面板切换后成功，不清掉新草稿', async (t) => {
+  const runner = hookRunner(t), pending = deferred()
+  const props = { enabled: true, t: (key) => key, onCreate: () => pending.promise }
+  const render = () => captureNodes(runner.render(runner.api.components.CaptureComposer, props))
+  const titleOf = (nodes) => nodes.find((node) => node.props.className === 'SN_captureTitle')
+  titleOf(render()).props.onChange({ target: { value: '提交中的便签' } })
+  const saving = render().find((node) => node.type === 'form').props.onSubmit()
+  runner.unmount()
+  titleOf(render()).props.onChange({ target: { value: '新的文字草稿' } })
+  pending.resolve({})
+  await saving
+  runner.unmount()
+  assert.equal(titleOf(render()).props.value, '新的文字草稿')
 })
 
 test('快速记录：标题 Enter/Tab 阻止事件冒泡，避免触发宿主快捷键', async (t) => {

@@ -86,7 +86,7 @@ Install with `target: link:/absolute/path/to/dsh-obsidian-memo` for development 
 
 **2. Pick folders and start writing**
 
-Open the top-right gear or Settings → Plugins → Obsidian MEMO. Settings are grouped into Folders, Notes, AI, and Manage & about. The Notes page starts with the title mode cards and the filename template for body-title modes. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
+Open settings from the gear in the top-right corner of the memo panel. Settings are grouped into Folders, Notes, AI, and Manage & about. The Notes page starts with the title mode cards and the filename template for body-title modes. Choose the vault once; other folders use one shared dropdown with creation, browsing, search, and recent selections. AI personas use horizontal emoji tabs with an add button.
 
 | Setting | Required | Notes |
 | --- | --- | --- |
@@ -113,17 +113,18 @@ Configuration defaults to `~/.config/dsh-obsidian-memo/config.json` (Windows: `%
 
 ### Quick capture
 
-The floating composer sits below the wall. Type an idea and press `Enter`. The title becomes the filename by default; with a body-title mode it is written into the body and the filename comes from the template (duplicates get `-2`). Press `Tab` to expand the body; clearing it collapses the composer again. A failed submit keeps your draft and images.
+The floating composer sits below the wall. Type an idea and press `Enter`. The title becomes the filename by default; with a body-title mode it is written into the body and the filename comes from the template (duplicates get `-2`). Press `Tab` to expand the body; clearing it collapses the composer again. Your title and body are restored when you return to the panel. A successful submit clears the draft; a failed submit keeps it and the attached images.
 
 Paste, drag, or use the plus button to attach up to 8 images. They are compressed to static WebP by default; keep originals and animation in settings. New notes reuse the frontmatter of the Obsidian Default Template configured for the current folder.
 
 ### Read, edit, and tidy
 
 - Click a card to open the reading panel; double-click the title or body to edit, and press `⌘ / Ctrl + S` to save.
+- Cards without images preview up to seven lines depending on title length, with extra space at the bottom. Line breaks, list markers, and task status are preserved. Titles can fill the available space when there is no body text. Open the reading panel to check off a task.
 - Title modes only change the display. Switching modes, reading, cancelling edits, and saving without changes leave Markdown untouched. Editing and saving a title updates its source line while preserving inline images and block IDs.
 - Cards keep the normal arrow cursor. Folder tags overlay the upper-right corner over a matching paper-color gradient; cards and the reader share paper-colored tags with darker matching text and adjusted contrast in dark mode.
-- The reader's action bar is one row: Archive, To project, Delete, and Copy full note on the left, in that order, with line icons and tooltips above; the purple icon-and-text Open in Obsidian button sits on the right. AI comment emojis live in the comments heading row at the bottom, beside the Comments title. The double-click editing hint appears only when the body is empty.
-- Card comments are grouped by emoji + label, showing only a bold count and no body text; click a card to open it. In the reader, drag the line above the comments to resize them (96px to 72%, double-click to reset), or click the heading arrow or Comments title to collapse them into one row.
+- The reader's action bar is one row: Archive, To project, Delete, and Copy full note on the left, in that order, with line icons and tooltips above; the purple icon-and-text Open in Obsidian button sits on the right. AI comment emojis sit beside the Comments heading with a muted AI comment label, even when the list is collapsed. The double-click editing hint appears only when the body is empty.
+- Card comments are grouped by emoji + label, showing only a bold count and no body text; click a card to open it. In the reader, drag the line above the comments to resize them (96px to 72%, double-click to reset), or click the heading arrow or Comments title to collapse the list. The heading shows a count only when there are comments.
 - Each comment has a delete button; deleting removes the callout from the source Markdown and offers a 5-second undo. If the file changed again meanwhile, the undo is refused.
 - Saves are version-checked. If Obsidian, an AI comment, or another edit changed the note meanwhile, the save is refused and your draft is kept.
 - Tick tasks in reading mode; they are written back as `[ ]` / `[x]` while preserving line breaks and frontmatter.
@@ -178,7 +179,7 @@ Pointer movement updates only the preview layer, and switching the dock keeps th
 ## Data & privacy
 
 - **Notes and images stay in your vault, including deleted files in its `.trash` folder.** The plugin reads and writes the Obsidian folder you choose; it does not import, copy, or maintain a second library.
-- **Settings live in an independent user `config.json`, with a customizable location.** The official settings page and panel share this file; no config is written to your Obsidian vault.
+- **Settings live in an independent user `config.json`, with a customizable location.** No config is written to your Obsidian vault.
 - **No separate API key.** AI uses Harness's current default model and is called only when you click a comment or Open project; it does not start a conversation or write chat logs.
 - **No telemetry.** The plugin makes no analytics or tracking calls. Remote images inside notes are loaded by the browser, as with any Markdown file.
 - **Model calls send the relevant note content to your configured model provider.** That content is the input for the requested comment or project document and is limited to the current note.

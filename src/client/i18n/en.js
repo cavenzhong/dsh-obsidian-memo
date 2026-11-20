@@ -50,6 +50,8 @@ const en = {
   'card.aiComment': 'AI comment',
   'card.noPresets': 'Add comment emojis in Settings first',
   'card.moreImages': '＋{count}',
+  'card.task.todo': 'Incomplete task',
+  'card.task.done': 'Completed task',
 
   'panel.subfolders': 'Showing subfolders',
   'panel.topOnly': 'Top level only',
@@ -66,7 +68,8 @@ const en = {
   'drawer.loading': 'Loading…',
   'drawer.retry': 'Retry',
   'drawer.projects': 'Projects',
-  'drawer.comments': 'Comments ({count})',
+  'drawer.comments': 'Comments',
+  'drawer.commentsCount': 'Comments ({count})',
   'drawer.commentsCollapse': 'Collapse comments',
   'drawer.commentsExpand': 'Expand comments',
   'drawer.commentsResize': 'Drag up/down to resize comments (double-click to reset)',

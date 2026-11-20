@@ -146,11 +146,15 @@ function hookRunner(t) {
     }
   }
   react.useLayoutEffect = react.useEffect
-  const mod = loadClient(t, { react }).mod
+  const { mod, storage } = loadClient(t, { react })
   const api = mod.__test
-  t.after(() => { for (const cell of cells) cell?.cleanup?.() })
+  function unmount() {
+    for (const cell of cells) cell?.cleanup?.()
+    cells.length = 0
+  }
+  t.after(unmount)
   return {
-    api,
+    api, storage, unmount,
     apply: mod.apply,
     connect(call) {
       mod.apply({

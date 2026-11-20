@@ -1,4 +1,4 @@
-/** 请求代次、取消和可见性轮询；支持仅加载配置的官方设置页。 */
+/** 请求代次、取消和可见性轮询。 */
 import { EMPTY_STATE, POLL_BASE, POLL_HIDDEN } from '../constants.js';
 import { mergeState } from './state.js';
 import { panelIsVisible } from './visibility.js';
@@ -51,7 +51,7 @@ function useNotesData(options) {
   const readerRef = React.useRef(null);
   if (readerRef.current === null) {
     readerRef.current = createStateReader({
-      call: (payload, signal) => callRpc(optionsRef.current.settingsOnly ? 'settings' : 'state', payload, signal),
+      call: (payload, signal) => callRpc('state', payload, signal),
       getRevision: () => viewRef.current.revision,
       onValue(value) {
         if (!aliveRef.current) return;

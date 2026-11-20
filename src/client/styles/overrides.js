@@ -3,12 +3,8 @@ import { INK_BODY_DARK, INK_COMMENT_DARK, INK_MUTED_DARK, INK_TITLE_DARK } from 
 
 const overridesStyles = `
 /* ── 0.13 卡片：缩略图贴底 / 同色渐变蒙版 / AI emoji 平铺操作区 ── */
-.SN_cardTitle{flex:none}
-/* ── 有图卡片：标题 3 行、摘要 1 行（line-height 1.5）、评论 18px、64px 缩略图贴底左侧（下方再留 6px），208px 预算 ≈ 206.9 ── */
-.SN_card[data-images='true'] .SN_cardClip{padding:10px 15px;gap:2px}
-.SN_cardExcerpt[data-compact='true']{-webkit-line-clamp:1;line-height:1.5}
-.SN_card[data-images='true'] .SN_cardComments{max-height:18px;margin-top:0}
-.SN_cardImages{flex:none;display:flex;align-items:center;gap:6px;min-height:64px;overflow:hidden;margin-top:auto;margin-bottom:6px;align-self:flex-start;transition:opacity .12s ease}
+.SN_card[data-images='true'] .SN_cardComments{max-height:18px}
+.SN_cardImages{flex:none;display:flex;align-items:center;gap:6px;min-height:64px;overflow:hidden;margin-bottom:6px;align-self:flex-start;transition:opacity .12s ease}
 /* 0.13.4：卡片操作菜单出现（= 悬停/聚焦卡片）且这张卡有图时，统一隐藏图片预览；
    不再区分鼠标是否停在 emoji 行上，也移除了旧的同色渐变蒙版。 */
 .SN_card[data-menu='true'] .SN_cardImages{opacity:0;pointer-events:none}
@@ -31,26 +27,21 @@ const overridesStyles = `
 /* ── 0.13 抽屉：锁定按钮 / 底部固定评论区 ── */
 .SN_noteDrawerHeadActions{flex:none;display:flex;align-items:center;gap:2px}
 .SN_noteDrawerComments{position:relative;flex:none;display:flex;flex-direction:column;min-height:96px;max-height:42%;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
-/* 折叠后只留标题一行；显式高度让位给 auto，避免留下空白。 */
+/* 折叠后只留标题与 AI 操作；显式高度让位给 auto，避免留下空白。 */
 .SN_noteDrawerComments[data-collapsed='true']{height:auto!important;min-height:0;max-height:none}
-/* 顶边就是高度拖拽线：上面 8px 热区，悬停/拖动时显示品牌色。 */
-.SN_noteDrawerCommentsHandle{position:absolute;left:0;right:0;top:-5px;height:10px;z-index:4;cursor:row-resize;touch-action:none}
-.SN_noteDrawerCommentsHandle::after{content:'';position:absolute;left:0;right:0;top:4px;height:1px;background:transparent;transition:background .12s ease}
-.SN_noteDrawerCommentsHandle:hover::after,.SN_noteDrawerComments[data-resizing='true'] .SN_noteDrawerCommentsHandle::after{background:var(--dsw-alias-brand-primary,#2f6feb)}
-.SN_noteDrawerCommentsHandle[data-disabled='true']{cursor:default;pointer-events:none}
 .SN_noteDrawerComments[data-resizing='true'],.SN_noteDrawerComments[data-resizing='true'] *{user-select:none!important;cursor:row-resize!important}
-/* 0.16.6：评论标题行左侧是标题，右侧是 AI emoji 评论按钮（与标题同一行；emoji 多时只在行内换行，不把标题挤下去）。 */
-.SN_noteDrawerCommentsHead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;row-gap:6px;padding:8px 18px 6px}
+/* 评论标题与 AI 操作默认同一行，窄面板或较多预设时允许换行。 */
+.SN_noteDrawerCommentsHead{flex:none;display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:6px 10px;padding:8px 18px 6px}
 /* 标题本身是折叠按钮：图标在文字左侧；点图标或文字都能切换。 */
-.SN_commentToggle{display:inline-flex;align-items:center;gap:5px;min-width:0;margin:0;padding:2px 0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:6px}
+.SN_commentToggle{display:inline-flex;flex:none;align-items:center;gap:5px;white-space:nowrap;margin:0;padding:2px 0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:6px}
 .SN_commentToggle:hover .SN_noteViewSection{color:var(--dsw-alias-brand-primary,#2f6feb)}
 .SN_commentToggle:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}
 .SN_commentToggle .SN_chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .SN_commentToggle:hover .SN_chevron{color:var(--dsw-alias-brand-primary,#2f6feb)}
-.SN_commentEmojiRow{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;min-width:0;flex:1 1 0;margin-left:auto}
-.SN_commentEmojiRow .SN_aiBtn{flex:none}
-.SN_commentEmojiRow .SN_aiLabel{max-width:168px;white-space:normal;text-align:center}
-.SN_commentEmojiRow .SN_aiBtn:last-child .SN_aiLabel{left:auto;right:0;transform:none}
+.SN_commentEmojiRow{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;min-width:0;margin-left:auto}
+.SN_commentAIHint{margin-right:3px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.4;white-space:nowrap}
+.SN_commentEmojiRow .SN_aiLabel{width:max-content;max-width:168px;white-space:normal;overflow-wrap:anywhere;writing-mode:horizontal-tb;text-align:center}
+.SN_commentEmojiRow .SN_aiBtn:nth-last-child(-n+2) .SN_aiLabel{left:auto;right:0;transform:none}
 .SN_noteDrawerCommentsBody{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:2px 18px 14px;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar{width:8px}
 .SN_noteDrawerCommentsBody::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.16));border-radius:4px}

@@ -19,15 +19,37 @@ const wallStyles = `
 .SN_card[data-dragging='true']>*{visibility:hidden}
 .SN_panel[data-card-dragging='true'] .SN_card{transform:none;transition:none}
 .SN_card[data-menu='true']{z-index:25}
-.SN_cardClip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:14px 15px;background:var(--sn-card-bg,${DEFAULT_NOTE_COLOR})}
-.SN_cardHead{flex:none;min-width:0;overflow:hidden}
+.SN_cardClip{--sn-card-gap:6px;--sn-card-title-line:24.7px;--sn-card-excerpt-line:18px;--sn-card-excerpt-min:2;--sn-card-excerpt-cap:7;position:absolute;inset:0;border-radius:inherit;overflow:hidden;display:flex;flex-direction:column;gap:var(--sn-card-gap);padding:14px 15px;background:var(--sn-card-bg,${DEFAULT_NOTE_COLOR})}
+.SN_card[data-images='true'] .SN_cardClip{--sn-card-gap:2px;--sn-card-excerpt-line:18.75px;--sn-card-excerpt-min:1;--sn-card-excerpt-cap:4;padding:10px 15px}
+/* 固定脚部先占空间，文字区按剩余高度分给标题和正文；不逐卡测量。 */
+.SN_cardText{--sn-card-title-cap:7;--sn-card-text-reserve:0px;flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:var(--sn-card-gap);overflow:hidden}
+.SN_card[data-body='true'] .SN_cardText{--sn-card-text-reserve:calc(var(--sn-card-gap) + var(--sn-card-excerpt-line) * var(--sn-card-excerpt-min))}
+/* 无图正文的额外留白属于文字区，不抬高底部评论。 */
+.SN_card[data-images='false'][data-body='true'] .SN_cardText{margin-bottom:14px}
+.SN_card[data-images='true'][data-body='true'] .SN_cardText{--sn-card-title-cap:3}
+.SN_cardHead{flex:none;min-width:0;max-height:calc(100% - var(--sn-card-text-reserve));overflow:hidden}
 .SN_cardTagLayer{position:absolute;top:0;right:0;z-index:7;display:flex;justify-content:flex-end;max-width:100%;padding:14px 15px 20px 28px;mask-image:linear-gradient(to right,transparent,#000 20px);background:linear-gradient(to bottom,var(--sn-note-bg) 60%,transparent);opacity:0;transform:translateY(-3px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
 .SN_cardTag,.SN_noteDrawerTag{display:inline-block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;line-height:1.5;letter-spacing:.04em;border:1px solid color-mix(in srgb,var(--sn-tag-ink) 20%,transparent);border-radius:999px;padding:1px 8px;color:var(--sn-tag-ink);background:var(--sn-note-bg)}
 .SN_card[data-menu='true'] .SN_cardTagLayer{opacity:1;transform:none}
-.SN_cardTitle{margin:0;overflow:hidden;font-family:var(--sn-serif);font-size:19px;font-weight:600;line-height:1.3;color:var(--sn-ink-title);word-break:break-word;user-select:text}
-.SN_cardTitleText{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.SN_cardExcerpt{margin:0;flex:0 1 auto;min-height:0;font-size:12.5px;line-height:1.58;color:var(--sn-ink-body);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;user-select:text}
-.SN_cardComments{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 9px;min-height:0;max-height:37px;overflow:hidden;margin-top:auto}
+.SN_cardTitle{margin:0;font-family:var(--sn-serif);font-size:19px;font-weight:600;line-height:var(--sn-card-title-line);color:var(--sn-ink-title);word-break:break-word;user-select:text}
+.SN_cardTitleText{display:-webkit-box;-webkit-line-clamp:var(--sn-card-title-cap);-webkit-box-orient:vertical;overflow:hidden}
+.SN_cardExcerptSlot{flex:1 1 0;min-height:0;overflow:hidden}
+.SN_cardExcerpt{margin:0;max-height:100%;font-size:12.5px;line-height:var(--sn-card-excerpt-line);color:var(--sn-ink-body);display:-webkit-box;-webkit-line-clamp:var(--sn-card-excerpt-cap);-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;user-select:text}
+.SN_cardExcerpt[data-compact='false']{white-space:pre-line}
+.SN_cardMarker{display:inline-block;box-sizing:border-box;width:5px;height:5px;border-radius:50%;vertical-align:.12em;background:var(--sn-ink-muted)}
+.SN_cardMarker:is([data-kind='done'],[data-kind='todo']){background:var(--sn-accent)}
+.SN_cardMarker[data-kind='todo']{opacity:.5}
+/* 支持 CSS 取整时不裁半行；支持长度相除时按实际可见行数显示省略号。 */
+@supports (max-height:round(down,24px,12px)){
+  .SN_cardHead{max-height:round(down,calc(100% - var(--sn-card-text-reserve)),var(--sn-card-title-line))}
+  .SN_cardExcerpt{max-height:round(down,100%,1lh)}
+}
+@supports (-webkit-line-clamp:round(down,24px / 12px,1)){
+  .SN_cardText,.SN_cardExcerptSlot{container-type:size}
+  .SN_cardTitleText{-webkit-line-clamp:clamp(1,round(down,(100cqh - var(--sn-card-text-reserve)) / 1lh,1),var(--sn-card-title-cap))}
+  .SN_cardExcerpt{-webkit-line-clamp:clamp(1,round(down,100cqh / 1lh,1),var(--sn-card-excerpt-cap))}
+}
+.SN_cardComments{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 9px;min-height:0;max-height:37px;overflow:hidden}
 .SN_cCommentGroup{display:inline-flex;align-items:baseline;gap:4px;min-width:0;max-width:100%;font-size:11.5px;line-height:1.5;color:var(--sn-ink-comment);white-space:nowrap}
 .SN_cCommentEmoji{flex:none;font-size:11.5px;line-height:1}
 .SN_cCommentLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}

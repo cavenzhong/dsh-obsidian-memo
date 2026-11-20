@@ -5,15 +5,26 @@ const readerStyles = `
 /* ── 右侧便签抽屉（查看 / 编辑） ── */
 .SN_noteDrawerLayer{position:absolute;inset:0;z-index:30;pointer-events:none;display:flex;justify-content:flex-end}
 .SN_noteDrawer{--sn-note-bg:var(--sn-card-bg,${DEFAULT_NOTE_COLOR});--sn-tag-ink:var(--sn-card-bg-dark,#2C2721);pointer-events:auto;position:relative;width:34%;min-width:min(340px,100%);max-width:min(620px,100%);height:100%;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-layer-1,#fff);border-left:.5px solid var(--dsw-alias-border-l1);box-shadow:-10px 0 30px rgba(0,0,0,.12);animation:SN_slideIn .18s ease}
-.SN_noteDrawerHandle{position:absolute;left:0;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3;touch-action:none}
-.SN_noteDrawerHandle::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent;transition:background .12s ease}
-.SN_noteDrawerHandle:hover::after,.SN_noteDrawerHandle[data-resizing='true']::after{background:var(--dsw-alias-brand-primary)}
+/* 两条拖拽线共享热区、线宽和主题色，仅方向不同。 */
+.SN_noteDrawerHandle,.SN_noteDrawerCommentsHandle{--sn-resize-hit:10px;--sn-resize-line:2px;--sn-resize-edge:calc((var(--sn-resize-hit) - var(--sn-resize-line)) / 2);position:absolute;touch-action:none}
+.SN_noteDrawerHandle{left:calc(var(--sn-resize-hit) / -2);top:0;bottom:0;width:var(--sn-resize-hit);cursor:col-resize;z-index:3}
+.SN_noteDrawerCommentsHandle{left:0;right:0;top:calc(var(--sn-resize-hit) / -2);height:var(--sn-resize-hit);cursor:row-resize;z-index:4}
+.SN_noteDrawerHandle::after,.SN_noteDrawerCommentsHandle::after{content:'';position:absolute;background:transparent;transition:background .12s ease;pointer-events:none}
+.SN_noteDrawerHandle::after{inset:0 auto 0 var(--sn-resize-edge);width:var(--sn-resize-line)}
+.SN_noteDrawerCommentsHandle::after{inset:var(--sn-resize-edge) 0 auto;height:var(--sn-resize-line)}
+.SN_noteDrawerHandle:is(:hover,[data-resizing='true'])::after,.SN_noteDrawerCommentsHandle:not([data-disabled='true']):is(:hover,[data-resizing='true'])::after{background:var(--sn-accent)}
+.SN_noteDrawerCommentsHandle[data-disabled='true']{pointer-events:none}
 .SN_panel[data-resizing='true'],.SN_panel[data-resizing='true'] *{user-select:none!important;cursor:col-resize!important}
 .SN_noteDrawerHead{flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
 .SN_noteDrawerHeadMain{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
 .SN_noteDrawerTitle{margin:0;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.35;color:var(--dsw-alias-label-primary);word-break:break-word}
-/* 编辑态标题：多行 textarea，完整换行显示（不横向滚动）；高度随内容自适应（JS 兜底 + field-sizing）。 */
-.SN_titleEditor{display:block;width:100%;min-width:0;min-height:24px;max-height:132px;border:0;border-bottom:1px solid var(--dsw-alias-border-l2);padding:2px 0;margin:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.35;outline:none;resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;field-sizing:content}
+/* 标题随内容增高；旧 WebView 用同格内的隐形文字撑高，无需测量或监听宽度。 */
+.SN_titleEditorFit{display:grid;grid-template-columns:minmax(0,1fr)}
+.SN_titleEditor,.SN_titleEditorFit::before{grid-area:1/1;min-height:24px;border:0;border-bottom:1px solid transparent;padding:2px 0;margin:0;font:inherit;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere}
+.SN_titleEditor{display:block;align-self:stretch;width:100%;min-width:0;border-bottom-color:var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);outline:none;resize:none;overflow:hidden;field-sizing:content}
+@supports not (field-sizing:content){
+  .SN_titleEditorFit::before{content:attr(data-title);visibility:hidden;pointer-events:none}
+}
 .SN_noteDrawerTitleHint{margin:0;font-size:10.5px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 .SN_noteDrawerMeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary)}
 .SN_noteDrawerTag{flex:none;max-width:100%}
@@ -24,8 +35,8 @@ const readerStyles = `
 .SN_noteViewError{display:flex;align-items:center;gap:12px;margin-bottom:14px;font-size:12.5px;color:var(--dsw-alias-state-error-primary)}
 .SN_noteViewEmpty{margin:0 0 14px;font-size:13px;color:var(--dsw-alias-label-tertiary)}
 .SN_noteViewSection{margin:0;font-family:var(--sn-serif);font-size:14px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
-.SN_noteEdit{flex:1;min-height:0;display:flex;flex-direction:column}
-.SN_noteEditor{flex:1;min-height:0;width:100%;padding:16px 18px;border:0;resize:none;outline:none;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;tab-size:2}
+.SN_noteEditContent{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin}
+.SN_noteEditor{flex:1;min-height:144px;width:100%;padding:16px 18px;border:0;resize:none;outline:none;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;tab-size:2}
 .SN_noteEditor:disabled{opacity:.7;cursor:wait}
 .SN_noteEditBar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#f2f0ec)}
 .SN_noteEditHint{font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary)}

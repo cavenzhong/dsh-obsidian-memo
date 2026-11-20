@@ -7,6 +7,33 @@ import { React, h } from '../react.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { cardCommentGroups, cardImages, emojiLabel } from './model.js';
 
+function playCardPress(card) {
+  if (!card?.animate || card.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  // 独立 scale 与 hover 的 transform 共存；不测量布局或更新便签墙状态。
+  card.animate([{ scale: '1' }, { scale: '.965', offset: .38 }, { scale: '1' }], { duration: 150, easing: 'ease-out' });
+}
+
+// 仅替换摘要中的标记，不把正文拆成块，以保留原本的流式换行与截断。
+function cardExcerptContent(text, multiline, t) {
+  const pattern = multiline ? /^(?:(\d{1,9}[.)] ))?([•☐☑])(?= |$)/gm : /(^| )([☐☑])(?= |$)/g;
+  const parts = [];
+  let from = 0;
+  for (const match of text.matchAll(pattern)) {
+    const [, prefix = '', mark] = match;
+    const at = match.index + prefix.length;
+    if (from < at) parts.push(text.slice(from, at));
+    const kind = mark === '•' ? 'bullet' : mark === '☑' ? 'done' : 'todo';
+    parts.push(h('span', {
+      key: at, className: 'SN_cardMarker', 'data-kind': kind,
+      ...(kind === 'bullet' ? { 'aria-hidden': 'true' } : { role: 'img', 'aria-label': t(`card.task.${kind}`) }),
+    }));
+    from = at + mark.length;
+  }
+  if (from === 0) return text;
+  if (from < text.length) parts.push(text.slice(from));
+  return parts;
+}
+
 const NoteCard = React.memo(function NoteCard(props) {
   const {
     note, emojis, pending, hoverActive, drawerOpen, actions,
@@ -16,10 +43,11 @@ const NoteCard = React.memo(function NoteCard(props) {
   // Host 的深色配套纸色；缺失（旧数据/未升级 Host）时回退到浅色纸色。
   const darkColor = typeof note.darkColor === 'string' && note.darkColor !== '' ? note.darkColor : color;
   const title = note.title || note.name || '';
-  const excerpt = typeof note.excerpt === 'string' ? note.excerpt : '';
-  // 有图时：标题仍 3 行、摘要 1 行、评论 1 类；缩略图排在评论条之后并贴卡片底部左侧。
+  // 有图时保留缩略图与一类评论；标题和摘要按卡片的剩余高度分配。
   const { items: images, more: moreImages } = cardImages(note);
   const hasImages = images.length > 0;
+  const preview = !hasImages && typeof note.cardPreview === 'string' ? note.cardPreview : '';
+  const excerpt = preview || (typeof note.excerpt === 'string' ? note.excerpt : '');
   // 卡片只显示「emoji + label + 加粗条数」，不显示评论正文；点击整张卡片打开右侧面板。
   const commentGroups = cardCommentGroups(note);
   const visibleGroups = commentGroups.slice(0, hasImages ? 1 : MAX_CARD_COMMENT_GROUPS);
@@ -35,6 +63,7 @@ const NoteCard = React.memo(function NoteCard(props) {
     'data-note-path': note.path,
     'data-menu': menuVisible ? 'true' : 'false',
     'data-images': hasImages ? 'true' : 'false',
+    'data-body': excerpt ? 'true' : 'false',
     'data-drawer': drawerOpen ? 'true' : 'false',
     'data-dragging': props.dragging ? 'true' : 'false',
     draggable: !disabled && !props.preview,
@@ -67,7 +96,8 @@ const NoteCard = React.memo(function NoteCard(props) {
     title: t('card.openHint'),
     // 单击打开右侧抽屉（event.detail===1 守卫：双击的第二次 click 不触发“开→关”）。
     onClick: (event) => {
-      if (event.detail !== 1) return;
+      if (event.detail !== 1 || props.preview || props.dragging) return;
+      playCardPress(event.currentTarget);
       actions.current.onOpen(note);
     },
     onKeyDown: (event) => {
@@ -92,18 +122,21 @@ const NoteCard = React.memo(function NoteCard(props) {
   },
     h('div', { className: 'SN_cardClip' },
       // 标题独占宽度；文件夹 tag 只在同一菜单激活时覆盖在右上角。
-      h('div', { className: 'SN_cardHead' },
-        h('h3', { className: 'SN_cardTitle', title: title },
-          h('span', { className: 'SN_cardTitleText' }, title),
+      h('div', { className: 'SN_cardText' },
+        h('div', { className: 'SN_cardHead' },
+          h('h3', { className: 'SN_cardTitle', title: title },
+            h('span', { className: 'SN_cardTitleText' }, title),
+          ),
         ),
+        // 没有正文就不占位，标题可以用满文字区。
+        excerpt ? h('div', { className: 'SN_cardExcerptSlot' },
+          h('p', { className: 'SN_cardExcerpt', 'data-compact': hasImages ? 'true' : 'false' },
+            cardExcerptContent(excerpt, Boolean(preview), t),
+          ),
+        ) : null,
       ),
       note.tag ? h('div', { className: 'SN_cardTagLayer' },
         h('span', { className: 'SN_cardTag', title: note.tag }, note.tag)) : null,
-      // 0.13.9：没有正文就不渲染摘要行（不再显示占位文案）。
-      excerpt ? h('p', {
-        className: 'SN_cardExcerpt',
-        'data-compact': hasImages ? 'true' : 'false',
-      }, excerpt) : null,
       visibleGroups.length === 0 && restGroups === 0 ? null : h('div', { className: 'SN_cardComments' },
         visibleGroups.map((group, index) => h('span', {
           className: 'SN_cCommentGroup',
@@ -116,7 +149,7 @@ const NoteCard = React.memo(function NoteCard(props) {
         )),
         restGroups > 0 ? h('span', { className: 'SN_cCommentMore' }, t('card.moreCommentGroups', { count: restGroups })) : null,
       ),
-      // 0.13 修正：图片条排在评论条之后，margin-top:auto 贴卡片底部、align-self:flex-start 靠左。
+      // 文字区伸缩，缩略图始终排在评论条之后、贴底靠左。
       hasImages
         ? h('div', { className: 'SN_cardImages' },
           images.map((image, index) => h(CardThumb, {

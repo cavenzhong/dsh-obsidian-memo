@@ -1,4 +1,4 @@
-/** 输入岛焦点和外部图片拖入判断，避免抢占正文编辑快捷键。 */
+/** 输入岛焦点和外部图片拖入判断，避免抢占便签编辑快捷键。 */
 import { panelIsVisible } from '../data/visibility.js';
 
 const CAPTURE_TAB_PASSTHROUGH = 'button,a,input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="textbox"],[role="menuitem"],[tabindex]';
@@ -16,7 +16,7 @@ function focusCaptureOnTab(event, { panel, form, title, busy }) {
   if (!panel || !form || !title || busy || event.defaultPrevented || !['Tab', 'Enter'].includes(event.key)
     || event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229 || !panelIsVisible(panel)) return false;
   const target = event.target;
-  if (target && (form.contains(target) || target.closest?.('.SN_noteEditor'))) return false;
+  if (target && (form.contains(target) || target.closest?.('.SN_noteEditor, .SN_titleEditor'))) return false;
   const doc = panel.ownerDocument;
   const atPageRoot = Boolean(target) && (target === doc?.body || target === doc?.documentElement || target === doc);
   if (!atPageRoot && !(target && panel.contains(target))) return false;

@@ -13,7 +13,7 @@ import { baseName, resolvedPath } from '../utils.js';
 function SettingsDrawer(props) {
   const {
     t, draft, picking, saving, onPatch, onPick, onRemoveArchive, onPatchEmoji, onRemoveEmoji, onAddEmoji,
-    onSave, onCancel, request, inline, onConfigSettings,
+    onSave, onCancel, request, onConfigSettings,
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
   const [activeEmoji, setActiveEmoji] = React.useState(null);
@@ -31,14 +31,14 @@ function SettingsDrawer(props) {
   const disabled = Boolean(saving);
 
   return h(Fragment, null,
-    !inline ? h('div', { className: 'SN_scrim', role: 'presentation', 'data-window-drag-exclude': '', onClick: saving ? undefined : onCancel }) : null,
+    h('div', { className: 'SN_scrim', role: 'presentation', 'data-window-drag-exclude': '', onClick: saving ? undefined : onCancel }),
     h('aside', {
-      className: inline ? 'SN_inlineSettings' : 'SN_drawer',
+      className: 'SN_drawer',
       // DSH 0.2.2-rc.2 起 macOS 只自动排除 data-window-drag[-controls] 内的控件；
       // 设置抽屉与遮罩盖在顶栏拖动行上，需显式排除自身矩形，头部关闭和遮罩点击才不会被当成拖窗口。
-      'data-window-drag-exclude': inline ? undefined : '',
-      role: inline ? undefined : 'dialog',
-      'aria-modal': inline ? undefined : 'true',
+      'data-window-drag-exclude': '',
+      role: 'dialog',
+      'aria-modal': 'true',
       'aria-label': t('settings.title'),
     },
       h('div', { className: 'SN_drawerHead' },

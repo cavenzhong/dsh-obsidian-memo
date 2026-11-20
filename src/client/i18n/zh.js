@@ -50,6 +50,8 @@ const zh = {
   'card.aiComment': 'AI 评论',
   'card.noPresets': '请先在设置里添加评论 emoji',
   'card.moreImages': '＋{count}',
+  'card.task.todo': '未完成待办',
+  'card.task.done': '已完成待办',
 
   'panel.subfolders': '显示子文件夹',
   'panel.topOnly': '仅显示顶层',
@@ -66,7 +68,8 @@ const zh = {
   'drawer.loading': '正在读取…',
   'drawer.retry': '重试',
   'drawer.projects': '项目',
-  'drawer.comments': '评论（{count}）',
+  'drawer.comments': '评论',
+  'drawer.commentsCount': '评论（{count}）',
   'drawer.commentsCollapse': '折叠评论',
   'drawer.commentsExpand': '展开评论',
   'drawer.commentsResize': '上下拖动调整评论高度（双击恢复默认）',

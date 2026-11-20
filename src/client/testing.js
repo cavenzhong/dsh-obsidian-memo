@@ -41,7 +41,6 @@ import { useNoteEditor } from './reader/use-note-editor.js';
 import { AI_EFFORTS, AI_PRESETS, AI_PRESET_IDS, DEFAULT_AI, patchAiBudget, readAiBudget } from './settings/ai-budget.js';
 import { ConfigFileSettings } from './settings/config-file.js';
 import { ImageProcessingSettings } from './settings/image-processing.js';
-import { OfficialSettingsPage } from './settings/official-page.js';
 import { SettingsPathField, VaultFolderPicker, vaultRelative } from './settings/paths.js';
 import { SettingsDrawer } from './settings/settings-drawer.js';
 import { TitleModeIcon, TitleModeSettings } from './settings/note-title.js';
@@ -155,7 +154,7 @@ const __test = {
     NoteBlock: NoteBlock,
     NoteComment: NoteComment,
     NoteDrawer: NoteDrawer,
-    SettingsDrawer: SettingsDrawer, VaultFolderPicker, ConfigFileSettings, TrashSettings, OfficialSettingsPage,
+    SettingsDrawer: SettingsDrawer, VaultFolderPicker, ConfigFileSettings, TrashSettings,
     SettingsPathField: SettingsPathField,
     StyleSelect: StyleSelect,
     ProjectDialog: ProjectDialog,

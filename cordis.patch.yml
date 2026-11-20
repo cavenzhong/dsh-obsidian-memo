@@ -4,7 +4,7 @@
 #   plugin_manager install_bundle  target=link:/absolute/path/to/dsh-obsidian-memo
 #
 # 用户设置保存在独立用户配置目录中的 config.json；
-# 面板齿轮和官方设置插件共用同一份 JSON，不写 Obsidian 配置。
+# 通过面板齿轮调整设置，不写 Obsidian 配置。
 - insert:
     - id: sticky-notes
       name: 'dsh-obsidian-memo'

@@ -101,30 +101,32 @@ test('v0.16 加载配置：取消选择不加载，失败保留设置并允许�
   assert.equal(render().some((node) => node.props.role === 'alert'), false)
 })
 
-test('v0.16 官方设置：注册 Plugins 页标签，顶栏无手动刷新按钮', (t) => {
-  const { mod } = loadClient(t), registrations = []
+test('只注册侧栏和便签面板，不注入 DSH 内置插件设置', (t) => {
+  const { mod } = loadClient(t), injections = [], registrations = []
   mod.apply({ connection: {}, locale: { register() {}, bind: () => (key) => key },
-    slots: { inject(name, fn) { fn() }, register(options, component) { registrations.push({ options, component }); return () => {} } },
+    slots: { inject(name, fn) { injections.push(name); fn() }, register(options) { registrations.push(options.name); return () => {} } },
     effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose } })
-  const page = registrations.find((entry) => entry.options.name === 'settings.plugins.tab')
-  assert.equal(page.options.id, 'sticky-notes')
-  assert.equal(page.component, mod.__test.components.OfficialSettingsPage)
-  const nodes = captureNodes(mod.__test.components.StickyNotesPanel({ t: (key) => key }))
-  assert.equal(nodes.some((node) => node.props['aria-label'] === 'panel.refresh'), false)
+  assert.deepEqual(injections, ['sidebar.panellist', 'main'])
+  assert.deepEqual(registrations, injections)
 })
 
-test('v0.16 官方设置只轮询配置，不请求便签墙数据', async (t) => {
+test('面板内齿轮仍打开设置抽屉，顶栏无手动刷新按钮', async (t) => {
   const runner = hookRunner(t), calls = []
+  const previous = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
   runner.connect(async (channel, endpoint) => {
     calls.push(endpoint)
-    return { ok: true, value: { configured: true, settings: { vaultPath: '/vault', emojis: [] }, revision: 'settings-only' } }
+    return { ok: true, value: { configured: true, settings: { vaultPath: '/vault', emojis: [] }, revision: 'state-1' } }
   })
-  runner.render(runner.api.components.OfficialSettingsPage)
+  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
+  render()
   await flush()
-  runner.render(runner.api.components.OfficialSettingsPage)
-  const page = runner.render(runner.api.components.OfficialSettingsPage)
-  assert.deepEqual(calls, ['settings'])
-  assert.ok(captureNodes(page).some((node) => node.type === runner.api.components.SettingsDrawer))
+  const nodes = render()
+  assert.deepEqual(calls, ['state'])
+  assert.equal(nodes.some((node) => node.props['aria-label'] === 'panel.refresh'), false)
+  nodes.find((node) => node.props['aria-label'] === 'panel.settings').props.onClick()
+  assert.ok(render().some((node) => node.type === runner.api.components.SettingsDrawer))
 })
 
 test('client __test：PINNED_NOTE_KEY 与锁定面板便签路径的存取/清除', (t) => {

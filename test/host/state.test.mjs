@@ -73,6 +73,20 @@ test('state：返回 configured / notes / settings，knownRevision 相同时 unc
   assert.equal(same.value.revision, first.value.revision)
 })
 
+test('state：下发无图卡片的多行预览，任务写回后摘要同步更新', async () => {
+  const c = await makeCase({ notes: { '无图.md': '行一\n行二\n- [ ] 待办\n', '有图.md': '行一\n行二\n\n![[a.png]]\n' } })
+  const state = await c.call('state')
+  assert.equal(state.ok, true)
+  const note = state.value.notes.find((item) => item.name === '无图')
+  assert.equal(note.excerpt, '行一 行二 ☐ 待办')
+  assert.equal(note.cardPreview, '行一\n行二\n☐ 待办')
+  assert.equal(state.value.notes.find((item) => item.name === '有图').cardPreview, null)
+  const full = (await c.call('note', { path: note.path })).value
+  const changed = await c.call('toggleTask', { path: note.path, sourceLine: 2, checked: true, expectedBody: full.body })
+  assert.equal(changed.ok, true)
+  assert.equal(changed.value.note.cardPreview, '行一\n行二\n☑ 待办')
+})
+
 test('state：NoteSummary 带 images / imageCount / commentKinds（0.12）', async () => {
   const c = await makeCase({
     notes: {

@@ -1,4 +1,5 @@
 /** 快速记录输入、草稿与附件预览；对象 URL 和提交锁由此持有。 */
+import { EMPTY_DRAFT, clearSubmittedDraft, readCaptureDraft, storeCaptureDraft } from './draft.js';
 import { captureFiles, compressCaptureImage, readCaptureImage } from './images.js';
 import { captureFileDrag, captureRefocusField, focusCaptureOnTab } from './keyboard.js';
 import { ActionIcon, CloseIcon, RefreshIcon } from '../components/icons.js';
@@ -7,15 +8,22 @@ import { DropActions } from '../drag/drop-actions.js';
 import { React, h } from '../react.js';
 import { makeError } from '../utils.js';
 
+function resizeCaptureBody(field) {
+  field.style.height = 'auto';
+  field.style.height = Math.min(160, Math.max(68, field.scrollHeight)) + 'px';
+}
+
 function CaptureComposer(props) {
   const {
     t, onCreate, onCreated, onError, enabled, imageCompression, titleMode, dragNote, archiveParked, dropAction,
     dropTargetId, archiveTargets, onDragHover, onArchiveDrop, onArchiveChoose, onProjectDrop, onDeleteDrop,
     showBackTop, onBackTop,
   } = props;
-  const [title, setTitle] = React.useState('');
-  const [body, setBody] = React.useState('');
-  const [bodyOpen, setBodyOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState(readCaptureDraft);
+  const { title, body } = draft;
+  const draftRef = React.useRef(draft);
+  const [bodyOpen, setBodyOpen] = React.useState(() => body !== '');
+  const focusBodyRef = React.useRef(false);
   const [images, setImages] = React.useState([]);
   const [expanded, setExpanded] = React.useState(false);
   const [preview, setPreview] = React.useState(null);
@@ -39,7 +47,15 @@ function CaptureComposer(props) {
     imagesRef.current = [];
     setImages([]); setPreview(null); setExpanded(false);
   }, [enabled, busy]);
-  React.useEffect(() => { if (bodyOpen && bodyRef.current) bodyRef.current.focus(); }, [bodyOpen]);
+  React.useLayoutEffect(() => {
+    const field = bodyRef.current;
+    if (!enabled || !bodyOpen || !field || dragNote) return;
+    resizeCaptureBody(field);
+    if (focusBodyRef.current) {
+      focusBodyRef.current = false;
+      field.focus();
+    }
+  }, [enabled, bodyOpen, dragNote]);
   React.useEffect(() => {
     if (!enabled || dragNote || typeof document === 'undefined') return undefined;
     const onKeyDown = (event) => focusCaptureOnTab(event, {
@@ -80,6 +96,14 @@ function CaptureComposer(props) {
     if (observer) observer.observe(dock);
     return () => { if (observer) observer.disconnect(); wall.style.removeProperty('--sn-capture-height'); };
   }, [enabled]);
+  function changeDraft(field, value) {
+    if (busyRef.current || draftRef.current[field] === value) return;
+    const next = { ...draftRef.current, [field]: value };
+    draftRef.current = next;
+    // 在输入事件中写入，避免紧接着切换面板、卸载时丢失最后一次输入。
+    storeCaptureDraft(next);
+    setDraft(next);
+  }
   function hidePreview() { clearTimeout(previewTimer.current); setPreview(null); }
   function previewImage(image) {
     hidePreview();
@@ -102,7 +126,8 @@ function CaptureComposer(props) {
   }
   async function submit(event) {
     if (event) event.preventDefault();
-    if (busyRef.current || !enabled || !title.trim()) return;
+    const submitted = draftRef.current;
+    if (busyRef.current || !enabled || !submitted.title.trim()) return;
     refocusRef.current = captureRefocusField(typeof document === 'undefined' ? null : document.activeElement, bodyRef.current);
     busyRef.current = true;
     setBusy(true);
@@ -120,12 +145,14 @@ function CaptureComposer(props) {
         encoded.push(await readCaptureImage(file));
       }
       if (!aliveRef.current) return;
-      const result = await onCreate({ title, body, images: encoded });
+      const result = await onCreate({ ...submitted, images: encoded });
+      clearSubmittedDraft(submitted);
       if (!aliveRef.current) return;
       imagesRef.current.forEach((item) => URL.revokeObjectURL(item.url));
       imagesRef.current = [];
       refocusRef.current = 'title';
-      setImages([]); setTitle(''); setBody(''); setBodyOpen(false); setExpanded(false);
+      draftRef.current = EMPTY_DRAFT;
+      setDraft(EMPTY_DRAFT); setImages([]); setBodyOpen(false); setExpanded(false);
       onCreated(result);
     } catch (error) {
       if (aliveRef.current) onError(['capture.readFailed', 'capture.compressFailed'].includes(error.message) ? makeError('bad-request', t(error.message)) : error);
@@ -140,8 +167,8 @@ function CaptureComposer(props) {
       event.preventDefault();
       event.stopPropagation();
       if (!busyRef.current) {
-        setBodyOpen(true);
-        if (bodyRef.current) bodyRef.current.focus();
+        if (bodyOpen && bodyRef.current) bodyRef.current.focus();
+        else { focusBodyRef.current = true; setBodyOpen(true); }
       }
     } else if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); submit(); }
   }
@@ -156,7 +183,7 @@ function CaptureComposer(props) {
       className: 'SN_capture', ref: formRef, 'data-body': bodyOpen ? 'true' : 'false', 'data-dragging': dragging ? 'true' : 'false',
       'aria-label': t('capture.label'), 'aria-busy': busy, onSubmit: submit,
       onBlur: (event) => {
-        if (!event.currentTarget.contains(event.relatedTarget) && !body.trim()) { setBody(''); setBodyOpen(false); }
+        if (!event.currentTarget.contains(event.relatedTarget) && !draftRef.current.body) setBodyOpen(false);
       },
       onDragEnter: (event) => {
         if (!captureFileDrag(event)) return;
@@ -196,7 +223,7 @@ function CaptureComposer(props) {
         if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape') {
           event.preventDefault(); event.stopPropagation();
-          if (!body.trim()) { setBody(''); setBodyOpen(false); }
+          if (!draftRef.current.body) setBodyOpen(false);
           if (typeof document !== 'undefined') document.activeElement?.blur();
           return;
         }
@@ -229,29 +256,28 @@ function CaptureComposer(props) {
         h('div', { className: 'SN_captureTitleRow' },
           h('span', { ref: titleMeasureRef, className: 'SN_captureTitleMeasure', 'aria-hidden': 'true' }, title || t('capture.placeholder')),
           h('textarea', { className: 'SN_captureTitle', ref: titleRef, rows: 1, value: title, disabled: busy, autoComplete: 'off',
-            'aria-label': t(titleMode && titleMode !== 'filename' ? 'capture.titleBody' : 'capture.title'), placeholder: t('capture.placeholder'), onChange: (event) => setTitle(event.target.value.replace(/[\r\n]+/g, ' ')), onKeyDown: titleKeyDown }),
+            'aria-label': t(titleMode && titleMode !== 'filename' ? 'capture.titleBody' : 'capture.title'), placeholder: t('capture.placeholder'), onChange: (event) => changeDraft('title', event.target.value.replace(/[\r\n]+/g, ' ')), onKeyDown: titleKeyDown }),
           !bodyOpen ? h('span', { className: 'SN_captureHint', 'aria-hidden': 'true' }, h('kbd', null, 'Tab'), t('capture.tab')) : null,
         ),
         bodyOpen ? h('textarea', { className: 'SN_captureBody', ref: bodyRef, value: body, disabled: busy, 'aria-label': t('capture.body'), placeholder: t('capture.bodyPlaceholder'),
           onChange: (event) => {
             const next = event.target.value;
-            setBody(next);
+            changeDraft('body', next);
             // 正文删空后回到「只输入标题」的小状态；聚焦回标题，避免 textarea 卸载后焦点掉到 body。
             if (next === '' && !event.nativeEvent?.isComposing) {
               setBodyOpen(false);
               if (titleRef.current) titleRef.current.focus();
               return;
             }
-            event.target.style.height = 'auto';
-            event.target.style.height = Math.min(160, Math.max(68, event.target.scrollHeight)) + 'px';
+            resizeCaptureBody(event.target);
           },
           onKeyDown: (event) => {
             if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return;
             if (event.key === 'Tab' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
               event.preventDefault(); event.stopPropagation();
               if (titleRef.current) titleRef.current.focus();
-            } else if (event.key === 'Backspace' && !body.trim()) {
-              event.preventDefault(); event.stopPropagation(); setBody(''); setBodyOpen(false); titleRef.current?.focus();
+            } else if (event.key === 'Backspace' && !draftRef.current.body) {
+              event.preventDefault(); event.stopPropagation(); setBodyOpen(false); titleRef.current?.focus();
             }
           } }) : null,
         bodyOpen ? h('span', { className: 'SN_captureSubmitHint' }, t('capture.submitHint')) : null,
