@@ -2,7 +2,7 @@
   <img src="icon.svg" width="52" height="52" alt="">
 </p>
 
-<h1 align="center">Obsidian MEMO</h1>
+<h1 align="center">DSH Obsidian MEMO</h1>
 
 <p align="center"><strong>在 DeepSeek Harness 里，用便签墙读写 Obsidian 笔记。</strong></p>
 

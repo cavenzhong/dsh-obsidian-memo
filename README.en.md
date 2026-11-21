@@ -2,7 +2,7 @@
   <img src="icon.svg" width="52" height="52" alt="">
 </p>
 
-<h1 align="center">Obsidian MEMO</h1>
+<h1 align="center">DSH Obsidian MEMO</h1>
 
 <p align="center"><strong>Read and edit Obsidian notes on a sticky-note wall inside DeepSeek Harness.</strong></p>
 
@@ -16,9 +16,9 @@
 
 <p align="center">
   <a href="#install"><ins>Install</ins></a> ·
+  <a href="#everyday-use"><ins>Everyday use</ins></a> ·
   <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
   <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
-  <a href="#everyday-use"><ins>Everyday use</ins></a> ·
   <a href="#faq"><ins>FAQ</ins></a> ·
   <a href="README.md"><ins>简体中文</ins></a>
 </p>
@@ -41,6 +41,20 @@ target: dsh-obsidian-memo
 ```
 
 `dsh-sticky-notes` on npm is a different DSH notes plugin and is unrelated to this one. Updates and uninstalling happen on the Plugins page; uninstalling only removes the plugin registration and never deletes your notes.
+
+## Everyday use
+
+### Capture a thought and paste in an image
+
+In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ / Ctrl + Enter` to submit text and images. Paste or drag in images; they’re compressed to WebP by default.
+
+![The capture bar with a title, a body, and two attached reference images](docs/assets/capture.png)
+
+### Browse on the left, work on a note on the right
+
+Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Drag a note to archive it, or select **Open in Obsidian** to keep writing there.
+
+![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/reader.png)
 
 ## AI comments: Four perspectives
 
@@ -74,20 +88,6 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 *Review the change summary after it’s written. If it’s not right, choose Undo before accepting to restore both the project and the source note. This undo is no longer available after restarting Harness.*
 
 [See a project document example (中文)](docs/GUIDE.md#项目文档怎么读怎么补充).
-
-## Everyday use
-
-### Capture a thought and paste in an image
-
-In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ / Ctrl + Enter` to submit text and images. Paste or drag in images; they’re compressed to WebP by default.
-
-![The capture bar with a title, a body, and two attached reference images](docs/assets/capture.png)
-
-### Browse on the left, work on a note on the right
-
-Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Drag a note to archive it, or select **Open in Obsidian** to keep writing there.
-
-![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/reader.png)
 
 ## FAQ
 
