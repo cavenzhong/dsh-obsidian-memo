@@ -3,7 +3,7 @@ import { React } from '../react.js';
 import { isAbortError } from '../utils.js';
 import { emojiLabel } from '../wall/model.js';
 
-function useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setHoverPath, tRef, viewRef, watchedJobsRef }) {
+function useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setHoverPath, tRef, viewRef, watchedJobsRef }) {
   const [commentConfirm, setCommentConfirm] = React.useState(null);
   const [localPending, setLocalPending] = React.useState({});
   const commentingRef = React.useRef(new Set());
@@ -39,9 +39,8 @@ function useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, 
     if (!note || !emoji) return;
     if (note.pending || localPending[note.path] || commentingRef.current.has(note.path)) return;
     commentingRef.current.add(note.path);
-    // 进入 pending 后操作区被替换，菜单/悬停状态一并清掉。
+    // 进入 pending 后清掉卡片悬停状态。
     setHoverPath(null);
-    setDrawerArchive(false);
     setLocalPending((current) => Object.assign({}, current, {
       [note.path]: { emoji: emoji.emoji || '✍️', label: emoji.label || '' },
     }));

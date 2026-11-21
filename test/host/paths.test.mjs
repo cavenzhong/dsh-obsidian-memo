@@ -14,7 +14,7 @@ test('路径边界：设置、归档、开档与打开不能经目录符号链�
   await symlink(outside, c.archiveDir, 'dir')
   await symlink(outside, c.projectDir, 'dir')
   const path = c.seeded['甲.md']
-  const archive = await c.call('archive', { path, targetId: 'arch' })
+  const archive = await c.call('archive', { path })
   assert.equal(archive.error.code, 'bad-request')
   const project = await c.call('openProject', { path, name: '项目' })
   assert.equal(project.error.code, 'bad-request')

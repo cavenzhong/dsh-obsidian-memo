@@ -11,7 +11,6 @@ test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详�
     onCopy: (n) => calls.push(['copy', n.path]),
     onOpen: (n) => calls.push(['open', n.path]),
     onOpenObsidian: (n) => calls.push(['obsidian', n.path]),
-    onToggleArchive: (n) => calls.push(['archive', n.path]),
     onProject: (n) => calls.push(['project', n.path]),
     onDelete: (n) => calls.push(['delete', n.path]),
     onDragStart: (n) => calls.push(['drag', n.path]),
@@ -65,13 +64,13 @@ test('v0.15 拖拽：透明系统拖影，保存真实尺寸与抓取位置，�
   assert.equal(removed, true)
 })
 
-test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽后输入草稿仍在', (t) => {
+test('拖拽栏：归档直接执行，项目保留目标菜单，取消后输入草稿仍在', (t) => {
   const runner = hookRunner(t), api = runner.api
   const calls = [], active = []
   const menu = captureNodes(api.components.DropActions({
-    t: (key) => key, active: null, activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
+    t: (key) => key, active: null, activeTargetId: null, projectTargets: [{ id: 'work', label: '进行时' }],
     onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
-    onArchive: (_, targetId) => calls.push(['archive', targetId]),
+    onArchive: () => calls.push(['archive']),
     onProject: () => calls.push(['project']),
     onDelete: () => calls.push(['delete']),
   }))
@@ -82,18 +81,15 @@ test('v0.15 拖拽栏：归档、到项目、删除均可执行，取消拖拽�
     assert.equal(event.dataTransfer.dropEffect, 'move')
     node.props.onDrop(event)
   }
-  assert.deepEqual(calls, [['archive', null], ['project'], ['delete']])
-  const archiveMenu = captureNodes(api.components.DropActions({
-    t: (key) => key, active: 'archive', activeTargetId: null, targets: [{ id: 'work', label: '进行时' }],
+  assert.deepEqual(calls, [['archive'], ['project'], ['delete']])
+  const archiveHover = captureNodes(api.components.DropActions({
+    t: (key) => key, active: 'archive', activeTargetId: null, projectTargets: [{ id: 'work', label: '进行时' }],
     onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
-    onArchive: (_, targetId) => calls.push(['archive', targetId]), onProject() {}, onDelete() {},
+    onArchive: () => calls.push(['archive-again']), onProject() {}, onDelete() {},
   }))
-  const target = archiveMenu.find((node) => node.props.className === 'SN_dropTarget')
-  const menuElement = {}
-  target.props.onDragOver({ ...event, currentTarget: { parentElement: menuElement } })
-  target.props.onDrop(event)
-  assert.deepEqual(calls[3], ['archive', 'work'])
-  assert.ok(active.some(([kind, targetId, anchor]) => kind === 'archive' && targetId === 'work' && anchor === menuElement))
+  assert.equal(archiveHover.some((node) => node.props.className === 'SN_dropTarget'), false)
+  archiveHover.find((node) => node.props['data-action'] === 'archive').props.onDrop(event)
+  assert.deepEqual(calls[3], ['archive-again'])
   const props = { enabled: true, t: (key) => key }
   let nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
   nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } })
@@ -114,7 +110,7 @@ for (const failed of [false, true]) {
     const note = { path: '/A.md', name: '甲', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
     let notes = [note], mutations = 0, finishes = 0
     runner.connect(async (_, endpoint) => {
-      if (endpoint === 'state') return { ok: true, value: { configured: true, revision: String(notes.length), notes, jobs: [], settings: { emojis: [], archiveTargets: [] } } }
+      if (endpoint === 'state') return { ok: true, value: { configured: true, revision: String(notes.length), notes, jobs: [], settings: { emojis: [], archiveMode: 'local' } } }
       assert.equal(endpoint, 'deleteNote')
       mutations++
       await operation.promise
@@ -150,96 +146,146 @@ for (const failed of [false, true]) {
   })
 }
 
-test('client 源码 / 0.13.9：顶栏标题区可拖拽 DSH 窗口，按钮区保持可点击', () => {
-  assert.match(CLIENT_SOURCE, /\.SN_head\{[^}]*-webkit-app-region:drag/, '顶栏应是窗口拖拽区')
-  assert.match(CLIENT_SOURCE, /\.SN_headActions,\.SN_headActions \*\{-webkit-app-region:no-drag/, '按钮/菜单恢复 no-drag')
+test('client 源码 / 0.17：顶栏同一区域既能拖动窗口，也能单击收起抽屉', () => {
+  assert.match(CLIENT_SOURCE, /\.SN_head\{[^}]*-webkit-app-region:drag/, '非 darwin 仍保留原生 app-region 拖动')
+  assert.match(CLIENT_SOURCE, /\[data-platform='darwin'\] \.SN_head\{[^}]*-webkit-app-region:no-drag;app-region:no-drag\}/, 'darwin 顶栏必须关闭 app-region，指针事件才能到达 DOM')
+  assert.match(CLIENT_SOURCE, /\.SN_headActions,\.SN_headActions \*\{-webkit-app-region:no-drag/, '按钮/菜单保持 no-drag')
+  assert.match(CLIENT_SOURCE, /HEADER_DRAG_THRESHOLD = 3/, '拖动阈值应独立固定')
+  assert.match(CLIENT_SOURCE, /window\.moveTo\(Math\.round\(gesture\.winX\)/, '拖动应调用 window.moveTo 移动窗口')
+  assert.match(CLIENT_SOURCE, /onLostPointerCapture: onHeaderPointerCancel/, '失去指针捕获时要结束手势')
   assert.match(CLIENT_SOURCE, /className: 'SN_head'/, '顶栏结构不变')
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_headTopClickArea/, '旧的标题上方点击条已移除')
+  assert.doesNotMatch(CLIENT_SOURCE, /onMouseDown: onBackgroundMouseDown/, '不再用 mousedown 直接关闭抽屉')
 })
 
-for (const exit of ['pointerdown', 'focusin', 'blur', 'Escape', 'Enter', 'choose']) {
-  test('归档目录待选择：停靠后 ' + exit + ' 正确结束会话，不在原卡片弹菜单', async (t) => {
-    const runner = hookRunner(t), listeners = new Map(), animation = deferred(), operation = deferred()
-    const previousDocument = globalThis.document
-    globalThis.document = {
-      addEventListener(name, fn, capture = false) { listeners.set(name + ':' + capture, fn) },
-      removeEventListener(name, fn, capture = false) { if (listeners.get(name + ':' + capture) === fn) listeners.delete(name + ':' + capture) },
-    }
-    globalThis.window.addEventListener = (name, fn) => listeners.set('window:' + name, fn)
-    globalThis.window.removeEventListener = (name, fn) => { if (listeners.get('window:' + name) === fn) listeners.delete('window:' + name) }
-    t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
-    const note = { path: '/A.md', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
-    let notes = [note]
-    const mutations = [], targets = [{ id: 'work', label: '工作' }, { id: 'life', label: '生活' }]
-    runner.connect(async (_, endpoint, payload) => {
-      if (endpoint === 'state') return { ok: true, value: { configured: true, revision: String(notes.length), notes, jobs: [], settings: { emojis: [], archiveTargets: targets } } }
-      assert.equal(endpoint, 'archive'); mutations.push(payload)
-      await operation.promise; notes = []
-      return { ok: true, value: {} }
-    })
-    let focused = 0
-    const field = { focus() { focused++ } }, form = { contains: () => false }
-    const root = { contains: () => true, getClientRects: () => [{}], querySelector: (selector) => selector === '.SN_capture' ? form : selector === '.SN_captureTitle' ? field : null }
-    const props = { t: (key) => key }, render = () => {
-      const panel = runner.render(runner.api.components.StickyNotesPanel, props)
-      panel.props.ref.current = root
-      return panel
-    }
-    render(); await flush()
-    const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard), anchor = {}
-    const source = {}
-    card.props.actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, source)
-    let panel = render(), modes = [], parked = []
-    captureNodes(panel).find((node) => node.type === runner.api.components.CardDragOverlay).props.motionRef.current = {
-      park(element) { parked.push(element) },
-      finish(mode, element) { assert.equal(element, source); modes.push(mode); return animation.promise },
-    }
-    let composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
-    if (exit === 'choose') {
-      composer.props.onDragHover('project'); composer.props.onDragHover(null)
-      assert.equal(captureNodes(render()).find(n => n.type === runner.api.components.CaptureComposer).props.dropAction, 'project', '短暂离开不能同步卸载项目菜单')
-      composer.props.onDragHover('project', '__new__', anchor)
-      composer.props.onDragHover('archive')
-    }
-    composer.props.onArchiveDrop({ dataTransfer: { getData: () => note.path }, currentTarget: { closest: () => anchor } })
-    card.props.actions.current.onDragEnd()
-    assert.deepEqual(parked, [anchor])
-    assert.deepEqual(modes, [])
-    assert.deepEqual(mutations, [])
-    panel = render()
-    composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
-    assert.equal(composer.props.archiveParked, true)
-    assert.equal(composer.props.dropAction, 'archive')
-    assert.equal(captureNodes(panel).filter((node) => node.props.className === 'SN_menu').length, 0)
-    listeners.get('pointerdown:true')({ target: { closest: () => anchor } })
-    listeners.get('focusin:true')({ target: { closest: () => anchor } })
-    composer.props.onDragHover(null)
-    assert.deepEqual(modes, [], '在归档区内移动焦点或鼠标不关闭菜单')
-    if (exit === 'choose') {
-      listeners.get('keydown:true')({ key: 'Enter', target: { closest: () => anchor }, preventDefault() { assert.fail('菜单项 Enter 应走原生点击') } })
-      composer.props.onArchiveChoose('missing')
-      assert.deepEqual(modes, [])
-      const menu = captureNodes(runner.api.components.DropActions({ t: props.t, active: 'archive', targets, parked: true, onArchiveChoose: composer.props.onArchiveChoose }))
-      const item = menu.find((node) => node.props['data-target-id'] === 'life')
-      assert.equal(item.type, 'button')
-      assert.equal(item.props.role, 'menuitem')
-      item.props.onClick({ stopPropagation() {} })
-      composer.props.onArchiveChoose('life')
-      assert.deepEqual(modes, ['drop'])
-      assert.deepEqual(mutations, [{ path: note.path, targetId: 'life' }])
-    } else if (exit === 'Escape' || exit === 'Enter') listeners.get('keydown:true')({ key: exit, target: {}, preventDefault() {}, stopPropagation() {} })
-    else if (exit === 'blur') listeners.get('window:blur')({ type: 'blur' })
-    else listeners.get(exit + ':true')({ target: { closest: () => null } })
-    if (exit !== 'choose') assert.deepEqual(modes, ['return'])
-    assert.equal(render().props['data-card-dragging'], 'true')
-    animation.resolve(); await flush()
-    if (exit === 'choose') { assert.equal(render().props['data-card-dragging'], 'true'); operation.resolve(); await flush() }
-    assert.equal(focused, 0, '必须等 React 提交输入岛可见状态后再聚焦')
-    panel = render()
-    assert.equal(panel.props['data-card-dragging'], 'false')
-    assert.equal(captureNodes(panel).filter((node) => node.type === runner.api.components.NoteCard).length, exit === 'choose' ? 0 : 1)
-    assert.equal(listeners.has('pointerdown:true'), false)
-    assert.equal(listeners.has('focusin:true'), false)
-    assert.equal(listeners.has('window:blur'), false)
-    assert.equal(focused, exit === 'Enter' ? 1 : 0)
+test('未锁定阅读抽屉：顶栏单击收起，按住拖动移动窗口且不误关', async (t) => {
+  const runner = hookRunner(t)
+  const previousDocument = globalThis.document
+  globalThis.document = {
+    addEventListener() {}, removeEventListener() {},
+    documentElement: { dataset: { platform: 'darwin' } },
+  }
+  globalThis.window.addEventListener = () => {}
+  globalThis.window.removeEventListener = () => {}
+  globalThis.window.screenX = 240
+  globalThis.window.screenY = 120
+  const moves = []
+  globalThis.window.moveTo = (x, y) => { moves.push([x, y]) }
+  t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+  const note = { path: '/vault/便签.md', title: '便签', created: Date.now(), updated: Date.now(), comments: [], images: [], blocks: [] }
+  runner.connect(async (_, endpoint) => {
+    if (endpoint === 'state') return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [] } } }
+    if (endpoint === 'note') return { ok: true, value: { ...note, body: '正文' } }
+    assert.fail('Unexpected endpoint ' + endpoint)
   })
-}
+  const render = () => runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
+  const find = (className) => captureNodes(render()).find((node) => node.props.className === className)
+  const drawerOpen = () => captureNodes(render()).some((node) => node.type === runner.api.components.NoteDrawer)
+  const closeDrawer = async () => {
+    const drawer = captureNodes(render()).find((node) => node.type === runner.api.components.NoteDrawer)
+    if (drawer) { drawer.props.onClose(); await flush() }
+  }
+  const openFromCard = async () => {
+    await closeDrawer()
+    const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard)
+    card.props.actions.current.onOpen(note)
+    await flush()
+  }
+  const pointer = (header, target, overrides = {}) => ({
+    button: 0, isPrimary: true, pointerId: 7,
+    screenX: 240, screenY: 120, clientX: 30, clientY: 20,
+    target, currentTarget: header, preventDefault() {},
+    ...overrides,
+  })
+  const clickAt = (header, target) => {
+    header.props.onPointerDown(pointer(header, target))
+    header.props.onPointerUp(pointer(header, target))
+    header.props.onClick({ target, currentTarget: header })
+  }
+  render(); await flush()
+  await openFromCard()
+
+  let header = find('SN_head')
+  assert.equal(drawerOpen(), true)
+  const controlTarget = { closest: (selector) => selector.includes('button') ? {} : null }
+  header.props.onPointerDown(pointer(header, controlTarget))
+  header.props.onClick({ target: controlTarget, currentTarget: header })
+  assert.equal(drawerOpen(), true, '顶栏按钮区域不误关抽屉')
+
+  header = find('SN_head')
+  const title = captureNodes(header).find((node) => node.props.className === 'SN_title')
+  assert.ok(title, '标题区域应存在并可接收 DOM 事件')
+  clickAt(header, title)
+  assert.equal(drawerOpen(), false, '单击 Obsidian MEMO 标题区关闭未锁定抽屉')
+  assert.deepEqual(moves, [], '单击不移动窗口')
+
+  await openFromCard()
+  header = find('SN_head')
+  clickAt(header, header)
+  assert.equal(drawerOpen(), false, '单击标题旁留白关闭未锁定抽屉')
+
+  await openFromCard()
+  header = find('SN_head')
+  const titleForDrag = captureNodes(header).find((node) => node.props.className === 'SN_title')
+  header.props.onPointerDown(pointer(header, titleForDrag, { screenX: 240, screenY: 120 }))
+  header.props.onPointerMove(pointer(header, titleForDrag, { screenX: 260, screenY: 130 }))
+  header.props.onPointerUp(pointer(header, titleForDrag, { screenX: 260, screenY: 130 }))
+  header.props.onClick({ target: titleForDrag, currentTarget: header })
+  assert.equal(drawerOpen(), true, '按住标题拖动窗口不应关闭抽屉')
+  assert.deepEqual(moves, [[260, 130]], '窗口跟随指针移动')
+
+  await openFromCard()
+  header = find('SN_head')
+  const titleForTinyMove = captureNodes(header).find((node) => node.props.className === 'SN_title')
+  header.props.onPointerDown(pointer(header, titleForTinyMove, { screenX: 240, screenY: 120 }))
+  header.props.onPointerMove(pointer(header, titleForTinyMove, { screenX: 242, screenY: 121 }))
+  header.props.onPointerUp(pointer(header, titleForTinyMove, { screenX: 242, screenY: 121 }))
+  header.props.onClick({ target: titleForTinyMove, currentTarget: header })
+  assert.equal(drawerOpen(), false, '小于拖动阈值的移动仍按单击处理')
+  assert.deepEqual(moves, [[260, 130]], '阈值内不移动窗口')
+
+  await openFromCard()
+  const drawer = captureNodes(render()).find((node) => node.type === runner.api.components.NoteDrawer)
+  drawer.props.onTogglePinned()
+  header = find('SN_head')
+  const lockedTitleTarget = { closest: () => null }
+  clickAt(header, lockedTitleTarget)
+  assert.equal(drawerOpen(), true, '锁定态点击顶栏标题区不关闭')
+})
+
+test('归档拖放：松手立即执行，不停靠也不传目标 ID', async (t) => {
+  const runner = hookRunner(t), operation = deferred(), animation = deferred()
+  const previousDocument = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  globalThis.window.addEventListener = () => {}
+  globalThis.window.removeEventListener = () => {}
+  t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+  const note = { path: '/vault/Notes/A.md', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
+  const mutations = []
+  runner.connect(async (_, endpoint, payload) => {
+    if (endpoint === 'state') return { ok: true, value: { configured: true, revision: '1', notes: [note], jobs: [], settings: {
+      vaultPath: '/vault', notesDir: '/vault/Notes', archiveMode: 'local', archiveFolderName: '已归档', emojis: [],
+    } } }
+    assert.equal(endpoint, 'archive'); mutations.push(payload)
+    await operation.promise
+    return { ok: true, value: { undoToken: 'undo' } }
+  })
+  const render = () => runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
+  render(); await flush()
+  const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard)
+  const source = {}
+  card.props.actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, source)
+  const panel = render(), overlay = captureNodes(panel).find((node) => node.type === runner.api.components.CardDragOverlay)
+  let parked = 0, modes = []
+  overlay.props.motionRef.current = {
+    park() { parked++ },
+    finish(mode, element) { assert.equal(element, source); modes.push(mode); return animation.promise },
+  }
+  const composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
+  composer.props.onArchiveDrop({ dataTransfer: { getData: () => note.path } })
+  assert.deepEqual(mutations, [{ path: note.path }])
+  assert.deepEqual(modes, ['drop'])
+  assert.equal(parked, 0)
+  animation.resolve(); operation.resolve(); await flush()
+  assert.equal(render().props['data-card-dragging'], 'false')
+})

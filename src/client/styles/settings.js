@@ -24,6 +24,12 @@ const settingsStyles = `
 .SN_settingsTab{flex:1;border:0;border-radius:7px;padding:8px 4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;cursor:pointer}
 .SN_settingsTab[aria-selected='true']{background:color-mix(in srgb,var(--sn-accent) 10%,transparent);color:var(--sn-accent);font-weight:600}
 .SN_settingsPage{display:flex;flex-direction:column;gap:22px}
+.SN_archiveSettings{padding-top:0;border-top:0}
+.SN_archiveModes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.SN_archiveMode{display:flex;align-items:center;gap:7px;min-width:0;min-height:36px;padding:7px 9px;border:.5px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:1.35;cursor:pointer}
+.SN_archiveMode[data-active='true']{border-color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 7%,var(--dsw-alias-bg-base,#fff));color:var(--dsw-alias-label-primary)}
+.SN_archiveMode input{flex:none;margin:0;accent-color:var(--sn-accent)}
+.SN_archiveMode span{min-width:0;overflow-wrap:anywhere}
 .SN_folderPicker{position:relative;min-width:0;width:100%}
 .SN_folderTrigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;padding:0 10px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;text-align:left;cursor:pointer}
 .SN_folderTrigger>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

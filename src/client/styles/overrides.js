@@ -78,7 +78,6 @@ const overridesStyles = `
 .SN_drawerDeleteBtn:hover:not(:disabled){color:#b76363;background:color-mix(in srgb,#b77979 12%,transparent)}
 body[data-ds-dark-theme] .SN_drawerDeleteBtn{color:#d09b9b}
 body[data-ds-dark-theme] .SN_drawerDeleteBtn:hover:not(:disabled){color:#e3b3b3}
-.SN_drawerMenu{position:absolute;top:calc(100% + 6px);left:0;right:auto;z-index:46;width:214px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 10px 30px rgba(0,0,0,.18);animation:SN_toastIn .14s ease;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
 
 @keyframes SN_fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes SN_toastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
@@ -107,6 +106,8 @@ body[data-ds-dark-theme] .SN_cardActions[data-visible='true']{background:linear-
 body[data-ds-dark-theme] .SN_toast,body[data-ds-dark-theme] .SN_sortMenu{box-shadow:0 10px 30px rgba(0,0,0,.5)}
 body[data-ds-dark-theme] .SN_noteDrawer{box-shadow:-10px 0 34px rgba(0,0,0,.55)}
 body[data-ds-dark-theme] .SN_drawer{box-shadow:-12px 0 44px rgba(0,0,0,.5)}
+body[data-ds-dark-theme] .SN_drawerFoot .SN_primaryBtn{background:var(--sn-accent,#A78BFA);color:#21182e}
+body[data-ds-dark-theme] .SN_drawerFoot .SN_primaryBtn:disabled{opacity:.72}
 body[data-ds-dark-theme] .SN_dialog{box-shadow:0 18px 60px rgba(0,0,0,.6)}
 
 /* ── 0.13 深色覆盖：同色蒙版用 darkColor，卡内小图/小块改半透明白 ── */
@@ -121,7 +122,6 @@ body[data-ds-dark-theme] .SN_noteDrawerComments{background:var(--dsw-alias-bg-la
 /* 暗色下统一 icon 选中：背景 14%、图标 #A78BFA */
 body[data-ds-dark-theme] .SN_iconBtn[data-active='true']{color:var(--sn-accent);background:rgba(167,139,250,.14);background:color-mix(in srgb,var(--sn-accent) 14%,transparent)}
 body[data-ds-dark-theme] .SN_iconBtn[data-active='true']:hover:not(:disabled){color:var(--sn-accent);background:rgba(167,139,250,.20);background:color-mix(in srgb,var(--sn-accent) 20%,transparent)}
-body[data-ds-dark-theme] .SN_drawerMenu{box-shadow:0 10px 30px rgba(0,0,0,.5)}
 
 @media (prefers-reduced-motion:reduce){
   .SN_panel *,.SN_panel *::before,.SN_panel *::after{animation-duration:.001ms!important;transition-duration:.001ms!important}

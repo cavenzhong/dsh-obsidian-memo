@@ -80,13 +80,15 @@ test('writeSettingsFile / readSettingsFile：规范化后原子落盘并读回',
   const written = await writeSettingsFile(file, {
     vaultPath: '/vault',
     notesDir: '进行时',
-    archiveTargets: [{ id: 'arch', label: '归档', path: '归档' }],
+    archiveMode: 'mapped', archiveDir: '归档',
   })
   assert.equal(written.notesDir, '/vault/进行时')
-  assert.equal(written.archiveTargets[0].path, '/vault/归档')
+  assert.equal(written.archiveDir, '/vault/归档')
 
   const raw = JSON.parse(await readFile(file, 'utf8'))
   assert.equal(raw.notesDir, '/vault/进行时')
+  assert.equal(raw.archiveDir, '/vault/归档')
+  assert.equal(raw.archiveMode, 'mapped')
   assert.equal(raw.emojis.length, 4)
 
   const read = await readSettingsFile(file)

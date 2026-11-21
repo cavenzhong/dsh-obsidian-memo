@@ -8,7 +8,6 @@ import { TitleModeSettings } from './note-title.js';
 import { SettingsPathField, VaultFolderPicker } from './paths.js';
 import { StyleSelect } from './style-select.js';
 import { TrashSettings } from './trash.js';
-import { baseName, resolvedPath } from '../utils.js';
 
 function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
   const changed = typeof defaultValue === 'string' && value !== defaultValue;
@@ -19,7 +18,7 @@ function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
 
 function SettingsDrawer(props) {
   const {
-    t, draft, picking, saving, onPatch, onPick, onRemoveArchive, onPatchEmoji, onRemoveEmoji, onAddEmoji,
+    t, draft, picking, saving, onPatch, onPick, onPatchEmoji, onRemoveEmoji, onAddEmoji,
     onSave, onCancel, request, onConfigSettings,
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
@@ -37,7 +36,6 @@ function SettingsDrawer(props) {
     request('aiModels', {}).then((result) => setModelOptions(Array.isArray(result?.models) ? result.models : [])).catch(() => {});
   }, [tab, modelOptions.length]);
   if (!draft) return null;
-  const archiveTargets = Array.isArray(draft.archiveTargets) ? draft.archiveTargets : [];
   const emojiIndex = Math.max(0, emojis.findIndex((item) => item.id === activeEmoji));
   const folderProps = { vaultPath: draft.vaultPath, history: draft.folderHistory, request };
   const disabled = Boolean(saving);
@@ -98,33 +96,26 @@ function SettingsDrawer(props) {
         h('label', { className: 'SN_imageSettingToggle', hidden: tab !== 'folders' },
           h('input', { type: 'checkbox', disabled, checked: draft.includeSubfolders !== false,
             onChange: (event) => onPatch({ includeSubfolders: event.target.checked }) }), t('settings.includeSubfolders')),
-        h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
-          h('div', { className: 'SN_drawerSectionHead' },
-            h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.archive')),
-          ),
-          h('p', { className: 'SN_drawerSectionHint' }, t('settings.archiveHint')),
-          archiveTargets.length === 0
-            ? null
-            : h('div', { className: 'SN_targetList' },
-              archiveTargets.map((target, index) => h('div', { key: target.id || index, className: 'SN_targetRow' },
-                h(VaultFolderPicker, { t, ...folderProps, label: t('settings.archive'), value: target.path, disabled,
-                    onChange: (path) => path ? onPatch({ archiveTargets: archiveTargets.map((item, position) => position === index ? { ...item, path, label: baseName(path) } : item) }) : onRemoveArchive(index),
-                  onPick: () => request('pickDirectory', { vaultPath: draft.vaultPath }).then((result) => result.path) }),
-                h('button', {
-                  type: 'button',
-                  className: 'SN_removeBtn',
-                  disabled: disabled,
-                  'aria-label': t('settings.remove'),
-                  title: t('settings.remove'),
-                  onClick: () => onRemoveArchive(index),
-                }, '×'),
-              )),
-            ),
-          h(VaultFolderPicker, { t, ...folderProps, label: t('settings.addArchive'), placeholder: t('settings.addArchive'), value: '', disabled,
-            onChange: (path) => { if (path && !archiveTargets.some((item) => resolvedPath(draft.vaultPath, item.path) === resolvedPath(draft.vaultPath, path))) onPatch({ archiveTargets: archiveTargets.concat({ id: 'archive-' + Date.now().toString(36), label: baseName(path), path }) }); },
-            onPick: () => request('pickDirectory', { vaultPath: draft.vaultPath }).then((result) => result.path) }),
-        ),
-        h('div', { hidden: tab !== 'notes', 'data-settings-tab': 'notes' },
+        h('div', { className: 'SN_settingsPage', hidden: tab !== 'notes', 'data-settings-tab': 'notes' },
+          h('section', { className: 'SN_drawerSection SN_archiveSettings' },
+            h('div', { className: 'SN_drawerSectionHead' },
+              h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.archive'))),
+            h('p', { className: 'SN_drawerSectionHint' }, t('settings.archiveHint')),
+            h('div', { className: 'SN_archiveModes', role: 'radiogroup', 'aria-label': t('settings.archiveMode') },
+              ['local', 'mapped'].map((mode) => h('label', { key: mode, className: 'SN_archiveMode', 'data-active': (draft.archiveMode || 'local') === mode ? 'true' : 'false' },
+                h('input', { type: 'radio', name: 'SN_archiveMode', value: mode, checked: (draft.archiveMode || 'local') === mode, disabled,
+                  onChange: () => onPatch({ archiveMode: mode }) }),
+                h('span', null, t('settings.archiveMode.' + mode))))),
+            draft.archiveMode === 'mapped'
+              ? h(Fragment, null,
+                h('p', { className: 'SN_fieldHint' }, t('settings.archiveMappedHint')),
+                h(VaultFolderPicker, { t, ...folderProps, label: t('settings.archiveDir'), placeholder: t('settings.archiveDir'), value: draft.archiveDir || '', disabled,
+                  onChange: (archiveDir) => onPatch({ archiveDir }),
+                  onPick: () => request('pickDirectory', { vaultPath: draft.vaultPath }).then((result) => result.path) }))
+              : h('label', { className: 'SN_field' }, t('settings.archiveFolderName'),
+                h('input', { type: 'text', className: 'SN_textInput', value: draft.archiveFolderName || '归档', disabled,
+                  'aria-label': t('settings.archiveFolderName'), onChange: (event) => onPatch({ archiveFolderName: event.target.value }) }),
+                h('p', { className: 'SN_fieldHint' }, t('settings.archiveFolderNameHint')))),
           h(TitleModeSettings, {
             t,
             mode: draft.titleMode,

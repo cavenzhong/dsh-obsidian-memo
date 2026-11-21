@@ -9,7 +9,7 @@ function setup(t, delay = true, overrides = {}) {
   const runner = hookRunner(t), calls = [], toasts = []
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const options = { aliveRef: { current: true }, jobs: [], projectDropConfirmEnabled: delay,
-    setDrawerArchive() {}, setSortMenu() {}, refreshNow() {}, pushErrorToast: assert.fail, pushToast: (toast) => toasts.push(toast), t: key => key,
+    setSortMenu() {}, refreshNow() {}, pushErrorToast: assert.fail, pushToast: (toast) => toasts.push(toast), t: key => key,
     async request(endpoint, payload) { calls.push([endpoint, payload]); return { jobId: 'job' } }, ...overrides,
   }
   const view = (jobs) => { if (jobs) options.jobs = jobs; return runner.render(runner.api.hooks.useProjectDialog, options) }

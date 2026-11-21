@@ -34,7 +34,8 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
       vaultPath: c.vault,
       notesDir: '进行时2',
       projectDir: '项目',
-      archiveTargets: [{ id: 'arch2', label: '归档二', path: '归档二' }],
+      archiveMode: 'mapped',
+      archiveDir: '归档二',
       emojis: [{ id: 'brain', emoji: '🧠', label: '脑暴', callout: 'tip', prompt: '给我灵感' }],
       projectPrompt: '新的建档提示词',
     },
@@ -42,7 +43,7 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
   assert.equal(result.ok, true)
   assert.equal(result.value.settings.notesDir, notesDir2)
   assert.equal(result.value.settings.projectDir, join(c.vault, '项目'))
-  assert.equal(result.value.settings.archiveTargets[0].path, join(c.vault, '归档二'))
+  assert.equal(result.value.settings.archiveDir, join(c.vault, '归档二'))
   assert.equal(result.value.settings.emojis.length, 1)
   assert.equal(result.value.settings.emojis[0].callout, 'tip')
   assert.equal(result.value.settings.projectPrompt, '新的建档提示词')
@@ -64,7 +65,7 @@ test('saveSettings：每枚 emoji 的 ai 与 projectAi 规范化后落盘并读�
       vaultPath: c.vault,
       notesDir: c.notesDir,
       projectDir: c.projectDir,
-      archiveTargets: [],
+      archiveMode: 'local',
       emojis: [
         { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'low' } },
         { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },

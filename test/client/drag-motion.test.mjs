@@ -26,7 +26,8 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   const body = {}
   globalThis.document = { body }
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
-  const nodes = captureNodes(api.components.CardDragOverlay({ note: { path: 'a.md', title: '拖动便签' }, point, action: 'archive', targetId: 'work', targets: [{ id: 'work', label: '工作' }], t: (key, data) => data?.label || key }))
+  const nodes = captureNodes(api.components.CardDragOverlay({ note: { path: 'a.md', title: '拖动便签' }, point, action: 'archive',
+    archiveSettings: { archiveMode: 'local', archiveFolderName: '已归档' }, t: (key, data) => data?.folder || key }))
   const preview = nodes.find((node) => node.props.className === 'SN_dragPreview')
   assert.equal(preview.props.style.transform, 'scale(' + 1 / 3 + ')')
   const previewCard = preview.children[0]
@@ -35,7 +36,7 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   const renderedCard = api.components.NoteCard(previewCard.props)
   assert.equal(renderedCard.props.draggable, false)
   assert.equal(renderedCard.props.tabIndex, -1)
-  assert.equal(nodes.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], '工作')
+  assert.equal(nodes.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], '已归档')
   assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(overlay, document\.body\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*bottom:calc\(100% \+ 8px\);z-index:2/)
   assert.match(CLIENT_SOURCE, /\.SN_dragPreview\{[^}]*z-index:1/)
@@ -43,17 +44,24 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*left:50%;transform:translateX\(-50%\)/, '提示位于卡片上方居中')
 })
 
-test('归档目录命中时，提示另挂在菜单上方，不随便签遮挡菜单；回主操作区恢复跟随', (t) => {
+test('归档提示保留在预览上方；只有项目目标菜单使用锚点提示', (t) => {
   const runner = hookRunner(t), positions = [], listeners = new Map()
   const win = { innerWidth: 1024, addEventListener: (kind, fn) => listeners.set(kind, fn), removeEventListener: (kind) => listeners.delete(kind) }
   let rect = { left: 60, top: 340, width: 210 }
   const anchor = { ownerDocument: { defaultView: win }, getBoundingClientRect: () => rect }
-  const props = { note: { path: 'a.md' }, point: {}, action: 'archive', targets: [{ id: 'work', label: '工作' }],
-    t: (key, vars) => vars?.label || key }
   const { CardDragOverlay } = runner.api.components
-  const overlay = CardDragOverlay({ ...props, targetId: 'work', targetAnchor: anchor })
-  assert.equal(captureNodes(overlay).some((node) => node.props.className === 'SN_dragFollow'), false)
-  const hint = overlay.children[1]
+  const archive = captureNodes(CardDragOverlay({
+    note: { path: '/vault/notes/A/B/a.md' }, point: {}, action: 'archive',
+    archiveSettings: { archiveMode: 'mapped', vaultPath: '/vault', notesDir: '/vault/notes', archiveDir: '/vault/Archive' },
+    t: (key, vars) => key + ':' + (vars?.path || vars?.folder || ''),
+  }))
+  assert.equal(archive.some((node) => node.props.className === 'SN_dragTargetHint'), false)
+  assert.equal(archive.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], 'drag.releaseArchiveMapped:Archive/A/B')
+
+  const projectOverlay = CardDragOverlay({ note: { path: 'a.md' }, point: {}, action: 'project', targetId: 'work', targetAnchor: anchor,
+    projectTargets: [{ id: 'work', label: '工作' }], t: (key, vars) => vars?.label || key })
+  assert.equal(captureNodes(projectOverlay).some((node) => node.props.className === 'SN_dragFollow'), false)
+  const hint = projectOverlay.children[1]
   assert.equal(hint.props.anchor, anchor)
   assert.equal(hint.props.text, '工作')
   const style = { set top(val) { positions.push(val) }, left: '', maxWidth: '' }
@@ -66,8 +74,6 @@ test('归档目录命中时，提示另挂在菜单上方，不随便签遮挡�
   assert.deepEqual(positions, ['332px', '372px'])
   runner.unmount()
   assert.equal(listeners.size, 0)
-  const main = CardDragOverlay(props)
-  assert.equal(captureNodes(main).find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], 'drag.releaseArchive')
   assert.match(CLIENT_SOURCE, /\.SN_dropItem:first-child\{border-radius:calc\(var\(--sn-drop-radius\) - 1px\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dropItem:last-child\{border-radius:0 calc\(var\(--sn-drop-radius\) - 1px\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dropRow\{[^}]*overflow:visible/, '圆角不应把垂直目录菜单裁掉')
@@ -166,7 +172,7 @@ test('拖拽放手：空白处接收内部拖放并立即回落，不等待原�
   globalThis.window.removeEventListener = () => {}
   t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
   const note = { path: '/A.md', title: '甲', created: Date.now(), updated: Date.now(), images: [], comments: [] }
-  runner.connect(async () => ({ ok: true, value: { configured: true, revision: '1', notes: [note], jobs: [], settings: { emojis: [], archiveTargets: [] } } }))
+  runner.connect(async () => ({ ok: true, value: { configured: true, revision: '1', notes: [note], jobs: [], settings: { emojis: [], archiveMode: 'local' } } }))
   const render = () => runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key })
   render(); await flush()
   const card = captureNodes(render()).find((node) => node.type === runner.api.components.NoteCard)

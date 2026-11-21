@@ -33,6 +33,8 @@ test('样式模块：基础布局和主题变量随组合样式注入，HMR 替�
   assert.match(css, /\.SN_panel\{--sn-serif:[^}]+--sn-sans:[^}]+display:flex;flex-direction:column;height:100%/)
   assert.match(css, /--sn-ink-title:#2b2620/)
   assert.match(css, /body\[data-ds-dark-theme\]/)
+  assert.match(css, /body\[data-ds-dark-theme\] \.SN_drawerFoot \.SN_primaryBtn\{[^}]*background:var\(--sn-accent,#A78BFA\);color:#21182e\}/)
+  assert.match(css, /body\[data-ds-dark-theme\] \.SN_drawerFoot \.SN_primaryBtn:disabled\{opacity:\.72\}/)
   assert.ok(css.indexOf('.SN_captureDock{') < css.indexOf('.SN_noteDrawer{'))
   for (const cleanup of cleanups.splice(0)) cleanup()
   assert.equal(removed, 2)

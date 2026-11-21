@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { CARD_PALETTE, colorForTag, LIMITS } from '../../lib/shared.js'
-import { writeFile, readFile, mkdir, stat } from 'node:fs/promises'
+import { writeFile, readFile, mkdir, stat, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setOpenExternalUrlForTests } from '../../lib/obsidian.js'
 import { NotesScanner } from '../../lib/scan.js'
@@ -186,9 +186,8 @@ test('archive：移动文件到归档目录，undoArchive 恢复', async () => {
   const notePath = c.seeded['归档我.md']
   const original = await readFile(notePath, 'utf8')
 
-  const archived = await c.call('archive', { path: notePath, targetId: 'arch' })
+  const archived = await c.call('archive', { path: notePath })
   assert.equal(archived.ok, true)
-  assert.equal(archived.value.targetId, 'arch')
   assert.equal(archived.value.to, join(c.archiveDir, '归档我.md'))
   assert.equal(typeof archived.value.undoToken, 'string')
   assert.equal(await exists(notePath), false)
@@ -218,41 +217,62 @@ test('archive：同名冲突自动加 (2)', async () => {
   await mkdir(c.archiveDir, { recursive: true })
   await writeFile(join(c.archiveDir, '冲突.md'), '旧文件', 'utf8')
 
-  const archived = await c.call('archive', { path: c.seeded['冲突.md'], targetId: 'arch' })
+  const archived = await c.call('archive', { path: c.seeded['冲突.md'] })
   assert.equal(archived.ok, true)
   assert.equal(archived.value.to, join(c.archiveDir, '冲突 (2).md'))
   assert.equal(await readFile(archived.value.to, 'utf8'), '# 冲突\n\n正文\n')
   assert.equal(await readFile(join(c.archiveDir, '冲突.md'), 'utf8'), '旧文件')
 })
 
-test('archive：未知 targetId / 仓库外目标 / 便签目录本身都被拒绝', async () => {
+test('archive：指定归档根目录必须在仓库内且不能与便签目录重叠', async () => {
   const outsideArchive = join(ROOT, 'vault-external-archive')
   const c = await makeCase({
     notes: { '甲.md': '# 甲\n' },
-    settings: {
-      archiveTargets: [
-        { id: 'outside', label: '外部', path: outsideArchive },
-        { id: 'notes', label: '便签目录', path: '进行时' },
-      ],
-    },
   })
-  const notePath = c.seeded['甲.md']
-
-  const unknown = await c.call('archive', { path: notePath, targetId: 'nope' })
-  assert.equal(unknown.ok, false)
-  assert.equal(unknown.error.code, 'bad-request')
-
-  const outside = await c.call('archive', { path: notePath, targetId: 'outside' })
+  const current = (await c.call('state')).value.settings
+  const outside = await c.call('saveSettings', { settings: { ...current, archiveMode: 'mapped', archiveDir: outsideArchive } })
   assert.equal(outside.ok, false)
   assert.equal(outside.error.code, 'bad-request')
-  assert.match(outside.error.message, /仓库/)
+  assert.match(outside.error.message, /仓库内/)
 
-  const notesDirTarget = await c.call('archive', { path: notePath, targetId: 'notes' })
-  assert.equal(notesDirTarget.ok, false)
-  assert.equal(notesDirTarget.error.code, 'bad-request')
+  const overlap = await c.call('saveSettings', { settings: { ...current, archiveMode: 'mapped', archiveDir: c.notesDir } })
+  assert.equal(overlap.ok, false)
+  assert.equal(overlap.error.code, 'bad-request')
+  assert.match(overlap.error.message, /不能与便签目录重叠/)
 
-  // 文件都还在
-  assert.equal(await exists(notePath), true)
+  const linkedArchive = join(c.vault, '归档链接')
+  await symlink(c.notesDir, linkedArchive, 'dir')
+  const linkedOverlap = await c.call('saveSettings', { settings: { ...current, archiveMode: 'mapped', archiveDir: linkedArchive } })
+  assert.equal(linkedOverlap.ok, false)
+  assert.equal(linkedOverlap.error.code, 'bad-request')
+  assert.match(linkedOverlap.error.message, /不能与便签目录重叠/)
+  assert.equal(await exists(c.seeded['甲.md']), true)
+})
+
+test('archive：指定根目录按便签子目录结构映射，撤销回原位置', async () => {
+  const c = await makeCase({ notes: { 'A/B/映射.md': '# 映射\n' } })
+  const archiveDir = join(c.vault, '历史便签')
+  const saved = await c.call('saveSettings', { settings: {
+    ...(await c.call('state')).value.settings,
+    archiveMode: 'mapped', archiveDir,
+  } })
+  assert.equal(saved.ok, true)
+  const source = c.seeded['A/B/映射.md']
+  const archived = await c.call('archive', { path: source })
+  assert.equal(archived.ok, true)
+  assert.equal(archived.value.to, join(archiveDir, 'A', 'B', '映射.md'))
+  const undone = await c.call('undoArchive', { undoToken: archived.value.undoToken })
+  assert.equal(undone.value.restoredTo, source)
+  assert.equal(await exists(source), true)
+})
+
+test('archive：当前目录归档后从活动便签墙排除', async () => {
+  const c = await makeCase({ notes: { 'A/便签.md': '# 内容\n', 'A/保留.md': '# 保留\n' } })
+  const source = c.seeded['A/便签.md']
+  const archived = await c.call('archive', { path: source })
+  assert.equal(archived.value.to, join(c.notesDir, 'A', '归档', '便签.md'))
+  const state = await c.call('state')
+  assert.deepEqual(state.value.notes.map((note) => note.name).sort(), ['保留'])
 })
 
 test('rescan：返回 16 位 revision，指向当前便签集合', async () => {

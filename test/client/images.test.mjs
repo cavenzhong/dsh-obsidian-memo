@@ -172,7 +172,7 @@ test('client __test：图片队列 / 缓存 / jobsSignature 统计安全（§7.8
 })
 
 test('client 源码：菜单出现就隐藏图片预览，旧 emoji 蒙版逻辑已移除', () => {
-  // 统一规则：data-menu=true（= 悬停/聚焦卡片或归档菜单打开）时隐藏图片条
+  // 统一规则：data-menu=true（悬停/聚焦卡片）时隐藏图片条
   assert.match(
     CLIENT_SOURCE,
     /\.SN_card\[data-menu='true'\] \.SN_cardImages\{[^}]*opacity:0/,

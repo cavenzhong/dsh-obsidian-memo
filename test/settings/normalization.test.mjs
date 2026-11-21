@@ -10,7 +10,9 @@ test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', ()
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
   assert.equal(DEFAULT_SETTINGS.notesDir, '')
   assert.equal(DEFAULT_SETTINGS.projectDir, '')
-  assert.deepEqual(DEFAULT_SETTINGS.archiveTargets, [])
+  assert.equal(DEFAULT_SETTINGS.archiveMode, 'local')
+  assert.equal(DEFAULT_SETTINGS.archiveFolderName, '归档')
+  assert.equal(DEFAULT_SETTINGS.archiveDir, '')
   assert.equal(DEFAULT_SETTINGS.projectPrompt, DEFAULT_PROJECT_PROMPT)
   assert.equal(DEFAULT_SETTINGS.includeSubfolders, true)
   assert.equal(DEFAULT_SETTINGS.emojis.length, 4)
@@ -54,7 +56,8 @@ test('normalizeSettings：空对象得到完整默认设置', () => {
   assert.equal(settings.notesDir, '')
   assert.equal(settings.projectDir, '')
   assert.equal(settings.includeSubfolders, true)
-  assert.deepEqual(settings.archiveTargets, [])
+  assert.equal(settings.archiveMode, 'local')
+  assert.equal(settings.archiveFolderName, '归档')
   assert.equal(settings.emojis.length, DEFAULT_EMOJIS.length)
   assert.equal(settings.projectPrompt, DEFAULT_PROJECT_PROMPT)
 })
@@ -231,42 +234,24 @@ test('normalizeSettings：路径首尾空白被去掉', () => {
   assert.equal(settings.notesDir, '/vault/进行时')
 })
 
-test('normalizeSettings：归档目录去重（按解析后的绝对路径）', () => {
-  const settings = normalizeSettings({
-    vaultPath: '/vault',
-    archiveTargets: [
-      { id: 'a', label: '归档', path: '/vault/归档' },
-      { id: 'b', label: '重复', path: '归档' },
-      { id: 'c', label: '另一个', path: '/vault/归档2' },
-    ],
-  })
-  assert.equal(settings.archiveTargets.length, 2)
-  assert.deepEqual(settings.archiveTargets.map((item) => item.path), ['/vault/归档', '/vault/归档2'])
-  assert.deepEqual(settings.archiveTargets.map((item) => item.id), ['a', 'c'])
+test('normalizeSettings：新归档模式与路径规范化，旧多目标配置不再参与归档', () => {
+  const local = normalizeSettings({ archiveFolderName: '  已归档  ', archiveTargets: [{ path: '/old/archive' }] })
+  assert.equal(local.archiveMode, 'local')
+  assert.equal(local.archiveFolderName, '已归档')
+  assert.equal(local.archiveDir, '')
+  assert.equal(Object.hasOwn(local, 'archiveTargets'), false)
+
+  const mapped = normalizeSettings({ vaultPath: '/vault', archiveMode: 'mapped', archiveDir: 'Archive' })
+  assert.equal(mapped.archiveMode, 'mapped')
+  assert.equal(mapped.archiveDir, '/vault/Archive')
+  assert.equal(mapped.folderHistory.includes('/vault/Archive'), true)
 })
 
-test('normalizeSettings：归档目录空路径被丢弃、label 缺失用 basename', () => {
-  const settings = normalizeSettings({
-    vaultPath: '/vault',
-    archiveTargets: [
-      { id: 'x', path: '' },
-      { id: 'y', path: '设计归档' },
-      { label: '自定义', path: '/vault/z' },
-    ],
-  })
-  assert.equal(settings.archiveTargets.length, 2)
-  assert.equal(settings.archiveTargets[0].label, '设计归档')
-  assert.equal(settings.archiveTargets[1].label, '自定义')
-})
-
-test('normalizeSettings：归档目录缺 id 时生成唯一 id', () => {
-  const settings = normalizeSettings({
-    vaultPath: '/vault',
-    archiveTargets: [{ path: '/vault/a' }, { path: '/vault/b' }],
-  })
-  const ids = settings.archiveTargets.map((item) => item.id)
-  assert.equal(ids.every((id) => typeof id === 'string' && id.length > 0), true)
-  assert.notEqual(ids[0], ids[1])
+test('normalizeSettings：归档文件夹名限制为可见的单级目录名', () => {
+  for (const archiveFolderName of ['', '.', '..', '.hidden', 'A/B', 'A\\B', 'bad:name']) {
+    assert.equal(normalizeSettings({ archiveFolderName }).archiveFolderName, '归档', archiveFolderName)
+  }
+  assert.equal(normalizeSettings({ archiveMode: 'invalid' }).archiveMode, 'local')
 })
 
 test('normalizeSettings：emoji 为空时回退到默认四枚', () => {

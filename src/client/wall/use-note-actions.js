@@ -5,14 +5,10 @@ import { React } from '../react.js';
 import { isAbortError } from '../utils.js';
 
 function useNoteActions({
-  aliveRef, archiveTargets, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
-  refreshNow, request, setDrawerArchive, setHoverPath, tRef, titleMode, updateView, viewRef,
+  aliveRef, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
+  refreshNow, request, setHoverPath, tRef, titleMode, updateView, viewRef,
 }) {
   const deletingRef = React.useRef(new Set());
-
-  function findTarget(targetId) {
-    return archiveTargets.find((target) => target.id === targetId) || null;
-  }
 
   function undoArchive(undoToken) {
     request('undoArchive', { undoToken: undoToken })
@@ -70,11 +66,9 @@ function useNoteActions({
     } catch (error) { if (aliveRef.current) pushErrorToast(new Error(tRef.current('toast.copyFailed'))); }
   }
 
-  function runArchive(note, targetId) {
-    if (!note || !targetId) return;
-    setDrawerArchive(false);
-    const target = findTarget(targetId);
-    return request('archive', { path: note.path, targetId: targetId })
+  function runArchive(note) {
+    if (!note) return;
+    return request('archive', { path: note.path })
       .then((value) => {
         if (!aliveRef.current) return;
         const previous = viewRef.current;
@@ -85,13 +79,13 @@ function useNoteActions({
         const token = value && typeof value.undoToken === 'string' ? value.undoToken : '';
         if (token !== '') {
           pushToast({
-            text: tRef.current('toast.archived', { label: (target && target.label) || targetId }),
+            text: tRef.current('toast.archived'),
             kind: 'success',
             timeout: UNDO_MS,
             action: { label: tRef.current('toast.undo'), run: () => undoArchive(token) },
           });
         } else {
-          pushToast({ text: tRef.current('toast.archived', { label: (target && target.label) || targetId }), kind: 'success' });
+          pushToast({ text: tRef.current('toast.archived'), kind: 'success' });
         }
         refreshNow(false);
       })
@@ -108,7 +102,7 @@ function useNoteActions({
       });
   }
 
-  return { findTarget, runDelete, copyNote, runArchive, openInObsidian };
+  return { runDelete, copyNote, runArchive, openInObsidian };
 }
 
 export { useNoteActions };

@@ -14,6 +14,7 @@ import { useCardDrag } from './drag/use-card-drag.js';
 import { clearImageCache } from './images/cache.js';
 import { clearImageQueue } from './images/queue.js';
 import { renderPanelHeader } from './panel/header.js';
+import { useHeaderDrag } from './panel/use-header-drag.js';
 import { usePanelShortcuts } from './panel/use-shortcuts.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
@@ -58,8 +59,6 @@ function StickyNotesPanel(props) {
     toggleDateEnabled, chooseDateFilter, toggleDateRealtime,
   } = useWallFilters();
   const refreshingRef = React.useRef(false);
-  const [drawerArchive, setDrawerArchive] = React.useState(false);
-  const drawerMenuRef = React.useRef(null);
   const actionsRef = React.useRef({});
   const [hoverPath, setHoverPath] = React.useState(null);
   const [showBackTop, setShowBackTop] = React.useState(false);
@@ -86,7 +85,6 @@ function StickyNotesPanel(props) {
     notesForRestore: view.loaded && view.configured ? view.notes : null,
     onOpen() {
       pinnedUserClosedRef.current = false;
-      setDrawerArchive(false);
       setSortMenu(false);
       setDateMenu(false);
     },
@@ -97,12 +95,24 @@ function StickyNotesPanel(props) {
       setResizingDrawer(false);
       commentsLayout.stopCommentsResize();
       commentsLayout.persistCommentsHeight();
-      setDrawerArchive(false);
+    },
+  });
+  const headerGesture = useHeaderDrag({
+    onTap() {
+      if (!noteDrawer || pinned) return;
+      closeNoteDrawer();
+    },
+    onPress() {
+      // 编辑态在顶栏按下只退出编辑，不关抽屉；拖动仍可继续。
+      if (!(noteDrawer && editingRef.current)) return false;
+      suppressCardOpenRef.current = true;
+      cancelEditing();
+      return true;
     },
   });
   const {
     settingsOpen, settingsDraft, picking, savingSettings, settingsTab, acceptConfigSettings, openSettings,
-    closeSettings, patchDraft, patchEmoji, removeEmoji, addEmoji, removeArchiveTarget, systemPick,
+    closeSettings, patchDraft, patchEmoji, removeEmoji, addEmoji, systemPick,
     saveSettingsDraft,
   } = useSettingsDraft({
     t, tRef, viewRef, updateView, request, refreshNow, aliveRef, panelRef, pushToast, pushErrorToast,
@@ -113,22 +123,21 @@ function StickyNotesPanel(props) {
   const { subfoldersBusy, toggleSubfolders } = useSubfolders({ aliveRef, pushErrorToast, pushToast, refreshNow, request, t, updateView, viewRef });
   const currentSettings = view.settings && typeof view.settings === 'object' ? view.settings : EMPTY_SETTINGS;
   const emojis = Array.isArray(currentSettings.emojis) ? currentSettings.emojis : [];
-  const archiveTargets = Array.isArray(currentSettings.archiveTargets) ? currentSettings.archiveTargets : [];
-  const { projectTarget, projectName, setProjectName, projectBusy, projectTargets, refreshProjectTargets, queueProjectDrop, notices, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, jobs: view.jobs, projectDir: currentSettings.projectDir, vaultPath: currentSettings.vaultPath, notesDir: currentSettings.notesDir, projectKey: currentSettings.projectKey, projectDropConfirmEnabled: currentSettings.projectDropConfirmEnabled !== false, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setSortMenu, t });
-  const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setHoverPath, tRef, viewRef, watchedJobsRef });
+  const { projectTarget, projectName, setProjectName, projectBusy, projectTargets, refreshProjectTargets, queueProjectDrop, notices, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, jobs: view.jobs, projectDir: currentSettings.projectDir, vaultPath: currentSettings.vaultPath, notesDir: currentSettings.notesDir, projectKey: currentSettings.projectKey, projectDropConfirmEnabled: currentSettings.projectDropConfirmEnabled !== false, pushErrorToast, pushToast, refreshNow, request, setSortMenu, t });
+  const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setHoverPath, tRef, viewRef, watchedJobsRef });
   const { deletingIndex: deletingCommentIndex, deleteComment } = useCommentActions({
     aliveRef, noteDrawerRef, request, loadNote, refreshNow, replaceNote, pushToast, pushErrorToast, tRef,
   });
-  const { findTarget, runDelete, copyNote, runArchive, openInObsidian } = useNoteActions({
-    aliveRef, archiveTargets, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
-    refreshNow, request, setDrawerArchive, setHoverPath, tRef, titleMode, updateView, viewRef,
+  const { runDelete, copyNote, runArchive, openInObsidian } = useNoteActions({
+    aliveRef, closeNoteDrawer, localPending, noteDrawerRef, pushErrorToast, pushToast,
+    refreshNow, request, setHoverPath, tRef, titleMode, updateView, viewRef,
   });
   const {
     dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
-    startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop, chooseProjectTarget,
+    startCardDrag, hoverDragAction, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget,
   } = useCardDrag({
-    aliveRef, archiveTargets, findTarget, projectTargets, queueProjectDrop, panelRef, pushToast, runArchive, runDelete,
-    setDateMenu, setDrawerArchive, setHoverPath, setSortMenu, tRef,
+    aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
+    setDateMenu, setHoverPath, setSortMenu,
   });
   React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
   const filteredNotes = React.useMemo(
@@ -142,7 +151,7 @@ function StickyNotesPanel(props) {
   const dateRangeLabel = t(dateFilterOption(dateFilter).labelKey);
   const includeSubfolders = currentSettings.includeSubfolders !== false;
   const { dockRight } = useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned });
-  const anyOverlay = Boolean(sortMenu || dateMenu || drawerArchive || commentConfirm || projectTarget || settingsOpen || noteDrawer);
+  const anyOverlay = Boolean(sortMenu || dateMenu || commentConfirm || projectTarget || settingsOpen || noteDrawer);
 
   function replaceNote(summary) {
     if (!summary || typeof summary.path !== 'string') return;
@@ -185,21 +194,7 @@ function StickyNotesPanel(props) {
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!drawerArchive) return undefined;
-    const onPointerDown = (event) => {
-      const target = event.target;
-      if (drawerMenuRef.current && target && drawerMenuRef.current.contains(target)) return;
-      if (target && typeof target.closest === 'function' && target.closest('[data-sn-drawer-menu-trigger]')) return;
-      setDrawerArchive(false);
-    };
-    document.addEventListener('mousedown', onPointerDown, true);
-    return () => document.removeEventListener('mousedown', onPointerDown, true);
-  }, [drawerArchive]);
-
   function handleWallMouseDown() {
-    // 归档菜单在墙内：不要在这里关闭（mousedown 关闭会让随后的菜单项 click 丢失），
-    // 外部点击已由 document capture 监听负责。
     if (noteDrawer && editingRef.current) {
       suppressCardOpenRef.current = true;
       cancelEditing();
@@ -258,21 +253,11 @@ function StickyNotesPanel(props) {
       || null;
   }
 
-  function toggleDrawerArchive() {
-    if (!noteDrawerRef.current) return;
-    if (archiveTargets.length === 0) {
-      pushToast({ text: t('archive.emptyHint'), kind: 'info', timeout: 6000 });
-      return;
-    }
-    setDrawerArchive((value) => !value);
-    setSortMenu(false);
-  }
-
   usePanelShortcuts({
     anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeProjectDialog, closeSettings,
-    commentConfirm, currentDrawerNote, dateMenu, drawerArchive, editing, noteDrawer, panelRef, pinned,
+    commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned,
     pinnedUserClosedRef, projectBusy, projectTarget, runDelete, saveEditing, savingSettings, setDateMenu,
-    setDrawerArchive, setSortMenu, settingsOpen, sortMenu,
+    setSortMenu, settingsOpen, sortMenu,
   });
 
   actionsRef.current = {
@@ -315,12 +300,8 @@ function StickyNotesPanel(props) {
       drawerActions: {
         emojis: emojis,
         pending: drawerPending,
-        archiveOpen: drawerArchive,
-        targets: archiveTargets,
-        menuRef: drawerMenuRef,
         onComment: (emoji) => requestComment(currentDrawerNote(), emoji),
-        onToggleArchive: toggleDrawerArchive,
-        onArchive: (targetId) => runArchive(currentDrawerNote(), targetId),
+        onArchive: () => runArchive(currentDrawerNote()),
         onProject: () => openProjectDialog(currentDrawerNote()),
         onOpenObsidian: () => openInObsidian(currentDrawerNote()),
         onCopy: () => copyNote(currentDrawerNote()),
@@ -376,6 +357,11 @@ function StickyNotesPanel(props) {
       dateWrapRef, dirLabel, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
       settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled,
       toggleDateRealtime, toggleSortMenu, toggleSubfolders, view,
+      onHeaderPointerDown: headerGesture.onHeaderPointerDown,
+      onHeaderPointerMove: headerGesture.onHeaderPointerMove,
+      onHeaderPointerUp: headerGesture.onHeaderPointerUp,
+      onHeaderPointerCancel: headerGesture.onHeaderPointerCancel,
+      onHeaderClick: headerGesture.onHeaderClick,
     }),
     errorBanner ? h('div', { className: 'SN_banner' },
       h('span', { className: 'SN_bannerText', title: errorBanner }, errorBanner),
@@ -387,8 +373,8 @@ function StickyNotesPanel(props) {
         renderContent(),
         h(CaptureComposer, {
           t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
-          dragNote, archiveParked: Boolean(dragSession?.parked), dropAction, dropTargetId, archiveTargets, projectTargets,
-          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onArchiveChoose: chooseArchiveTarget, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop,
+          dragNote, dropAction, dropTargetId, projectParked: Boolean(dragSession?.parked), projectTargets,
+          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop,
           showBackTop,
           onBackTop: () => panelRef.current?.querySelector('.SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
           onCreate: (payload) => request('createNote', payload),
@@ -413,7 +399,8 @@ function StickyNotesPanel(props) {
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
     h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast }),
-    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, targets: archiveTargets, projectTargets, t }) : null,
+    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
+      archiveSettings: currentSettings, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {
         t: t,
@@ -422,7 +409,6 @@ function StickyNotesPanel(props) {
         saving: savingSettings,
         onPatch: patchDraft,
         onPick: systemPick,
-        onRemoveArchive: removeArchiveTarget,
         onPatchEmoji: patchEmoji,
         onRemoveEmoji: removeEmoji,
         onAddEmoji: addEmoji,

@@ -80,12 +80,11 @@ function useSettingsDraft(options) {
       const next = Object.assign({}, current, patch);
       const root = next.vaultPath || '';
       if (patch.vaultPath !== undefined && patch.vaultPath !== current.vaultPath) {
-        ['notesDir', 'projectDir', 'attachmentDir'].forEach((key) => { next[key] = vaultRelative(current.vaultPath, current[key]); });
-        next.archiveTargets = (current.archiveTargets || []).map((item) => ({ ...item, path: vaultRelative(current.vaultPath, item.path) }));
+        ['notesDir', 'projectDir', 'attachmentDir', 'archiveDir'].forEach((key) => { next[key] = vaultRelative(current.vaultPath, current[key]); });
         next.folderHistory = [];
       }
       next.folderHistory = [...new Set([next.notesDir, next.projectDir, next.attachmentDir,
-        ...(next.archiveTargets || []).map((item) => item.path), ...(next.folderHistory || [])]
+        next.archiveDir, ...(next.folderHistory || [])]
         .filter(Boolean).map((path) => vaultRelative(root, path)).filter((path) => !isAbsolutePath(path)))].slice(0, 40);
       return next;
     });
@@ -124,15 +123,6 @@ function useSettingsDraft(options) {
         ai: readAiBudget(null),
       });
       return Object.assign({}, current, { emojis: emojisNext });
-    });
-  }
-
-  function removeArchiveTarget(index) {
-    setSettingsDraft((current) => {
-      if (!current || !Array.isArray(current.archiveTargets)) return current;
-      return Object.assign({}, current, {
-        archiveTargets: current.archiveTargets.filter((target, position) => position !== index),
-      });
     });
   }
 
@@ -206,7 +196,7 @@ function useSettingsDraft(options) {
   }
 
   return { settingsOpen, settingsDraft, picking, savingSettings, settingsTab, acceptConfigSettings, openSettings, closeSettings,
-  patchDraft, patchEmoji, removeEmoji, addEmoji, removeArchiveTarget, systemPick,
+  patchDraft, patchEmoji, removeEmoji, addEmoji, systemPick,
   saveSettingsDraft };
 }
 

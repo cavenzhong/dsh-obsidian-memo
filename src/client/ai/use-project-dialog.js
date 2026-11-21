@@ -2,7 +2,7 @@
 import { React } from '../react.js';
 import { isAbortError } from '../utils.js';
 
-function useProjectDialog({ aliveRef, jobs, projectDir, vaultPath, notesDir, projectKey, projectDropConfirmEnabled = true, pushErrorToast, pushToast, refreshNow, request, setDrawerArchive, setSortMenu, t }) {
+function useProjectDialog({ aliveRef, jobs, projectDir, vaultPath, notesDir, projectKey, projectDropConfirmEnabled = true, pushErrorToast, pushToast, refreshNow, request, setSortMenu, t }) {
   const [projectTarget, setTarget] = React.useState(null);
   const [projectName, setProjectName] = React.useState('');
   const [projectBusy, setBusy] = React.useState(false);
@@ -72,7 +72,7 @@ function useProjectDialog({ aliveRef, jobs, projectDir, vaultPath, notesDir, pro
   function openProjectDialog(note) {
     if (!note) return;
     if (waiting.current || projectTarget || delayRef.current != null) { report(new Error(t('project.waitPrevious'))); return; }
-    setDrawerArchive(false); setSortMenu(false);
+    setSortMenu(false);
     beginCheck(note);
   }
   function closeProjectDialog() {

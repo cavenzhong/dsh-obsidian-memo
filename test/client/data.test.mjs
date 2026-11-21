@@ -74,7 +74,7 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
     vaultPath: '/vault',
     notesDir: '/vault/notes',
     projectDir: '',
-    archiveTargets: [],
+    archiveMode: 'local',
     emojis: [{ id: 'devil', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'x' }],
     projectPrompt: 'p',
     includeSubfolders: true,

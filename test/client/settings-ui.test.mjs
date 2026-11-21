@@ -224,6 +224,7 @@ test('v0.16.8 设置：三张 role=radio 大卡、条件提示、方向键与禁
   // 抽屉里「便签」页应包含该组件。
   const drawerNodes = captureNodes(runnerRenderDrawer(t))
   const page = drawerNodes.find((node) => node.props['data-settings-tab'] === 'notes')
+  assert.equal(page.props.className, 'SN_settingsPage', '便签各设置模块需使用纵向间距布局')
   assert.ok(captureNodes(page).some((node) => typeof node.type === 'function' && node.type.name === 'TitleModeSettings'))
 })
 

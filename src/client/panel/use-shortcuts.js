@@ -4,9 +4,9 @@ import { React } from '../react.js';
 
 function usePanelShortcuts({
   anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeProjectDialog, closeSettings,
-  commentConfirm, currentDrawerNote, dateMenu, drawerArchive, editing, noteDrawer, panelRef, pinned,
+  commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned,
   pinnedUserClosedRef, projectBusy, projectTarget, runDelete, saveEditing, savingSettings, setDateMenu,
-  setDrawerArchive, setSortMenu, settingsOpen, sortMenu,
+  setSortMenu, settingsOpen, sortMenu,
 }) {
   const keyHandlerRef = React.useRef(null);
 
@@ -35,10 +35,6 @@ function usePanelShortcuts({
       // 0.13 同类评论确认框在最上层：Esc 只关它（§7.7）。
       if (commentConfirm) {
         closeCommentConfirm();
-        return;
-      }
-      if (drawerArchive) {
-        setDrawerArchive(false);
         return;
       }
       if (dateMenu) {

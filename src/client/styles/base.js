@@ -10,13 +10,15 @@ const baseStyles = `
 /* 切换到面板时容器只作为键盘落点（tabIndex=-1），不画整块焦点环。 */
 .SN_panel:focus{outline:none}
 
-/* 0.13.9 桌面版窗口拖拽：整个顶栏空白/标题区可拖动 DSH 窗口（Electron app-region），
-   右侧操作区（按钮/菜单）显式恢复 no-drag，保证点击、弹菜单不被拖拽吃掉。
-   Web GUI 里这些属性会被浏览器忽略，不影响点击。 */
-.SN_head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;padding:14px 20px 12px 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag}
+/* 0.17 桌面版窗口拖拽：macOS 的 Electron 原生 app-region 拖动区不会向 DOM
+   转发指针事件，无法同时做「单击收起右侧面板」。因此 darwin 关闭 app-region，
+   由面板里的指针逻辑（拖动超过 3px 才 window.moveTo）接管；同一块顶栏
+   （标题、目录、留白和按钮间隙）既能按住拖动窗口，也能单击收起抽屉。
+   Windows / Web 仍走原来的 app-region 方案，按钮和菜单保持 no-drag。 */
+.SN_head{position:relative;flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;--sn-head-top-padding:14px;padding:var(--sn-head-top-padding) 20px 12px 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag;-webkit-user-select:none;user-select:none}
 .SN_headActions,.SN_headActions *{-webkit-app-region:no-drag;app-region:no-drag}
-[data-platform='darwin'] .SN_head{padding-top:calc(var(--dsh-frame-top-clearance,0px) + 10px)}
-.SN_headMain{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+[data-platform='darwin'] .SN_head{--sn-head-top-padding:calc(var(--dsh-frame-top-clearance,0px) + 10px);-webkit-app-region:no-drag;app-region:no-drag}
+.SN_headMain{align-self:stretch;justify-content:center;min-width:0;flex:0 1 auto;display:flex;flex-direction:column;gap:2px}
 .SN_titleRow{display:flex;align-items:baseline;gap:10px;min-width:0;overflow:hidden}
 .SN_title{font-family:var(--sn-serif);font-size:18px;font-weight:600;letter-spacing:.02em;line-height:1.35;margin:0;color:var(--dsw-alias-label-primary);white-space:nowrap}
 .SN_count{font-size:11.5px;line-height:1.4;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}

@@ -64,7 +64,7 @@ test('v0.16.6 抽屉操作条：四个线图标在左、Obsidian 在右同一行
   const api = loadClient(t).mod.__test, calls = []
   const emojis = [{ id: 'one', emoji: '🔥', label: '毒舌' }, { id: 'two', emoji: '🌱', label: '落地' }]
   const drawerActions = { emojis, onComment: (emoji) => calls.push('comment:' + emoji.id),
-    onToggleArchive: () => calls.push('archive'), onProject: () => calls.push('project'),
+    onArchive: () => calls.push('archive'), onProject: () => calls.push('project'),
     onCopy: () => calls.push('copy'), onOpenObsidian: () => calls.push('obsidian'), onDelete: () => calls.push('delete') }
   const props = { t: (key) => key, drawer: { full: { title: '便签', blocks: [] } }, drawerActions }
   let nodes = captureNodes(api.components.NoteDrawer(props))
@@ -91,7 +91,9 @@ test('v0.16.6 抽屉操作条：四个线图标在左、Obsidian 在右同一行
   obsidian.props.onClick()
   assert.deepEqual(calls, ['archive', 'project', 'delete', 'copy', 'obsidian'])
   assert.ok(buttons[2].props.className.includes('SN_drawerDeleteBtn'))
-  assert.equal(buttons[0].props['aria-haspopup'], 'menu')
+  assert.equal(buttons[0].props['aria-haspopup'], undefined)
+  assert.equal(captureNodes(bar).some((node) => String(node.props.className || '').includes('SN_drawerMenu')), false,
+    '归档操作不再展开目标菜单')
   assert.equal(captureNodes(bar).some((node) => node.type === 'button' && node.props.className === 'SN_aiBtn'), false,
     '操作条不再放 AI emoji')
 

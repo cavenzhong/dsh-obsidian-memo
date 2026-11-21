@@ -228,14 +228,15 @@ async function makeCase(options = {}) {
   const vault = join(dir, 'vault')
   const notesDir = join(vault, '进行时')
   const projectDir = join(vault, '项目')
-  const archiveDir = join(vault, '归档')
+  const archiveDir = join(notesDir, '归档')
   await mkdir(notesDir, { recursive: true })
 
   const settings = {
     vaultPath: vault,
     notesDir,
     projectDir,
-    archiveTargets: [{ id: 'arch', label: '归档', path: archiveDir }],
+    archiveMode: 'local',
+    archiveFolderName: '归档',
     ...options.settings,
   }
   await writeSettingsFile(SETTINGS_FILE, settings)

@@ -175,9 +175,8 @@ function NoteDrawer(props) {
     ? h('div', { className: 'SN_drawerActions' },
       h('div', { className: 'SN_drawerActionLeft' },
         h('div', { className: 'SN_drawerActionTop' }, [
-          { kind: 'archive', label: t('card.archive'), onClick: drawerActions.onToggleArchive,
-            disabled: Boolean(drawerActions.pending), 'data-sn-drawer-menu-trigger': '',
-            'aria-haspopup': 'menu', 'aria-expanded': drawerActions.archiveOpen ? 'true' : 'false' },
+          { kind: 'archive', label: t('card.archive'), onClick: drawerActions.onArchive,
+            disabled: Boolean(drawerActions.pending) },
           { kind: 'project', label: t('card.project'), onClick: drawerActions.onProject, disabled: Boolean(drawerActions.pending) },
           { kind: 'delete', label: t('card.delete'), onClick: drawerActions.onDelete, disabled: Boolean(drawerActions.pending) },
           { kind: 'copy', label: t('drawer.copy'), onClick: drawerActions.onCopy },
@@ -186,32 +185,6 @@ function NoteDrawer(props) {
           className: 'SN_drawerActionBtn' + (kind === 'delete' ? ' SN_drawerDeleteBtn' : ''),
           'aria-label': label,
         }, h(ActionIcon, { kind, size: 15 }), h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, label)))),
-        drawerActions.archiveOpen
-          ? h('div', {
-            className: 'SN_drawerMenu',
-            role: 'menu',
-            ref: drawerActions.menuRef,
-            'aria-label': t('archive.aria'),
-            onClick: (event) => event.stopPropagation(),
-          },
-            h('div', { className: 'SN_menuTitle' }, t('archive.menuTitle')),
-            (Array.isArray(drawerActions.targets) ? drawerActions.targets : []).length === 0
-              ? h('div', { className: 'SN_menuEmpty' }, t('archive.emptyHint'))
-              : (drawerActions.targets || []).map((target) => h('button', {
-                key: target.id,
-                type: 'button',
-                className: 'SN_menuItem',
-                role: 'menuitem',
-                onClick: (event) => {
-                  event.stopPropagation();
-                  drawerActions.onArchive(target.id);
-                },
-              },
-                h('span', { className: 'SN_menuLabel' }, target.label || target.id),
-                h('span', { className: 'SN_menuPath', title: target.path }, target.path),
-              )),
-          )
-          : null,
       ),
       h('button', {
         type: 'button', className: 'SN_mini SN_obsidianBtn',

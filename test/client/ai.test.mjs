@@ -118,7 +118,7 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
     vaultPath: '/v',
     notesDir: '/v/notes',
     projectDir: '/v/projects',
-    archiveTargets: [],
+    archiveMode: 'local',
     emojis: [
       { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p' },
       { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
@@ -181,7 +181,7 @@ test('v0.16.8 开档：默认项目名优先展示标题，而不是自动文件
   runner.connect(async (channel, endpoint, payload) => {
     if (endpoint === 'projectCheck') { projectJobs = [{ id: 'check', kind: 'project-check', status: 'done', result: { name: '展示事项', level: '符合', reason: '可持续跟踪', matches: [], candidates: [] } }]; return { ok: true, value: { jobId: 'check' } } }
     if (endpoint === 'state') {
-      return { ok: true, value: { configured: true, notes: [note], revision: String(projectJobs.length), jobs: projectJobs, settings: { emojis: [], archiveTargets: [], titleMode: 'heading' } } }
+      return { ok: true, value: { configured: true, notes: [note], revision: String(projectJobs.length), jobs: projectJobs, settings: { emojis: [], archiveMode: 'local', titleMode: 'heading' } } }
     }
     if (endpoint === 'note') return { ok: true, value: { ...note, body: '# 展示标题\n\n正文', contentRevision: 'v' } }
     assert.fail('Unexpected endpoint ' + endpoint)

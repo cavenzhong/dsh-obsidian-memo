@@ -40,12 +40,12 @@ test('v0.16 配置迁移：保留旧文件，优先已有新配置，记住选�
 
 test('v0.16 文件夹历史：跨字段共享、去重、限制仓库边界并保留旧选择', () => {
   const settings = normalizeSettings({ vaultPath: '/vault', notesDir: '/vault/notes', projectDir: 'projects',
-    archiveTargets: [{ id: 'a', path: 'archive' }], folderHistory: ['old', '/vault/notes', '../outside', '.trash'] })
+    archiveMode: 'mapped', archiveDir: 'archive', folderHistory: ['old', '/vault/notes', '../outside', '.trash'] })
   assert.deepEqual(settings.folderHistory, ['/vault/notes', '/vault/projects', '/vault/archive', '/vault/old'])
   const portable = portableSettings(settings)
   assert.equal(portable.notesDir, 'notes')
   assert.deepEqual(portable.folderHistory, ['notes', 'projects', 'archive', 'old'])
-  assert.equal(portable.archiveTargets[0].path, 'archive')
+  assert.equal(portable.archiveDir, 'archive')
   assert.equal(normalizeSettings(portable).projectDir, '/vault/projects')
 })
 

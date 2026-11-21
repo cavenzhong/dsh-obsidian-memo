@@ -23,16 +23,26 @@ test('v0.16 顶栏子文件夹开关：保存携带当前配置版本，成功�
   assert.ok(calls.filter((call) => call.endpoint === 'state').length >= 2)
 })
 
-test('v0.16 归档设置：一个外框中仅有文件夹菜单与删除按钮', (t) => {
-  const api = loadClient(t).mod.__test, removed = []
-  const nodes = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft: { vaultPath: '/vault',
-    emojis: [], archiveTargets: [{ id: 'archive', path: '/vault/archive', label: '重复名称' }] }, picking: null, onRemoveArchive: (index) => removed.push(index) }))
-  const row = nodes.find((node) => node.props.className === 'SN_targetRow')
-  assert.deepEqual(row.children.map((node) => node.type), [api.components.VaultFolderPicker, 'button'])
-  assert.equal(captureNodes(row).some((node) => node.props.className === 'SN_targetLabel'), false)
-  row.children[1].props.onClick()
-  assert.deepEqual(removed, [0])
-  assert.equal(nodes.find((node) => node.type === api.components.VaultFolderPicker && node.props.value === '').props.placeholder, 'settings.addArchive')
+test('设置-便签：归档方式在单级目录与结构映射之间切换', (t) => {
+  const runner = hookRunner(t), patches = []
+  const api = runner.api
+  const draft = { vaultPath: '/vault', notesDir: '/vault/notes', archiveMode: 'local', archiveFolderName: '已归档', emojis: [] }
+  const render = (current) => captureNodes(runner.render(api.components.SettingsDrawer, { t: (key) => key, draft: current,
+    initialTab: 'notes', onPatch: (patch) => patches.push(patch) }))
+  let nodes = render(draft)
+  const radioGroup = nodes.find((node) => node.props.className === 'SN_archiveModes')
+  assert.ok(radioGroup)
+  assert.deepEqual(captureNodes(radioGroup).filter((node) => node.type === 'input').map((node) => node.props.value), ['local', 'mapped'])
+  const nameInput = nodes.find((node) => node.type === 'input' && node.props['aria-label'] === 'settings.archiveFolderName')
+  assert.equal(nameInput.props.value, '已归档')
+  nameInput.props.onChange({ target: { value: '旧事' } })
+  assert.deepEqual(patches.at(-1), { archiveFolderName: '旧事' })
+
+  const mappedDraft = { ...draft, archiveMode: 'mapped', archiveDir: '/vault/archive' }
+  nodes = render(mappedDraft)
+  const picker = nodes.find((node) => node.type === api.components.VaultFolderPicker && node.props.label === 'settings.archiveDir')
+  assert.equal(picker.props.value, '/vault/archive')
+  assert.equal(nodes.some((node) => node.type === 'input' && node.props['aria-label'] === 'settings.archiveFolderName'), false)
 })
 
 test('v0.16 Config：打开与加载为主操作，更多菜单含三个次要操作', async (t) => {

@@ -3,8 +3,8 @@ import { focusCaptureOnTab } from '../capture/keyboard.js';
 import { React } from '../react.js';
 
 function useCardDrag({
-  aliveRef, archiveTargets, findTarget, projectTargets, queueProjectDrop, panelRef, pushToast, runArchive, runDelete,
-  setDateMenu, setDrawerArchive, setHoverPath, setSortMenu, tRef,
+  aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
+  setDateMenu, setHoverPath, setSortMenu,
 }) {
   const [dragSession, setDragSession] = React.useState(null);
   const dragSessionRef = React.useRef(null), dragMotionRef = React.useRef(null), captureFocusRef = React.useRef(false);
@@ -49,7 +49,7 @@ function useCardDrag({
       }
     };
     const dismissParked = (event) => {
-      if (!dragSessionRef.current?.parked || event.target?.closest?.('.SN_dropItem[data-action="archive"],.SN_dropItem[data-action="project"]')) return;
+      if (!dragSessionRef.current?.parked || event.target?.closest?.('.SN_dropItem[data-action="project"]')) return;
       endCardDrag();
     };
     document.addEventListener('dragenter', accept, true);
@@ -90,7 +90,7 @@ function useCardDrag({
     const session = { note, point, source, ending: false };
     dragSessionRef.current = session;
     setDragSession(session); setDropTarget(null); setHoverPath(null);
-    setDrawerArchive(false); setSortMenu(false); setDateMenu(false);
+    setSortMenu(false); setDateMenu(false);
   }
 
   function hoverDragAction(kind, targetId, anchor = null) {
@@ -119,31 +119,13 @@ function useCardDrag({
     endCardDrag('drop', runDelete(note));
   }
 
-  function archiveDrop(event, targetId) {
+  function archiveDrop(event) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return;
     const note = session.note;
     const path = event.dataTransfer.getData('application/x-dsh-memo');
     if (path !== note.path) { endCardDrag(); return; }
-    if (targetId) { endCardDrag('drop', runArchive(note, targetId)); return; }
-    if (!archiveTargets.length) {
-      endCardDrag();
-      pushToast({ text: tRef.current('archive.emptyHint'), kind: 'info', timeout: 6000 });
-      return;
-    }
-    const anchor = event.currentTarget?.closest?.('.SN_dropItem[data-action="archive"]');
-    if (!anchor) { endCardDrag(); return; }
-    // 放到归档区但未选目录：停止跟随鼠标，预览停在按钮正中，保留底部目录菜单。
-    session.parked = true;
-    dragMotionRef.current?.park(anchor);
-    setDragSession(Object.assign({}, session));
-    setDropTarget({ kind: 'archive', id: null });
-  }
-
-  function chooseArchiveTarget(targetId) {
-    const session = dragSessionRef.current;
-    if (!session?.parked || session.ending || !findTarget(targetId)) return;
-    endCardDrag('drop', runArchive(session.note, targetId));
+    endCardDrag('drop', runArchive(note));
   }
 
   function projectDrop(event, targetId) {
@@ -169,7 +151,7 @@ function useCardDrag({
     endCardDrag('drop', queueProjectDrop(session.note, target.id === '__new__' ? null : target));
   }
 
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, chooseArchiveTarget, projectDrop, chooseProjectTarget };
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget };
 }
 
 export { useCardDrag };

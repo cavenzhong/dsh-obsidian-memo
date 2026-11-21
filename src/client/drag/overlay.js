@@ -28,7 +28,28 @@ function DragTargetHint({ anchor, text, kind }) {
     h(ActionIcon, { kind, size: 15 }), h('span', null, text));
 }
 
-function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets, projectTargets, t, motionRef }) {
+function cleanPath(value) { return String(value || '').replace(/[\\/]+/g, '/').replace(/\/$/, ''); }
+
+function relativePath(rootValue, targetValue) {
+  const root = cleanPath(rootValue), target = cleanPath(targetValue);
+  if (!root || target === root) return '';
+  return target.startsWith(root + '/') ? target.slice(root.length + 1) : target;
+}
+
+function archivePreviewHint(note, settings, t) {
+  if (settings?.archiveMode !== 'mapped') {
+    return t('drag.releaseArchiveLocal', { folder: settings?.archiveFolderName || '归档' });
+  }
+  if (!settings.archiveDir) return t('drag.releaseArchiveUnconfigured');
+  const notePath = cleanPath(note?.path);
+  const noteFolder = notePath.slice(0, notePath.lastIndexOf('/'));
+  const root = relativePath(settings.vaultPath, settings.archiveDir);
+  const nested = relativePath(settings.notesDir, noteFolder);
+  const destination = [root, nested].filter(Boolean).join('/') || '.';
+  return t('drag.releaseArchiveMapped', { path: destination });
+}
+
+function CardDragOverlay({ note, point, action, targetId, targetAnchor, projectTargets, archiveSettings, t, motionRef }) {
   const layerRef = React.useRef(null);
   React.useLayoutEffect(() => {
     if (!layerRef.current || !motionRef) return undefined;
@@ -36,13 +57,13 @@ function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets,
     motionRef.current = motion;
     return () => { motion.dispose(); if (motionRef.current === motion) motionRef.current = null; };
   }, [point, motionRef]);
-  const targetList = action === 'project' ? (projectTargets || []) : (targets || []);
+  const targetList = projectTargets || [];
   const target = action === 'project' && targetId === '__new__'
     ? { id: '__new__', label: t('project.newTarget') }
     : targetList.find((item) => item.id === targetId);
-  const anchored = (action === 'archive' || action === 'project') && target && targetAnchor;
+  const anchored = action === 'project' && target && targetAnchor;
   const text = action === 'archive'
-    ? (target ? t('drag.releaseArchiveTarget', { label: target.label || target.id }) : t('drag.releaseArchive'))
+    ? archivePreviewHint(note, archiveSettings, t)
     : action === 'project'
       ? (target ? t('drag.releaseProjectTarget', { label: target.label || target.id }) : t('drag.releaseProject'))
       : action === 'delete' ? t('drag.release') : '';
@@ -61,4 +82,4 @@ function CardDragOverlay({ note, point, action, targetId, targetAnchor, targets,
   return typeof document !== 'undefined' && document.body ? ReactDOM.createPortal(overlay, document.body) : overlay;
 }
 
-export { CardDragOverlay };
+export { CardDragOverlay, archivePreviewHint };

@@ -66,7 +66,7 @@ const captureStyles = `
 .SN_dropItem[data-active='true'][data-action='delete']{color:#b93d45;background:rgba(201,79,85,.14)}
 .SN_dropLabel{display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.3}
 .SN_dropTargets{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);z-index:3;box-sizing:border-box;width:min(280px,100%);max-height:180px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:auto;border:1px solid var(--sn-capture-line);border-radius:12px;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 7px 22px rgba(35,45,38,.14);pointer-events:auto}
-.SN_dropItem[data-action='archive']::after,.SN_dropItem[data-action='project']::after{content:'';position:absolute;left:0;right:0;bottom:100%;height:9px}
+.SN_dropItem[data-action='project']::after{content:'';position:absolute;left:0;right:0;bottom:100%;height:9px}
 .SN_dropTarget{flex:none;width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;border-radius:7px;padding:9px 10px;background:transparent;color:#286c55;font:inherit;font-size:12px;cursor:pointer}
 .SN_dropTarget:hover,.SN_dropTarget:focus-visible{background:rgba(55,133,107,.12);outline:none}
 .SN_dropTarget[data-active='true']{background:#37856b;color:#fff;border-color:#37856b}

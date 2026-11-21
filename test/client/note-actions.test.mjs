@@ -19,7 +19,7 @@ test('v0.16 右侧复制与删除复用卡片行为：复制完整正文，删�
   const body = '# 完整标题\n\n第一段\n\n- [ ] 正文末尾也需要复制'
   runner.connect(async (channel, endpoint, payload) => {
     requests.push({ endpoint, payload })
-    if (endpoint === 'state') return { ok: true, value: { configured: true, notes, revision: String(notes.length), jobs: [], settings: { emojis: [], archiveTargets: [] } } }
+    if (endpoint === 'state') return { ok: true, value: { configured: true, notes, revision: String(notes.length), jobs: [], settings: { emojis: [], archiveMode: 'local' } } }
     if (endpoint === 'note') return { ok: true, value: { ...note, body, blocks: [{ kind: 'p', text: body }] } }
     if (endpoint === 'deleteNote') {
       notes = []
@@ -64,7 +64,7 @@ test('v0.16.8 复制：正文模式用未截断的派生标题，并去掉正文
   const note = { path: '/long.md', name: '2026-11-13-1924', title: '字'.repeat(200) + '…', excerpt: '摘要', comments: [], images: [], created: Date.now() }
   runner.connect(async (channel, endpoint, payload) => {
     if (endpoint === 'state') {
-      return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [], archiveTargets: [], titleMode: 'firstLine' } } }
+      return { ok: true, value: { configured: true, notes: [note], revision: '1', jobs: [], settings: { emojis: [], archiveMode: 'local', titleMode: 'firstLine' } } }
     }
     if (endpoint === 'note') return { ok: true, value: { ...note, body, blocks: [{ kind: 'p', text: '第一段' }] } }
     assert.fail('Unexpected endpoint ' + endpoint)
