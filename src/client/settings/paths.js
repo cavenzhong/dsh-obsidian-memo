@@ -1,8 +1,9 @@
 /** 仓库字段和库内文件夹下拉，支持历史、浏览和新建。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { Fragment, React, h } from '../react.js';
 import { isAbsolutePath, joinPath, vaultRelative } from '../utils.js';
 
-function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onChange, onPick, request, placeholder, open: controlledOpen, onOpenChange, showCreated, hideTrigger, excludeFolders }) {
+function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onChange, onPick, request, placeholder, open: controlledOpen, onOpenChange, showCreated, hideTrigger, excludeFolders, workspace = false }) {
   // 0.18：工作空间需要在“选择被拒绝”时保持菜单打开，支持受控 open；设置页仍用内部状态。
   const [innerOpen, setInnerOpen] = React.useState(false);
   const isControlled = typeof controlledOpen === 'boolean';
@@ -65,19 +66,23 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
     if (!open || !request || !vaultPath) return undefined;
     let alive = true;
     setLoading(true); setError(''); setFolders([]);
-    request('listFolders', { vaultPath }).then((result) => { if (alive) setFolders(result.folders || []); })
+    request('listFolders', workspace ? { vaultPath, workspace } : { vaultPath }).then((result) => { if (alive) setFolders(result.folders || []); })
       .catch((cause) => { if (alive) fail(cause); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [open, vaultPath]);
+  }, [open, vaultPath, workspace]);
   const choose = (path) => { onChange(path); applyOpen(false); setQuery(''); setCreating(false); setCreated(''); };
-  const recent = [...new Set((history || []).map((path) => vaultRelative(vaultPath, path)).filter((path) => !isAbsolutePath(path)))];
   // 已经挂成标签的文件夹（以及「所有」占用的仓库根）不再重复列出。
   const normalizeOption = (path) => {
     const cleaned = String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     return cleaned === '' || cleaned === '.' || cleaned === './' ? '.' : cleaned;
   };
+  const recent = [...new Set((history || []).map((path) => vaultRelative(vaultPath, path)).filter((path) => !isAbsolutePath(path)))];
+  const listed = workspace ? folders.map(normalizeOption) : folders;
   const excluded = new Set((Array.isArray(excludeFolders) ? excludeFolders : []).map(normalizeOption));
-  const options = [...new Set(recent.concat(folders))]
+  // 工作空间的最近目录也需通过 Host 的过滤，避免从配置历史重新挂回归档目录。
+  const allowed = workspace ? new Set(listed) : null;
+  const options = [...new Set(recent.concat(listed))]
+    .filter((path) => !allowed || allowed.has(path))
     .filter((path) => !excluded.has(normalizeOption(path)))
     .filter((path) => path.toLowerCase().includes(query.toLowerCase()));
   return h('div', { className: 'SN_folderPicker', ref: wrap, onKeyDown: (event) => { if (event.key === 'Escape') { event.stopPropagation(); applyOpen(false); } } },
@@ -89,7 +94,7 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
       h('button', { type: 'button', className: 'SN_folderOption', disabled: loading, onClick: () => setCreating(!creating) }, '＋ ', t('settings.newFolder')),
       creating ? h('div', { className: 'SN_folderCreateSection' }, h('form', { className: 'SN_folderCreate', onSubmit: (event) => {
         event.preventDefault(); if (!name.trim() || loading) return; setLoading(true); setCreatingBusy(true); setError(''); setCreated('');
-        request('createFolder', { vaultPath, path: name.trim() }).then((result) => { if (isCurrent()) { choose(result.path); setCreated(vaultRelative(vaultPath, result.path)); setName(''); } })
+        request('createFolder', { vaultPath, path: name.trim(), ...(workspace ? { workspace } : {}) }).then((result) => { if (isCurrent()) { choose(result.path); setCreated(vaultRelative(vaultPath, result.path)); setName(''); } })
           .catch((cause) => { if (isCurrent()) fail(cause); }).finally(() => { if (isCurrent()) { setLoading(false); setCreatingBusy(false); } });
       } }, h('input', { className: 'SN_textInput', value: name, autoFocus: true, 'aria-label': t('settings.folderName'),
         placeholder: t('settings.folderName'), onChange: (event) => setName(event.target.value), disabled: loading }),
@@ -103,7 +108,7 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
       value ? h('button', { type: 'button', className: 'SN_folderOption', onClick: () => choose('') }, t('settings.clearFolder')) : null,
       h('input', { className: 'SN_textInput', value: query, 'aria-label': t('settings.searchFolder'), placeholder: t('settings.searchFolder'), onChange: (event) => setQuery(event.target.value) }),
       loading ? h('p', { className: 'SN_fieldHint', role: 'status' }, t('panel.loading')) : null,
-      error ? h('p', { className: 'SN_settingsError', role: 'alert' }, error) : null,
+      error ? h('p', { className: 'SN_settingsError', role: 'alert' }, formatDiagnostic(t, error)) : null,
       h('div', { className: 'SN_folderOptions' }, options.map((path) => h('button', { key: path, type: 'button', className: 'SN_folderOption',
         onClick: () => choose(path), title: path }, h('span', null, path === '.' ? t('settings.vaultRoot') : path),
         recent.includes(path) ? h('small', null, t('settings.recent')) : null))),

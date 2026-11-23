@@ -34,12 +34,14 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 
 ### 0.16 设置与配置约定
 
-- 设置抽屉分文件夹 / 便签 / AI / 管理与关于；设置仅从便签面板内打开，不向 DSH 内置插件设置注册标签。顶栏只显示版本，「管理与关于」以单行淡色小字显示 GitHub 文字超链接与 by cavenzhong。
+- 设置抽屉分文件夹 / 便签 / 项目 / AI / 管理与关于；设置仅从便签面板内打开，不向 DSH 内置插件设置注册标签。顶栏只显示版本，「管理与关于」以单行淡色小字显示 GitHub 文字超链接与 by cavenzhong。
+- 「项目」标签右上角显示 `Beta`；该页顶部提示「该项目功能仍在测试与推进中，版本推进功能可能会大改。」英文界面显示对应译文。
+- 「管理与关于 → 界面语言」可选跟随 Harness（默认）、简体中文、English。切换立即生效，偏好保存在当前客户端的 `localStorage['dsh-sticky-notes.uiLanguage.v1']`（`system` / `zh` / `en`），不进设置草稿、Host 配置或仓库。存储不可用时仍可在当前面板切换；跟随模式响应宿主语言变化。界面语言不改变笔记、路径、自定义预设或 AI 提示词；已知 Host 诊断在显示时本地化，未知的系统或模型诊断保留原文。
 - 仓库路径只显示一次；notesDir、projectDir、attachmentDir 和 mapped 模式的 archiveDir 共用 VaultFolderPicker，显示仓库相对路径。菜单提供新建、系统选择、过滤与共享 folderHistory（上限 40）；隐藏目录和符号链接越界拒绝，库内浏览上限 1500 个文件夹。
 - config.json 为唯一设置来源，默认 ~/.config/dsh-obsidian-memo/config.json，Windows 使用 APPDATA，支持 XDG_CONFIG_HOME 与 DSH_STICKY_NOTES_SETTINGS。旧 data/settings.json 首次迁移，原文件保留；JSON 内子文件夹均保存相对路径。location.json 只记住外部配置位置，不包含业务设置。
 - state 与 settings 检查配置文件指纹并加载有效外部修改；无效 JSON 不覆盖文件或上次有效值，错误通过 settings.configFile.error 显示。saveSettings 接受 expected 配置版本，旧草稿拒绝覆盖；configFile.path / pinned / revision 为只读运行时元数据，不落盘。仅配置读取和变更串行，state 的全库扫描不占用配置队列；并发 state 复用扫描。保留兼容用的轻量 `settings` RPC，不扫描或传输便签。
 - configFile({action: open | reveal | reload | load | relocate, path?})：打开、显示父文件夹、重载、加载已有文件、独占另存并使用新位置；环境变量固定时禁止切换。另存保存已提交设置，加载/重载替换草稿；原文件不删除。chooseConfigFile 直接弹出原生 JSON 文件选择窗，选中即走现有 load，取消不切换；macOS 使用 osascript，Windows 使用 OpenFileDialog，Linux 使用 zenity（需系统已安装）。chooseConfigDirectory 仍供另存操作选择目录。
-- listFolders({vaultPath}) → {folders, truncated}；createFolder({vaultPath, path}) → {path}；新建仅允许仓库内非隐藏真实路径。pickDirectory 可传 vaultPath，在 Host 校验选择结果边界。
+- listFolders({vaultPath, workspace?}) → {folders, truncated}；createFolder({vaultPath, path, workspace?}) → {path}；新建仅允许仓库内非隐藏真实路径。pickDirectory 可传 vaultPath，在 Host 校验选择结果边界。三个端点在工作空间选择时传 `workspace: true`，额外排除归档目录及子树；通用设置选择不受影响。
 - trash({action: info | reveal | empty, confirm?})：只在设置暴露额外的管理入口；日常 deleteNote / undoDelete 不变。empty 必须 confirm=true 且无生效撤回窗口，整体 .trash 转交系统回收 API，失败无永久删除兜底，不清空系统垃圾桶；与删除及撤回串行。macOS 使用 Foundation NSFileManager.trashItemAtURL，Windows 使用 RecycleOption，Linux 使用 gio trash。
 - Emoji 为横向单行标签，溢出横向滚动，右侧固定加号；仅当前角色编辑器显示。输入岛标题按实际文字宽度布局，提示右对齐，空间不足时折到标题下方；正文上方保留分割线。顶栏移除刷新，自动轮询与异常重试保留。
 
@@ -239,9 +241,9 @@ Host 保留运行中或待验收的任务，以及最近 2 分钟内结束的其
 | `deleteComment` | `{ path: string, index: number, expectedTitle: string, expectedTime: string }` | `{ note: NoteSummary, undoToken: string, expiresAt: number, removed: { title, label } }` | **0.16.7**：删除第 `index` 条评论 callout，只改 callout 与相邻一个空行；标题/时间不匹配（文件已被改）返回 `conflict`；5 秒内可撤回 |
 | `undoDeleteComment` | `{ undoToken: string }` | `{ restoredTo: string, note: NoteSummary }` | **0.16.7**：仅在删除后文件未被再次修改时整份写回原文；token 过期 `not-found`，内容已变 `conflict` |
 | `archive` | `{ path: string }` | `{ undoToken: string, to: string }` | 按当前归档设置移动便签 |
-| `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档 |
-| `moveNote` | `{ path: string, targetDir: string }` | `{ to: string, undoToken: string, note: NoteSummary \| null }` | **0.18**：把便签移动到仓库内的工作空间目录；目标必须已存在、可见且不是当前目录，走独占移动，同名自动加 ` (2)`；运行中的 AI 任务阻止移动；返回撤销 token |
-| `undoMove` | `{ undoToken: string }` | `{ restoredTo: string }` | **0.18**：撤销工作空间迁移；与 `undoArchive` 共用同一份独占移动、token 过期与路径边界校验 |
+| `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档；归档后的文件被编辑、替换或删除时返回 `conflict` |
+| `moveNote` | `{ path: string, targetDir: string }` | `{ to: string, undoToken: string, note: NoteSummary \| null }` | **0.18**：把便签移动到仓库内的工作空间目录；目标必须已存在、可见且不是当前目录或归档目录及其子树，走独占移动，同名自动加 ` (2)`；运行中的 AI 任务阻止移动；返回撤销 token |
+| `undoMove` | `{ undoToken: string }` | `{ restoredTo: string }` | **0.18**：撤销工作空间迁移；与 `undoArchive` 共用独占移动与 token、路径边界、文件版本校验 |
 | `projectCheck` | `{ path: string, expectedProjectDir?: string }` | `{ jobId: string }` | 扫描 `projectDir` 的 `*-项目.md` 并由 AI 判断等级/推荐名/匹配项；不写盘。 |
 | `openProject` | `{ path: string, name: string, sourceRevision?: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 生成 `projectDir/名称-项目.md`，源便签只写入一个项目双链；异步且可验收。 |
 | `addProject` | `{ path: string, filename: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 结合新证据修订整个项目索引；旧历史只追加，快照等待验收。 |
@@ -249,7 +251,7 @@ Host 保留运行中或待验收的任务，以及最近 2 分钟内结束的其
 | `openInObsidian` | `{ path: string }` | `{ url: string }` | **0.13.8**：用系统打开器打开 `obsidian://open?path=<绝对路径>`（macOS `open` / Windows `cmd start` / Linux `xdg-open`）；只允许仓库内已存在的文件；失败 `open-failed` |
 | `settings` | `{ knownRevision?: string }` | `{ configured, version, revision, settings, unchanged? }` | 兼容用的轻量配置读取，不含 notes/jobs |
 | `saveSettings` | `{ settings: Settings, expected?: string }` | `{ settings: Settings }` | 规范化后落盘；仅扫描范围变化清空扫描缓存 |
-| `pickDirectory` | `{ vaultPath?: string }` | `{ path: string \| null }` | 系统目录选择器；可限制到仓库内，当前不提供初始目录参数 |
+| `pickDirectory` | `{ vaultPath?: string, workspace?: boolean }` | `{ path: string \| null }` | 系统目录选择器；可限制到仓库内，工作空间模式还排除归档目录及其子树；当前不提供初始目录参数 |
 | `rescan` | `{}` | `{ revision: string }` | 手动刷新 |
 
 `state` 的 value：
@@ -294,12 +296,12 @@ interface StateValue {
 - **删除评论（0.16.7）**：`deleteComment` 先按 `parseNote(..., { withRanges: true })` 找到第 `index` 条 callout 的正文行号，校验标题与时间后删掉整段 callout；前后各有一个空行时只收掉一个。通过 `replaceNoteFile` 原子写盘，随后失效并重扫。撤回 token 由实例 session 持有 5 秒，记录删除前原文与删除后的内容版本；撤回请求不带路径，端点自己对同一文件加写锁，只有版本仍等于删除后的版本才整份写回，否则返回 `conflict`。抽屉里删除成功后刷新便签墙，并给 5 秒 toast 撤回。
 - **AI 预算（0.13）**：评论按该 emoji 的 `ai`、项目按 `projectAi` 传 `maxTokens` / `reasoningEffort`；若所选 provider 明确不支持该档位（`UNSUPPORTED_REASONING_EFFORT` 或 “does not support reasoning effort”），Host 去掉 `reasoningEffort` 重试一次，避免把模型能力差异变成整次失败。DeepSeek 的 `max_tokens` 是总输出预算，思考 token 也算：撞上限且无正文 → `llm-token-budget`（Client 提示去调设置）；评论撞上限但有正文 → `Job.truncated = true`，评论照常写入，Client 用同一条 toast 引导调高预算。预算在设置抽屉里按「低 / 中 / 高 / 自定义」四档选，默认高（`high` / 8192）。
 - **子文件夹**：`settings.includeSubfolders === false` 时默认工作空间只扫描顶层 md；其它挂载工作空间始终递归。递归上限 5 层（隐藏目录 / `.obsidian` / 符号链接照旧跳过）。主空间在关闭该开关时只显示顶层，即使某个子文件夹也被挂成其它工作空间；自定义工作空间不受该开关影响。设置变化写入 revision，触发整份 notes 刷新。
-- **多根扫描（0.18）**：Client 在 `state` 的 `workspaces` 里上报已挂载目录；Host 校验为仓库内可见、真实存在的目录（忽略 `.`、`..`、隐藏、绝对、越界与缺失项，最多 24 个），在默认工作空间之外补扫这些根。每个文件只归入第一个命中的根（默认优先，其次按标签顺序）；`tag`/颜色按该根相对路径计算，`relPath` 仍相对仓库。roots 变化会改变 scanner 的 scanKey/revision，触发整份 notes；写操作后的自动扫描沿用最近一次 `state` 的 roots。
+- **多根扫描（0.18）**：Client 在 `state` 的 `workspaces` 里上报已挂载目录；Host 校验为仓库内可见、真实存在的目录（忽略 `.`、`..`、隐藏、绝对、越界、缺失及归档目录内的项，最多 24 个），在默认工作空间之外补扫这些根。每个文件只归入第一个命中的根（默认优先，其次按标签顺序）；`tag`/颜色按该根相对路径计算，`relPath` 仍相对仓库。有效 roots 增删或重排即使未改变便签集合，也会改变 scanKey/revision，触发整份 notes；写操作后的自动扫描沿用最近一次 `state` 的 roots。
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
-- **归档**：`archiveMode=local` 时移动到便签所在目录下的 `archiveFolderName` 文件夹（任何工作空间的便签都适用）；`archiveMode=mapped` 时默认工作空间内的便签沿用原有 notesDir 相对结构，其它工作空间的便签按仓库相对结构映射到 `archiveDir`。mapped 根目录必须在仓库内、不能与默认工作空间重叠且不能位于隐藏目录。目标路径经真实路径边界校验；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。当前目录模式每个扫描根都会跳过同名归档文件夹；指定目录模式会从所有扫描根结果中排除 `archiveDir` 子树，因此归档便签不会重新出现在活动便签墙。
+- **归档**：`archiveMode=local` 时移动到便签所在目录下的 `archiveFolderName` 文件夹（任何工作空间的便签都适用）；`archiveMode=mapped` 时默认工作空间内的便签沿用原有 notesDir 相对结构，其它工作空间的便签按仓库相对结构映射到 `archiveDir`。mapped 根目录必须在仓库内、不能与默认工作空间重叠且不能位于隐藏目录。目标路径经真实路径边界校验；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。活动扫描在 local 模式排除仓库内所有同名归档子树，在 mapped 模式排除 `archiveDir` 子树；检查路径及其真实位置，直接挂载这些目录或别名也不会显示归档便签。
 - **便签路径边界（0.18）**：`assertNotePath` 从默认工作空间扩大到整个仓库，但拒绝隐藏目录（`.` 开头，含 `.trash`/`.obsidian`）、非 md 与越界符号链接；这样挂载在仓库任意可见目录里的便签都能阅读、编辑、评论、归档和删除。默认工作空间仍必须配置，主空间才有明确来源。
-- **工作空间迁移（0.18）**：`moveNote` 允许移动到仓库内可见、已存在的目标文件夹（`assertNotePath` + realpath 边界），源与目标真实路径相同返回 `bad-request`；移动走 `moveFileExclusive`，目标同名自动加 ` (2)`，保留文件 inode / 创建时间。返回的 `undoToken` 由实例 session 持有 10 分钟，`undoMove` 在目标文件仍存在、原位置为空时移回，否则返回 `exists`；撤销与归档撤销同一套校验（恢复目标也在仓库内）。迁移不移动图片附件：新建图片使用仓库相对 wikilink，移动便签后仍可解析。
-- **工作空间新建（0.18）**：优先 `createNote.targetDir`（绝对路径，仓库内可见、已存在目录）；旧客户端的 `folder` 仍相对默认工作空间解析。Default Template 的文件夹映射按目标文件夹匹配。目标目录不存在时 not-found；越界/隐藏 bad-request。
+- **工作空间迁移（0.18）**：`moveNote` 允许移动到仓库内可见、已存在的非归档工作空间，源与目标真实路径相同返回 `bad-request`。移动与保存对源文件使用同一写锁；移动走 `moveFileExclusive`，目标同名自动加 ` (2)`。返回的 `undoToken` 由实例 session 持有 10 分钟。迁移和归档的撤销对两个路径加锁，校验仓库边界；目标文件已被编辑、替换或删除返回 `conflict`，原位置已被占用返回 `exists`。迁移不移动图片附件：新建图片使用仓库相对 wikilink，移动便签后仍可解析。
+- **工作空间新建（0.18）**：优先 `createNote.targetDir`（绝对路径，仓库内可见、已存在目录）；旧客户端的 `folder` 仍相对默认工作空间解析。Default Template 的文件夹映射按目标文件夹匹配。目标目录不存在时 `not-found`；越界、隐藏或归档目标时 `bad-request`。
 - **在 Obsidian 打开（0.13.8）**：校验 `path` 在仓库内且是已存在的文件后，构造 `obsidian://open?path=<encodeURIComponent(绝对路径)>`，用 argv 形式调系统打开器（darwin `open` / win32 `cmd /c start "" <url>` / 其他 `xdg-open`；5s 超时）；成功返回 `{ url }`，失败 `open-failed`。不写任何文件。
 - **Project（0.17）**：项目就是 `<projectDir>/<项目名>-项目.md`，不移动源便签。拖入先选择新建或已有项目，默认等待 3 秒，可取消且不调用 AI。新建才执行 `projectCheck`；分析中只有可终止的小提示，成功后才弹出命名和评估确认框，确认后才建档。补充直接执行 `addProject`，不弹新建框。源便签的可配置 frontmatter 字段（默认 `PROJECT`）只允许一个项目双链；旧 `PROJECTS` 仍可读。补充时 AI 阅读完整旧稿与新便签；Host 组装并写入新版项目后在现有验收提示显示 `job.summary`；任务保留旧文本和新文本，用户可验收或撤销；外部文件在此期间变化则返回 conflict，不覆盖。
 - **模型写作协议**（新建/补充共用，不改 RPC）：只返回 JSON `{overview, entry, summary}`，依次是完整最新概况、本次新增的一条历史正文、单句验收摘要（最多展示 160 个码点）。正文可用段落、列表及三级以下标题，不可另起 H1/H2 或使用未闭合的代码围栏。Host 提供真实来源目标路径而非预填文件名别名；由模型直接写 Markdown 双链、选择证据与别名。不按字符位置回填、不要求链接数量、不对概况另设字数配额。
@@ -406,7 +408,7 @@ function apply(ctx) {
   1. 一行：**所有 AI emoji 预设平铺**（`settings.emojis` 每枚一个 27×27 方形 icon 按钮，只画 emoji 字形，`flex-wrap` 支持最多 12 枚）。**鼠标悬停（或键盘 focus）某一枚时，在该按钮上方浮出一枚小标签显示该预设的 `label`**（如「毒舌」「另一面」「落地」「真心话」）——不是折叠菜单、不需要点击展开。点击某枚 = 对该便签发 `comment`（同 emoji 已有评论时先确认，见 7.7）。
   2. **分割线**。
   3. 一行（0.15）：`复制` / **`在 Obsidian 打开`（行内最右、`margin-left:auto`；转发 icon + 紫色高亮粗体文字）**。复制读取完整正文并写入剪贴板；归档和到项目从拖拽栏或阅读面板进入；打开则发 `openInObsidian { path }`，由 Host 打开 `obsidian://open?path=…`；失败只 toast，不影响其他操作。支持拖拽删除与 ⌘ / Ctrl + Backspace，卡片右上角不显示快捷删除按钮。
-  - **图片预览与菜单的统一规则（0.13.4）**：**只要卡片操作菜单出现（= 悬停/键盘聚焦整张卡片，或归档目标菜单打开）且这张卡有图片预览，就统一隐藏图片条**（`.SN_card[data-menu='true'] .SN_cardImages{opacity:0; pointer-events:none}`），移出卡片后恢复。不再区分「鼠标是否停在某一枚 emoji 上」，旧的 `.SN_cardScrim` 同色渐变蒙版及其 emoji 行专属 hover 状态已**删除**（0.13.4 简化）。
+  - **操作区渐变与图片预览**：操作区出现时，使用与当前纸色一致的渐变盖住按钮背后的正文，不透明部分超过 emoji 行上缘，透明过渡继续向上延伸。不移动按钮、不扩大点击区域，浅色与深色主题共用这一规则。有图时统一隐藏图片条（`.SN_card[data-menu='true'] .SN_cardImages{opacity:0; pointer-events:none}`），移出卡片后恢复。
   - 抽屉打开时整个操作区不出现（保持现有行为）。
 - 卡片有 `pending` 时：操作区位置显示 `✍️ 正在写评论…`。
 - **单击卡片打开右侧抽屉**（没有选中态）；点击仅在当前卡片播放约 150ms 的轻微缩小回弹，仅动画化 `scale`，不读布局、不更新墙状态；拖拽、预览和「减少动态效果」偏好不播放。卡片聚焦或悬停时 Enter 不再打开详情。面板内 Enter 默认聚焦输入岛，包括卡片、按钮、阅读面板与菜单；输入岛内输入和右侧标题、正文编辑保留原行为，输入法组合态不拦截。按键在捕获阶段处理，避免卡片处理器或按钮默认点击抢先执行；Tab 保持原生焦点顺序。**从侧栏/菜单切换到本面板时面板容器（`tabIndex=-1`）自动获得焦点**，因此不必先点击面板，直接 Enter 即可进入输入岛；面板容器不画焦点环。
@@ -461,7 +463,7 @@ function apply(ctx) {
 
 - 顶栏操作区**第一个**是日期筛选控件，使用单个与相邻图标等宽的**日历开关**，不显示三角：
   - **主按钮 = 开关**：`aria-pressed` + `data-active` 反映开关状态，点亮（统一紫色样式）时按当前档位过滤；熄灭时**显示全部便签**。点击立即切换并记住（`localStorage['dsh-sticky-notes.dateFilterEnabled.v1'] = '1'/'0'`，**默认 '1'**）。`aria-label` / `title` 说明当前状态与点击后果（`date.toggleOn` / `date.toggleOff` 文案，带当前档位名）。
-  - **范围菜单**：日历按钮保留 `aria-haspopup="menu"` + `aria-expanded`，悬停显示范围菜单，移出、点外部或 `Esc` 关闭；键盘 ↓ 打开并聚焦第一项。
+  - **范围菜单**：日历按钮保留 `aria-haspopup="menu"` + `aria-expanded`。悬停打开，菜单整条顶边与按钮之间可连续移入；离开按钮和菜单后等待 350ms 再关闭，重新进入取消等待，菜单内仍有键盘焦点时不因移出鼠标关闭。点外部或按 `Esc` 立即关闭；键盘 ↓ 打开并聚焦第一项。
   - 与子文件夹开关的「点亮 = 开启」语义统一，点击日历仍只切换日期筛选。
 - 菜单**四档**单选，默认今天：`今天` / `3 天` / `本周` / `本月`。点选 = 更新档位 + **自动点亮开关**（开关熄灭时菜单项不显示勾选）。`全部` 已从菜单移除（熄灭开关就是全部）；旧版 `dateFilter.v1 === 'all'` 迁移为「档位 today + 开关熄灭」。档位持久化 `localStorage['dsh-sticky-notes.dateFilter.v1']`，非法值回退 `today`。
 - 菜单底部用分割线隔开一个**勾选项**：`日期截止按真实时间`（`role="menuitemcheckbox"`，状态写入 `localStorage['dsh-sticky-notes.dateRealtime.v1'] = '1'/'0'`，**默认不勾**）。
@@ -622,7 +624,7 @@ function apply(ctx) {
 - 原图选择限制：压缩开启时单张 32 MB／合计 64 MB，关闭时单张 8 MB／合计 16 MB；最多 8 张。处理后统一执行 8 MB／16 MB 上限。Host 校验 data URL、图片签名、数量和字节预算；不信任 Client 扩展名，附件用 UUID 命名。
 - 请求上限和分发共用一次归一化后的 pathname。saveNote/toggleTask 的预算为 `maxFileBytes * 6 + 64 KiB`，覆盖 JSON 最坏转义和信封；createNote 再加 `ceil(captureTotalBytes / 3) * 4` 的图片 base64 预算，其余路由仍为 2 MiB。读取请求流时执行上限；文件落盘上限仍为 2 MiB，图片限额不变。
 - 「图片处理」设置可手填或选择图片文件夹。`Settings.attachmentDir` 缺省／留空时，`capture.js` 沿用 `notesDir/_attachments`；自定义相对路径按仓库解析，目标必须在仓库内且不能位于以 `.` 开头的隐藏目录（`.obsidian` / `.trash` 等 Obsidian 不索引的目录，会产生坏链），首次保存图片时自动创建缺失目录。修改仅影响后续保存的图片。用仓库相对 wikilink 引用，归档移动 Markdown 后图片仍有效；目录与符号链接必须在仓库内。最后将完整临时 Markdown 独占发布到目标，不支持硬链接时回退独占复制，跨请求不覆盖同名文件；失败清理本次写入的附件。创建成功后刷新失败仍返回提交成功，避免误导用户重复创建。
-- 日期按钮与子文件夹按钮等宽，点击切换筛选，悬停打开范围菜单；菜单与按钮之间有可移入区域，移出关闭。键盘 ↓ 聚焦菜单第一项，Esc 关闭；右键也可打开，不再有单独三角按钮。
+- 日期按钮与子文件夹按钮等宽，点击切换筛选，悬停打开范围菜单；菜单与按钮之间有可移入区域，移出后延迟关闭。键盘 ↓ 聚焦菜单第一项，Esc 关闭；右键也可打开，不再有单独三角按钮。
 
 ### 11.1 输入交互与模板修正
 

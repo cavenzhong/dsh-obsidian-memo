@@ -4,6 +4,7 @@ import { Fragment, React, h } from '../react.js';
 import { AiBudgetRow } from './ai-budget-row.js';
 import { ConfigFileSettings } from './config-file.js';
 import { ImageProcessingSettings } from './image-processing.js';
+import { LanguageSettings } from './language.js';
 import { TitleModeSettings } from './note-title.js';
 import { SettingsPathField, VaultFolderPicker } from './paths.js';
 import { StyleSelect } from './style-select.js';
@@ -19,7 +20,7 @@ function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
 function SettingsDrawer(props) {
   const {
     t, draft, picking, saving, onPatch, onPick, onPatchEmoji, onRemoveEmoji, onAddEmoji,
-    onSave, onCancel, request, onConfigSettings,
+    onSave, onCancel, request, onConfigSettings, language, onLanguageChange,
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
   const [activeEmoji, setActiveEmoji] = React.useState(null);
@@ -67,7 +68,8 @@ function SettingsDrawer(props) {
       ),
       h('div', { className: 'SN_settingsTabs', role: 'tablist', 'aria-label': t('settings.title') },
         ['folders', 'notes', 'project', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
-          'aria-selected': tab === id, onClick: () => setTab(id) }, t('settings.tab.' + id)))),
+          'aria-selected': tab === id, 'data-tab': id, onClick: () => setTab(id) }, t('settings.tab.' + id),
+          id === 'project' ? h('span', { className: 'SN_settingsBeta' }, 'Beta') : null))),
       h('div', { className: 'SN_drawerBody' },
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
           h(SettingsPathField, { ...folderProps,
@@ -210,6 +212,7 @@ function SettingsDrawer(props) {
             )),
           )),
         h('section', { className: 'SN_drawerSection', hidden: tab !== 'project', 'data-settings-tab': 'project' },
+          h('p', { className: 'SN_projectBetaNotice', role: 'note' }, t('settings.projectBetaNotice')),
           h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectTab')),
           h(SettingsPathField, { ...folderProps, t, label: t('settings.project'), hint: t('settings.projectHint'),
             value: draft.projectDir, field: 'projectDir', disabled, picking, onPatch, onPick }),
@@ -221,6 +224,7 @@ function SettingsDrawer(props) {
         ),
 
         h('div', { className: 'SN_settingsPage', hidden: tab !== 'config', 'data-settings-tab': 'config' },
+          h(LanguageSettings, { t, value: language, onChange: onLanguageChange }),
           h(ConfigFileSettings, { t, config: draft.configFile, disabled, request, onSettings: onConfigSettings }),
           h(TrashSettings, { t, request, disabled: disabled || !draft.vaultPath }),
           h('section', { className: 'SN_drawerSection SN_about', 'aria-label': t('settings.about') },

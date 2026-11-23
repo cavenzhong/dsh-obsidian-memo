@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createSessionState } from '../../lib/host/session.js'
 import { createWriteCoordinator } from '../../lib/host/writes.js'
+import { createDispatcher } from '../../lib/host/dispatch.js'
 
 test('Host 服务：不同插件实例的任务与撤回 token 独立', () => {
   const first = createSessionState(), second = createSessionState()
@@ -45,4 +46,27 @@ test('Host 写队列：同一路径按序执行，失败后仍可继续，其他
   release()
   await Promise.all([rejected, second])
   assert.deepEqual(order, ['first', 'other', 'second'])
+})
+
+test('Host 写队列：moveNote 与 saveNote 共用源便签的写锁', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'memo-write-service-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'note.md')
+  await writeFile(path, '')
+  const { withNoteWrite } = createWriteCoordinator()
+  let release, markStarted
+  const started = new Promise((resolve) => { markStarted = resolve })
+  const waiting = new Promise((resolve) => { release = resolve })
+  const order = []
+  const dispatch = createDispatcher({ withNoteWrite, endpoints: {
+    async saveNote() { markStarted(); await waiting; order.push('save') },
+    moveNote() { order.push('move') },
+  } })
+  const save = dispatch('saveNote', { path })
+  await started
+  const move = dispatch('moveNote', { path })
+  release()
+  assert.equal((await save).ok, true)
+  assert.equal((await move).ok, true)
+  assert.deepEqual(order, ['save', 'move'])
 })

@@ -113,8 +113,8 @@ function CardThumb(props) {
 
 function NoteImage(props) {
   const { src, failed, holderRef, onError } = useNoteImage(props);
-  if (failed) return h('div', { className: 'SN_imageMissing', ref: holderRef }, props.alt || '图片无法加载');
-  if (!src) return h('div', { className: 'SN_imageLoading', ref: holderRef }, '图片加载中…');
+  if (failed) return h('div', { className: 'SN_imageMissing', ref: holderRef }, props.alt || props.t?.('image.missing'));
+  if (!src) return h('div', { className: 'SN_imageLoading', ref: holderRef }, props.t?.('image.loading'));
   return h('img', { className: 'SN_noteImage', ref: holderRef, src, alt: props.alt || '', loading: 'lazy', referrerPolicy: 'no-referrer', onError });
 }
 

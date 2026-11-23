@@ -1,4 +1,5 @@
 /** 空态与 toast 的展示组件；操作由调用方传入。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { h } from '../react.js';
 
 function CenterState(props) {
@@ -18,7 +19,7 @@ function CenterState(props) {
 }
 
 function ToastStack(props) {
-  const { toasts, onDismiss } = props;
+  const { toasts, onDismiss, t } = props;
   if (!toasts || toasts.length === 0) return null;
   return h('div', { className: 'SN_toasts', 'aria-live': 'polite' },
     toasts.map((item) => {
@@ -35,7 +36,7 @@ function ToastStack(props) {
         'data-window-drag-exclude': '',
         role: 'status',
       },
-        h('span', { className: 'SN_toastText' }, item.text),
+        h('span', { className: 'SN_toastText' }, item.kind === 'error' ? formatDiagnostic(t, item.text) : item.text),
         actions.map((action, index) => h('button', {
           key: index,
           type: 'button',

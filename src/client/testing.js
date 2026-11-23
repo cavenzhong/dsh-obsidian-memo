@@ -67,6 +67,7 @@ import {
   replaceNoteAtPath, sortNotes,
 } from './wall/model.js';
 import { NoteCard } from './wall/note-card.js';
+import { useWallFilters } from './wall/use-wall-filters.js';
 
 const __test = {
   // 0.13 契约 §6.1 要求导出的纯函数 / 常量。
@@ -76,7 +77,7 @@ const __test = {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
     useNotesData, useNoteEditor, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
-    useCommentActions, useCommentsLayout, useWorkspaces,
+    useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters,
   },
   // 0.18 工作空间：纯规则、持久化与标签栏组件。
   WORKSPACES_KEY: WORKSPACES_KEY,

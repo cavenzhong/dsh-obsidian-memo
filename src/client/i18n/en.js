@@ -2,6 +2,16 @@
 
 
 const en = {
+  'ui.locale': 'en',
+  'settings.language': 'Interface language',
+  'settings.languageSystem': 'Follow Harness',
+  'settings.languageHint': 'Changes take effect immediately in this browser. Note content and AI prompts stay unchanged.',
+  'settings.projectBetaNotice': 'Project features are in beta and may change substantially in future releases.',
+  'drawer.taskCheck': 'Mark complete',
+  'drawer.taskUncheck': 'Mark incomplete',
+  'drawer.filenameRequired': 'Enter a note filename',
+  'image.loading': 'Loading image…',
+  'image.missing': 'Could not load image',
   'nav.label': 'Obsidian MEMO',
 
   'panel.title': 'Obsidian MEMO',

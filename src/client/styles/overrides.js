@@ -6,7 +6,7 @@ const overridesStyles = `
 .SN_card[data-images='true'] .SN_cardComments{max-height:18px}
 .SN_cardImages{flex:none;display:flex;align-items:center;gap:6px;min-height:64px;overflow:hidden;margin-bottom:6px;align-self:flex-start;transition:opacity .12s ease}
 /* 0.13.4：卡片操作菜单出现（= 悬停/聚焦卡片）且这张卡有图时，统一隐藏图片预览；
-   不再区分鼠标是否停在 emoji 行上，也移除了旧的同色渐变蒙版。 */
+   不再区分鼠标是否停在 emoji 行上；正文渐变由操作区统一绘制。 */
 .SN_card[data-menu='true'] .SN_cardImages{opacity:0;pointer-events:none}
 .SN_thumb{position:relative;flex:none;width:64px;height:64px;border-radius:7px;overflow:hidden;background:rgba(255,255,255,.42)}
 .SN_thumbImg{width:100%;height:100%;object-fit:cover;display:block}
@@ -104,8 +104,6 @@ body[data-ds-dark-theme] .SN_dropTarget[data-active='true']{background:#37856b;c
 body[data-ds-dark-theme] .SN_mini{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15)}
 body[data-ds-dark-theme] .SN_mini:hover:not(:disabled){background:rgba(255,255,255,.16)}
 body[data-ds-dark-theme] .SN_obsidianBtn:hover:not(:disabled){background:rgba(167,139,250,.20)}
-body[data-ds-dark-theme] .SN_cardActions{background:linear-gradient(to top,var(--sn-card-bg-dark) 34%,rgba(0,0,0,0))}
-body[data-ds-dark-theme] .SN_cardActions[data-visible='true']{background:linear-gradient(to top,var(--sn-card-bg-dark) 58%,rgba(0,0,0,0))}
 body[data-ds-dark-theme] .SN_toast,body[data-ds-dark-theme] .SN_sortMenu{box-shadow:0 10px 30px rgba(0,0,0,.5)}
 body[data-ds-dark-theme] .SN_noteDrawer{box-shadow:-10px 0 34px rgba(0,0,0,.55)}
 body[data-ds-dark-theme] .SN_drawer{box-shadow:-12px 0 44px rgba(0,0,0,.5)}

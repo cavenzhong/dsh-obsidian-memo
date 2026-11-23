@@ -1,4 +1,5 @@
 /** 打开、加载、重载与另存配置文件的设置组件。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { React, h } from '../react.js';
 import { joinPath } from '../utils.js';
 
@@ -11,7 +12,7 @@ function ConfigFileSettings({ t, config, disabled, request, onSettings }) {
   const accept = (result, action) => {
     if (result.settings && onSettings) onSettings(result.settings, action);
     if (action === 'load' || action === 'relocate') { setMode(''); setPath(''); }
-    if (action !== 'open' && action !== 'reveal') setMessage(t('settings.configDone'));
+    if (action !== 'open' && action !== 'reveal') setMessage('settings.configDone');
   };
   const run = (action) => {
     if (busy || disabled) return;
@@ -42,7 +43,7 @@ function ConfigFileSettings({ t, config, disabled, request, onSettings }) {
   return h('section', { className: 'SN_drawerSection' },
     h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.config')),
     h('code', { className: 'SN_configPath' }, config?.path || t('panel.loading')),
-    config?.error ? h('p', { className: 'SN_settingsError', role: 'alert' }, config.error) : null,
+    config?.error ? h('p', { className: 'SN_settingsError', role: 'alert' }, formatDiagnostic(t, config.error)) : null,
     h('p', { className: 'SN_fieldHint' }, t(config?.pinned ? 'settings.configPinned' : 'settings.configHint')),
     h('div', { className: 'SN_configActions' },
       h('button', { type: 'button', className: 'SN_ghostBtn', disabled: blocked, onClick: () => run('reveal') }, t('settings.openConfig')),
@@ -67,8 +68,8 @@ function ConfigFileSettings({ t, config, disabled, request, onSettings }) {
       h('div', { className: 'SN_pathActions' },
         h('button', { type: 'button', className: 'SN_ghostBtn', disabled: blocked, onClick: () => { setMode(''); setPath(''); } }, t('settings.cancel')),
         h('button', { type: 'button', className: 'SN_primaryBtn', disabled: blocked || !path.trim(), onClick: () => run(mode) }, t('settings.relocateConfig')))) : null,
-    error ? h('p', { className: 'SN_settingsError', role: 'alert' }, error) : null,
-    message ? h('p', { className: 'SN_fieldHint', role: 'status' }, message) : null);
+    error ? h('p', { className: 'SN_settingsError', role: 'alert' }, formatDiagnostic(t, error)) : null,
+    message ? h('p', { className: 'SN_fieldHint', role: 'status' }, t(message)) : null);
 }
 
 export { ConfigFileSettings };

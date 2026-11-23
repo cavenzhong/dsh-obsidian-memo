@@ -64,7 +64,7 @@ Harness Web  → lib/client.js（生成）
 | 标题推导、源行编辑与浏览器会话同步 | `src/shared/title.js`、`src/client/reader/use-note-editor.js` | title-parity、title-editing、host/title-display |
 | 图标、通用对话框与 toast | `src/client/components/` | ai、reader-layout、notifications |
 | localStorage 兼容与抽屉尺寸约束 | `src/client/preferences.js` | preferences、reader-layout |
-| 中英文文案 | `src/client/i18n/` | registration、settings-ui、ai |
+| 中英文文案、界面语言偏好与诊断显示 | `src/client/i18n/` | language、registration、settings-ui、ai |
 | 样式和主题变量 | `src/client/styles/` | styles、wall-rendering |
 
 `panel.js` 组合数据、编辑、设置与交互 hooks，并把明确的回调交给视图。每个 hook 持有自己创建的 state/ref/effect；异步任务继续通过 `aliveRef`、请求代次和会话代次拒绝过期回调。高频拖拽移动仍只更新浮层 transform，不经过整墙渲染。

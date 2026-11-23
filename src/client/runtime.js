@@ -6,7 +6,7 @@ let runtime = null;
 
 async function callRpc(endpoint, payload, signal) {
   if (!runtime || !runtime.connection || !runtime.connection.rpc || typeof runtime.connection.rpc.call !== 'function') {
-    throw makeError('offline', runtime && runtime.t ? runtime.t('error.offline') : 'Connection unavailable');
+    throw makeError('offline', 'error.offline');
   }
   let result;
   try {
@@ -21,7 +21,7 @@ async function callRpc(endpoint, payload, signal) {
     failure && typeof failure.code === 'string' ? failure.code : 'failed',
     failure && typeof failure.message === 'string' && failure.message !== ''
       ? failure.message
-      : (runtime && runtime.t ? runtime.t('error.failed') : 'Request failed'),
+      : 'error.failed',
   );
 }
 

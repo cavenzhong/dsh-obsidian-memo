@@ -1,7 +1,7 @@
 /** client: preferences regression coverage. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { CLIENT_SOURCE, DATE_DAY_MS, DATE_NOW, getTestApi, loadClient, localDayOffsetForTest, noteIds, startOfLocalDayForTest } from '../../test-support/client.mjs'
+import { CLIENT_SOURCE, DATE_DAY_MS, DATE_NOW, captureNodes, getTestApi, hookRunner, loadClient, localDayOffsetForTest, noteIds, startOfLocalDayForTest } from '../../test-support/client.mjs'
 
 test('client __test：PINNED_KEY 为契约约定的 localStorage 键', (t) => {
   const api = getTestApi(loadClient(t).mod)
@@ -201,6 +201,55 @@ test('client 源码 / 字典：日期筛选是顶栏第一个「开关 + 档位�
     '勾选项说明应描述真实时间分界 / 最后一篇时间界线',
   )
   assert.doesNotMatch(CLIENT_SOURCE, /date\.rolling/, '旧的 date.rolling 文案应已移除')
+})
+
+test('日期菜单：移出有缓冲，移入取消关闭，菜单内焦点保留且点外部立即关闭', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const runner = hookRunner(t), { PanelHeader } = runner.api.components
+  const { useWallFilters } = runner.api.hooks
+  const focusedItem = {}
+  const doc = { activeElement: null }
+  const menu = { ownerDocument: doc, contains: (node) => node === focusedItem }
+  const listeners = new Map()
+  const previous = globalThis.document
+  globalThis.document = {
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type) => listeners.delete(type),
+  }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+
+  const render = () => runner.render(useWallFilters)
+  const header = () => captureNodes(PanelHeader({
+    ...render(), t: (key) => key, view: { loaded: true }, filteredNotes: [],
+  }))
+  const group = () => header().find((node) => node.props.className?.includes('SN_dateGroup'))
+  render().dateWrapRef.current = { querySelector: () => menu, contains: (node) => node === focusedItem }
+
+  group().props.onMouseEnter()
+  assert.equal(render().dateMenu, true)
+  assert.equal(header().find((node) => node.props.className === 'SN_dateMenuBridge').children[0].props.role, 'menu')
+  group().props.onMouseLeave()
+  t.mock.timers.tick(300)
+  assert.equal(render().dateMenu, true, '移动经过按钮和菜单之间时不立即消失')
+  group().props.onMouseEnter()
+  t.mock.timers.tick(350)
+  assert.equal(render().dateMenu, true, '重新进入后取消等待中的关闭')
+
+  doc.activeElement = focusedItem
+  group().props.onMouseLeave()
+  t.mock.timers.tick(350)
+  assert.equal(render().dateMenu, true, '键盘焦点在菜单内时，移走鼠标不关闭')
+  doc.activeElement = null
+  group().props.onMouseLeave()
+  t.mock.timers.tick(350)
+  assert.equal(render().dateMenu, false, '真正离开后自动关闭')
+
+  group().props.onMouseEnter()
+  group().props.onMouseLeave()
+  listeners.get('mousedown')({ target: focusedItem })
+  assert.equal(render().dateMenu, true)
+  listeners.get('mousedown')({ target: {} })
+  assert.equal(render().dateMenu, false, '点外部不等待缓冲')
 })
 
 test('client __test：localStorage 不可用时锁定便签路径读写安全回退', (t) => {

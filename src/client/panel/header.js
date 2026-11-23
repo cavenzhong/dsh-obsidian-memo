@@ -6,7 +6,7 @@ import { formatVersionLabel } from '../utils.js';
 
 function renderPanelHeader({
   chooseDateFilter, chooseSort, dateEnabled, dateFilter, dateMenu, dateRangeLabel, dateRealtime,
-  dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
+  dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, scheduleDateMenuClose, setDateMenu,
   settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled, toggleDateRealtime,
   toggleSortMenu, toggleSubfolders, view, workspaceBar, onHeaderPointerDown, onHeaderPointerMove,
   onHeaderPointerUp, onHeaderPointerCancel, onHeaderClick,
@@ -33,7 +33,7 @@ function renderPanelHeader({
         // 0.14 日期筛选（顶栏第一个）：点击切换，悬停或方向键打开档位菜单。
         h('div', { className: 'SN_sortWrap SN_dateGroup', ref: dateWrapRef,
           onMouseEnter: openDateMenu,
-          onMouseLeave: () => { if (!dateWrapRef.current?.querySelector('[role="menu"]')?.contains(document.activeElement)) setDateMenu(false); },
+          onMouseLeave: scheduleDateMenuClose,
           onBlur: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDateMenu(false); },
         },
           h('button', {
@@ -58,7 +58,7 @@ function renderPanelHeader({
             onContextMenu: (event) => { event.preventDefault(); openDateMenu(); },
             onClick: toggleDateEnabled,
           }, h(CalendarIcon, null)),
-          dateMenu ? h('div', {
+          dateMenu ? h('div', { className: 'SN_dateMenuBridge', 'data-no-window-drag': '' }, h('div', {
             className: 'SN_sortMenu',
             role: 'menu',
             'aria-label': t('date.label'),
@@ -97,7 +97,7 @@ function renderPanelHeader({
                 h('span', { className: 'SN_dateItemHint' }, t('date.realtimeHint')),
               ),
             ),
-          ) : null,
+          )) : null,
         ),
         // 0.13 子文件夹开关（§7.1）：日期筛选右侧；aria-pressed 反映 settings.includeSubfolders。
         h('button', {

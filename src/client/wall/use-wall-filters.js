@@ -7,6 +7,8 @@ import {
 import { React } from '../react.js';
 import { isDateFilterId } from './model.js';
 
+const DATE_MENU_CLOSE_MS = 350;
+
 function useWallFilters() {
   const [sortId, setSortId] = React.useState(readStoredSort);
   const [sortMenu, setSortMenu] = React.useState(false);
@@ -14,14 +16,17 @@ function useWallFilters() {
   const [dateFilter, setDateFilter] = React.useState(readStoredDateFilter);
   const [dateEnabled, setDateEnabled] = React.useState(readStoredDateEnabled);
   const [dateRealtime, setDateRealtime] = React.useState(readStoredDateRealtime);
-  const [dateMenu, setDateMenu] = React.useState(false);
+  const [dateMenu, setDateMenuOpen] = React.useState(false);
   const dateWrapRef = React.useRef(null);
+  const dateCloseTimer = React.useRef(null);
   const [nowTick, setNowTick] = React.useState(() => Date.now());
 
   React.useEffect(() => {
     const timer = setInterval(() => setNowTick(Date.now()), 60 * 1000);
     return () => clearInterval(timer);
   }, []);
+
+  React.useEffect(() => () => clearTimeout(dateCloseTimer.current), []);
 
   React.useEffect(() => {
     if (!sortMenu) return undefined;
@@ -62,6 +67,21 @@ function useWallFilters() {
     setSortMenu(false);
   }
 
+  function setDateMenu(open) {
+    clearTimeout(dateCloseTimer.current);
+    dateCloseTimer.current = null;
+    setDateMenuOpen(open);
+  }
+
+  function scheduleDateMenuClose() {
+    clearTimeout(dateCloseTimer.current);
+    dateCloseTimer.current = setTimeout(() => {
+      dateCloseTimer.current = null;
+      const menu = dateWrapRef.current?.querySelector('[role="menu"]');
+      if (!menu?.contains(menu.ownerDocument.activeElement)) setDateMenu(false);
+    }, DATE_MENU_CLOSE_MS);
+  }
+
   function toggleDateEnabled() {
     const next = !dateEnabled;
     setDateEnabled(next);
@@ -86,7 +106,11 @@ function useWallFilters() {
     storeDateRealtime(next);
   }
 
-  return { sortId, sortMenu, setSortMenu, sortWrapRef, dateFilter, dateEnabled, dateRealtime, dateMenu, setDateMenu, dateWrapRef, nowTick, setNowTick, toggleSortMenu, chooseSort, openDateMenu, toggleDateEnabled, chooseDateFilter, toggleDateRealtime };
+  return {
+    sortId, sortMenu, setSortMenu, sortWrapRef, dateFilter, dateEnabled, dateRealtime, dateMenu,
+    setDateMenu, dateWrapRef, nowTick, setNowTick, toggleSortMenu, chooseSort, openDateMenu,
+    scheduleDateMenuClose, toggleDateEnabled, chooseDateFilter, toggleDateRealtime,
+  };
 }
 
 export { useWallFilters };

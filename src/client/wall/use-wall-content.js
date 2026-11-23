@@ -1,4 +1,5 @@
 /** 便签墙卡片 memo、加载占位和配置/错误/空目录状态。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { CenterState } from '../components/feedback.js';
 import { Fragment, React, h } from '../react.js';
 import { NoteCard } from './note-card.js';
@@ -74,7 +75,7 @@ function useWallContent({
         return h(CenterState, {
           mark: '!',
           title: t('state.loadErrorTitle'),
-          text: loadError,
+          text: formatDiagnostic(t, loadError),
           actionLabel: t('state.loadErrorAction'),
           onAction: handleRefresh,
         });
@@ -86,7 +87,7 @@ function useWallContent({
         return h(CenterState, {
           mark: '!',
           title: t('state.errorTitle'),
-          text: view.error,
+          text: formatDiagnostic(t, view.error),
           actionLabel: t('state.unconfiguredAction'),
           onAction: openSettings,
         });
@@ -103,7 +104,7 @@ function useWallContent({
       return h(CenterState, {
         mark: '!',
         title: t('state.errorTitle'),
-        text: view.error,
+        text: formatDiagnostic(t, view.error),
         actionLabel: t('state.errorAction'),
         onAction: handleRefresh,
       });

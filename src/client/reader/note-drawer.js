@@ -1,4 +1,5 @@
 /** 阅读/编辑抽屉视图，接收草稿、布局和操作回调。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { ActionIcon, ChevronIcon, CloseIcon, ObsidianIcon, PinIcon } from '../components/icons.js';
 import { Fragment, React, h } from '../react.js';
 import { NoteBlock, NoteComment } from './blocks.js';
@@ -60,14 +61,14 @@ function NoteDrawer(props) {
     drawer.loading && !full ? h('div', { className: 'SN_noteViewHint' }, t('drawer.loading')) : null,
     drawer.error
       ? h('div', { className: 'SN_noteViewError' },
-        h('span', null, drawer.error),
+        h('span', null, formatDiagnostic(t, drawer.error)),
         h('button', { type: 'button', className: 'SN_textBtn', onClick: onRetry }, t('drawer.retry')),
       )
       : null,
     !drawer.loading && !drawer.error && blocks.length === 0
       ? h('p', { className: 'SN_noteViewEmpty' }, t('drawer.editHint'))
       : null,
-    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy })),
+    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, t })),
     projects ? h('div', { className: 'SN_projects' },
       h('span', { className: 'SN_projectsLabel' }, t('drawer.projects')),
       h('span', { className: 'SN_projectsValue' }, String(projects)),

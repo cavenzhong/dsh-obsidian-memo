@@ -63,11 +63,12 @@ const wallStyles = `
 .SN_cCommentCount{flex:none;font-weight:700;font-variant-numeric:tabular-nums;color:var(--sn-ink-title)}
 .SN_cCommentMore{flex:none;font-size:10.5px;color:var(--sn-ink-muted)}
 
-.SN_cardActions{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;flex-direction:column;gap:6px;padding:26px 12px 11px;background:linear-gradient(to top,var(--sn-card-bg) 34%,rgba(255,255,255,0));opacity:0;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+.SN_cardActions{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;flex-direction:column;gap:6px;padding:14px 12px 11px;opacity:0;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+/* 正文渐变延伸到 emoji 行上方；只改变背景，不扩大操作区的点击范围。 */
+.SN_cardActions::before{content:'';position:absolute;inset:-26px 0 0;z-index:-1;pointer-events:none;background:linear-gradient(to top,var(--sn-note-bg) calc(100% - 32px),transparent)}
 /* 0.13.4：操作区可见性只由 JS 的 menuVisible（data-visible）决定，避免 :hover/:focus-within
    先显示菜单、而 data-menu 还没置位导致图片预览不隐藏的状态脱节。 */
 .SN_cardActions[data-visible='true']{opacity:1;transform:none;pointer-events:auto}
-.SN_cardActions[data-visible='true']{padding-top:14px;background:linear-gradient(to top,var(--sn-card-bg) 58%,rgba(255,255,255,0))}
 .SN_actionRow{display:flex;flex-wrap:wrap;gap:4px}
 .SN_mini{display:inline-flex;align-items:center;justify-content:center;gap:4px;vertical-align:middle;font:inherit;font-size:11px;line-height:1;letter-spacing:.01em;color:var(--sn-ink-comment);background:rgba(255,255,255,.72);border:.5px solid rgba(80,62,36,.16);border-radius:999px;padding:5px 8px;cursor:pointer;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;transition:background .12s ease,color .12s ease}
 .SN_mini svg{display:block;flex:none}

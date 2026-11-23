@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises'
+import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createCapturedNote, expandTemplateVariables, formatTemplateMoment } from '../lib/capture.js'
@@ -35,6 +36,37 @@ test('快速记录：并发重名只成功一次，失败不覆盖正文、不�
   assert.equal(results.find((r) => r.status === 'rejected').reason.code, 'exists')
   assert.equal((await readdir(join(paths.notes, '_attachments'))).length, 1)
   assert.deepEqual((await readdir(paths.notes)).sort(), ['_attachments', '一个想法.md'])
+})
+
+test('快速记录：目标在 realpath 与 lstat 之间出现时，仍走正常重名处理', async (t) => {
+  const fs = createRequire(import.meta.url)('node:fs/promises')
+  const originalRealpath = fs.realpath
+  for (const titleMode of ['filename', 'firstLine']) {
+    const { create, paths } = await fixture(t)
+    paths.titleMode = titleMode
+    paths.fileNamePattern = '{title}'
+    const target = join(await realpath(paths.notes), '一个想法.md')
+    let misses = 0
+    fs.realpath = async (path, ...args) => {
+      try { return await originalRealpath(path, ...args) } catch (error) {
+        if (path === target && error.code === 'ENOENT' && ++misses === 2) {
+          await writeFile(target, '并发写入的原文', { flag: 'wx' })
+        }
+        throw error
+      }
+    }
+    syncBuiltinESMExports()
+    try {
+      const creating = create({ body: '新正文' })
+      if (titleMode === 'filename') await assert.rejects(creating, { code: 'exists' })
+      else assert.equal(await creating, join(paths.notes, '一个想法-2.md'))
+      assert.equal(misses, 2)
+      assert.equal(await readFile(target, 'utf8'), '并发写入的原文')
+    } finally {
+      fs.realpath = originalRealpath
+      syncBuiltinESMExports()
+    }
+  }
 })
 
 test('快速记录：自定义图片文件夹自动创建，重名失败清理附件，清空设置恢复默认目录', async (t) => {

@@ -1,4 +1,5 @@
 /** 项目名称和重复评论确认框；不发送 RPC。 */
+import { formatDiagnostic } from '../i18n/diagnostics.js';
 import { h } from '../react.js';
 
 function ProjectDialog({ t, name, busy, check, onName, onConfirm, onCancel }) {
@@ -11,7 +12,7 @@ function ProjectDialog({ t, name, busy, check, onName, onConfirm, onCancel }) {
       h('p', { className: 'SN_dialogText' }, t('project.checkReady')),
       h('label', { className: 'SN_field' }, t('project.nameLabel'), h('input', { className: 'SN_textInput', value: name || '', maxLength: 60, disabled: busy, autoFocus: true, onChange: (e) => onName(e.target.value) }),
         h('small', { className: 'SN_fieldHint' }, name ? name.trim() + '-项目.md' : '')),
-      h('aside', { className: 'SN_projectCheck', 'data-level': level }, h('strong', null, t('project.rating.' + level)), h('p', null, check.reason || t('project.checkFallback'))),
+      h('aside', { className: 'SN_projectCheck', 'data-level': level }, h('strong', null, t('project.rating.' + level)), h('p', null, formatDiagnostic(t, check.reason) || t('project.checkFallback'))),
       h('div', { className: 'SN_dialogActions' }, h('button', { type: 'button', className: 'SN_ghostBtn', disabled: busy, onClick: onCancel }, t('project.cancel')),
         h('button', { type: 'submit', className: 'SN_primaryBtn', disabled: busy || !name?.trim() }, t(level === '不建议' ? 'project.override' : 'project.createNew')))));
 }

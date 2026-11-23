@@ -32,12 +32,16 @@ function DragTargetHint({ anchor, text, kind }) {
     h(ActionIcon, { kind: actionIconKind(kind), size: 15 }), h('span', null, text));
 }
 
-function cleanPath(value) { return String(value || '').replace(/[\\/]+/g, '/').replace(/\/$/, ''); }
+function cleanPath(value) { return String(value || '').replace(/[\\/]+/g, '/').replace(/(.)\/$/, '$1'); }
 
-function relativePath(rootValue, targetValue) {
+/** 区分「等于根」的空路径与「不在根内」。Windows 与 Host 一样按不区分大小写比较。 */
+function relativePath(rootValue, targetValue, ignoreCase) {
   const root = cleanPath(rootValue), target = cleanPath(targetValue);
-  if (!root || target === root) return '';
-  return target.startsWith(root + '/') ? target.slice(root.length + 1) : target;
+  if (!root || !target) return null;
+  const key = (path) => ignoreCase ? path.toLowerCase() : path;
+  if (key(target) === key(root)) return '';
+  const prefix = root.endsWith('/') ? root : root + '/';
+  return key(target).startsWith(key(prefix)) ? target.slice(prefix.length) : null;
 }
 
 function archivePreviewHint(note, settings, t) {
@@ -46,9 +50,13 @@ function archivePreviewHint(note, settings, t) {
   }
   if (!settings.archiveDir) return t('drag.releaseArchiveUnconfigured');
   const notePath = cleanPath(note?.path);
-  const noteFolder = notePath.slice(0, notePath.lastIndexOf('/'));
-  const root = relativePath(settings.vaultPath, settings.archiveDir);
-  const nested = relativePath(settings.notesDir, noteFolder);
+  const slash = notePath.lastIndexOf('/');
+  const noteFolder = slash === 0 ? '/' : slash > 0 ? notePath.slice(0, slash) : '';
+  const ignoreCase = /^(?:[a-z]:|\\\\|\/\/)/i.test(settings.vaultPath);
+  const root = relativePath(settings.vaultPath, settings.archiveDir, ignoreCase);
+  const nested = relativePath(settings.notesDir, noteFolder, ignoreCase)
+    ?? relativePath(settings.vaultPath, noteFolder, ignoreCase);
+  if (root === null || nested === null) return t('drag.releaseArchiveUnconfigured');
   const destination = [root, nested].filter(Boolean).join('/') || '.';
   return t('drag.releaseArchiveMapped', { path: destination });
 }

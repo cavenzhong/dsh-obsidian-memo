@@ -13,7 +13,7 @@ function apply(ctx) {
   ctx.effect(() => ctx.locale.register(NS, { zh: zh, en: en }), 'sticky-notes: dictionaries');
   ctx.effect(() => injectStyles(), 'sticky-notes: styles');
   const t = ctx.locale.bind(NS);
-  setRuntime({ connection: ctx.connection, t: t });
+  setRuntime({ connection: ctx.connection, locale: ctx.locale, t: t });
   ctx.effect(() => () => {
     if (runtime && runtime.t === t) setRuntime(null);
   }, 'sticky-notes: runtime');

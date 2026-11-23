@@ -27,7 +27,7 @@ const baseStyles = `
 .SN_count{font-size:11.5px;line-height:1.4;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
 /* 0.13 修正轮：byline 只在顶栏大标题之后（baseline 对齐、不换行、约 11px / opacity .45）。 */
 .SN_headByline{font-family:var(--sn-sans);font-size:11px;font-weight:400;line-height:1.2;letter-spacing:.01em;color:var(--dsw-alias-label-primary);opacity:.45;white-space:nowrap;user-select:none}
-.SN_headActions{flex:none;display:flex;align-items:center;align-self:center;gap:2px}
+.SN_headActions{position:relative;flex:none;display:flex;align-items:center;align-self:center;gap:2px}
 
 /* ── 0.18 工作空间标签栏：仿浏览器标签的紧凑文字 + 选中下划线；窄面板横向滚动，溢出收进「…」 ── */
 .SN_wsBar{position:relative;display:flex;align-items:center;gap:8px;min-width:0;min-height:34px;margin-top:-2px}
@@ -101,9 +101,10 @@ const baseStyles = `
 .SN_dateItemMain{display:flex;flex-direction:column;gap:1px;min-width:0}
 .SN_dateItemLabel{font-size:12px;font-weight:500;line-height:1.45;white-space:nowrap}
 .SN_dateItemHint{font-size:10.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary);white-space:normal}
-/* 0.14：日期开关与相邻图标等宽，悬停打开范围菜单。 */
-.SN_dateGroup{display:inline-flex;align-items:center}
-.SN_dateGroup::after{content:'';position:absolute;top:100%;height:8px;left:0;right:0}
+/* 从日历到菜单的整条顶边都可移入；外层接住鼠标，内层只淡入，不在入场时移动。 */
+.SN_dateGroup{position:static;display:inline-flex;align-items:center}
+.SN_dateMenuBridge{position:absolute;top:100%;right:0;z-index:45;width:214px;padding-top:6px}
+.SN_dateMenuBridge>.SN_sortMenu{position:relative;top:auto;right:auto;width:100%;animation-name:SN_fadeIn}
 .SN_checkBox{flex:none;width:14px;height:14px;margin-top:1px;border:.5px solid var(--dsw-alias-border-l3,rgba(0,0,0,.2));border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:#fff;background:transparent}
 .SN_checkBox[data-checked='true']{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff)}
 

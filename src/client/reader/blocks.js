@@ -9,7 +9,7 @@ function NoteBlock(props) {
   const text = typeof block.text === 'string' ? block.text : '';
   if (block.kind === 'h') return h('h4', { className: 'SN_blockH' }, text);
   if (block.kind === 'hr') return h('hr', { className: 'SN_blockHr' });
-  if (block.kind === 'image') return h(NoteImage, { path: props.path, source: block.source, alt: block.alt, wiki: block.wiki });
+  if (block.kind === 'image') return h(NoteImage, { path: props.path, source: block.source, alt: block.alt, wiki: block.wiki, t: props.t });
   if (block.kind === 'li') {
     if (typeof block.checked === 'boolean') {
       const ordered = typeof block.marker === 'string';
@@ -22,7 +22,7 @@ function NoteBlock(props) {
           'aria-checked': block.checked,
           disabled: props.taskBusy,
           'data-checked': block.checked ? 'true' : 'false',
-          'aria-label': block.checked ? '取消勾选' : '标记完成',
+          'aria-label': props.t?.(block.checked ? 'drawer.taskUncheck' : 'drawer.taskCheck'),
           onClick: () => props.onToggleTask(block.sourceLine, !block.checked),
         }, block.checked ? '✓' : ''),
         h('span', { className: 'SN_taskText' }, text),
@@ -40,7 +40,7 @@ function NoteBlock(props) {
 function NoteComment(props) {
   const comment = props.comment || {};
   const head = commentHead(comment);
-  const deleteLabel = props.deleteLabel || '删除评论';
+  const deleteLabel = props.deleteLabel;
   return h('div', { className: 'SN_commentCard' },
     h('div', { className: 'SN_commentCardHead' },
       h('span', { className: 'SN_commentCardLabel' }, head),

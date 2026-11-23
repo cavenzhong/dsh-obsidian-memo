@@ -279,7 +279,7 @@ function useNoteEditor(options) {
     const mode = editModeRef.current;
     const name = titleDraftRef.current.trim();
     if (mode === 'filename' && !name) {
-      pushErrorToast(new Error('便签文件名不能为空'));
+      pushErrorToast(new Error(tRef.current('drawer.filenameRequired')));
       return;
     }
     if (body === original && (mode !== 'filename' || name === originalName)) {

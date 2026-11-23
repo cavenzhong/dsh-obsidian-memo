@@ -17,13 +17,16 @@
 <p align="center">
   <a href="#install"><ins>Install</ins></a> ·
   <a href="#everyday-use"><ins>Everyday use</ins></a> ·
+  <a href="#workspaces"><ins>Workspaces</ins></a> ·
   <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
   <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
   <a href="#faq"><ins>FAQ</ins></a> ·
   <a href="README.md"><ins>简体中文</ins></a>
 </p>
 
-![The sticky note wall with the quick capture bar](docs/assets/cover.png)
+![Obsidian MEMO 0.18: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
+
+**New in 0.18:** Browse folders across your vault with workspace tabs. Switch tabs to capture a note in that folder, or drag an existing card onto another tab to move it. [See what changed (中文)](docs/CHANGELOG.md).
 
 ## Install
 
@@ -31,7 +34,7 @@ You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Ob
 
 1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.0** or later on the Plugins page.
 2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
-3. Type a thought and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
+3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
 You can also ask an agent to install it:
 
@@ -48,28 +51,37 @@ target: dsh-obsidian-memo
 
 In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ / Ctrl + Enter` to submit text and images. Paste or drag in images; they’re compressed to WebP by default.
 
-![The capture bar with a title, a body, and two attached reference images](docs/assets/capture.png)
+![The capture bar with a title, a body, and two attached reference images](docs/assets/en/capture.png)
 
 ### Browse on the left, work on a note on the right
 
-Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Drag a note to archive it, or select **Open in Obsidian** to keep writing there.
+Main space color-codes notes by subfolder; a custom workspace uses one paper color for all its cards. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Select **Open in Obsidian** to keep writing there.
 
-![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/reader.png)
+![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/en/reader.png)
 
-### Workspaces: a view per folder
+### Archive notes without deleting them
 
-The second header row holds workspace tabs. **Main space** is the **default workspace** from Settings; **+** mounts any visible folder in the vault as a tab, and selecting it shows only the notes inside that folder and its subfolders. Mounted folders are scanned; unmounted folders stay off the wall.
+Under **Settings → Notes → Note archiving**, choose **In each note folder** (the default, which moves the note into an archive subfolder of its current folder) or **Chosen folder, keep structure**. Drag a card onto **Archive** or use the reader’s archive button. The note disappears from the active wall, and you have 6 seconds to undo the move. Older archive targets aren’t carried over; select an archive folder again if you want to keep using a specific location.
 
-- **Scope**: Main space is the default workspace; custom tabs can be any visible vault folder, even outside the default workspace or above it.
-- **Add / remove**: the plus reuses the settings folder picker (search, recent, new folder, system picker). Right-click a tab to remove it; the folder itself is untouched and the removal can be undone for a few seconds.
-- **Reorder**: **Main space** always comes first; long-press another tab for about 0.4s to drag it into place. A short press still switches tabs.
-- **Color**: right-click a custom tab to pick one of eight paper colors (random by default); every card in that workspace uses it, while Main space keeps the folder-based palette.
-- **Move notes**: drag a card onto any tab to move that note into the folder (duplicates get a suffix). Tabs outside the default workspace accept notes too, and the move can be undone from the toast.
-- **Capture**: writing a note while a workspace is selected puts the new note in that folder.
+## Workspaces
+
+The tabs under the header let you switch between folders without changing settings. **Main space** is the **default workspace** and stays first. Click **+** to add another visible folder from the vault, including folders outside the default workspace. You can’t add the vault root, the default workspace itself, or a folder that already has a tab.
+
+A custom tab shows notes in its folder and subfolders. The **Include subfolders** toggle affects only Main space. Adding a tab doesn’t move any files; removing it leaves the folder and its notes in place.
+
+![The Add workspace menu with search, a new-folder button, and available vault folders](docs/assets/en/workspace-picker.png)
+
+- **Capture:** New notes are saved directly in the selected tab’s folder.
+- **Move:** Drag a card onto the destination tab to move its Markdown file. Duplicate filenames get a numeric suffix. You have 6 seconds to undo the move from the notification.
+- **Organize tabs:** Long-press a custom tab and drag to reorder it. Use **…** to see all tabs when they don’t fit. Right-click a custom tab to choose one of eight paper colors or remove the tab; you have 5 seconds to undo the removal.
+
+![Dragging the riverside listening route card onto the Field Archive workspace highlights the destination and shows the release-to-move hint](docs/assets/en/workspace-move.png)
+
+*In this example, the card is headed to **Field Archive**, a folder outside Main space. The same file move is visible in Obsidian.*
 
 ## AI comments: Four perspectives
 
-No need to paste a note into chat. Open it and pick an emoji in the comments panel. AI leaves a comment from that perspective at the end of the original note, where you can also read it in Obsidian.
+No need to paste a note into chat. Open it and pick an emoji in the comments panel. AI leaves a comment from that perspective at the end of the original note, where you can also read it in Obsidian. With no comments yet, the section stays collapsed, but the emoji buttons are still available.
 
 | Perspective | When to use it |
 | --- | --- |
@@ -78,23 +90,25 @@ No need to paste a note into chat. Open it and pick an emoji in the comments pan
 | 🧭 **Practical next step** (落地) | Find one concrete step and a way to tell if it worked. |
 | 😇 **Honest encouragement** (真心话) | See what you’re already doing right and find an easy place to start. |
 
-![One note’s comments panel with four emoji presets and two example comments: Devil’s take and Practical next step](docs/assets/ai-comments.png)
+![One note’s comments panel with four emoji presets and two example comments: Devil’s take and Practical next step](docs/assets/en/ai-comments.png)
 
 *Two takes on the same audio-postcard idea: keep it simple, or test a rough version with three listeners.*
 
 Customize the four presets under **Settings → AI**.
 
-## From note to project
+## From note to project <img src="docs/assets/project-beta.svg" width="36" height="16" alt="Beta">
+
+> Project features are still being tested and may change substantially in future releases.
 
 Drag a note to **To project** to start a project or add an update to an existing one. The note stays where it is and gets an Obsidian link back to the project.
 
-![The To project drop menu offers a new project or an existing one, River in Sound](docs/assets/project-drop.png)
+![The To project drop menu offers a new project or an existing one, River in Sound](docs/assets/en/project-drop.png)
 
-*Dropping on To project lists new and existing projects; an update waits 3 seconds and can be cancelled.*
+*Drag over To project to see new and existing project options. After choosing an existing project, you have 3 seconds to cancel by default.*
 
 As you add notes, AI revises the **current overview** and appends one entry to the **progress log**. Read the overview to see where things stand; read the log to see how they got there. Old entries and standalone level-two sections such as “My notes” stay intact.
 
-![A project update says venue scheduling has resumed but dates are still pending, with Inspect, Accept, and Undo actions](docs/assets/project-review.png)
+![A project update says venue scheduling has resumed but dates are still pending, with Inspect, Accept, and Undo actions](docs/assets/en/project-review.png)
 
 *Review the change summary after it’s written. If it’s not right, choose Undo before accepting to restore both the project and the source note. This undo is no longer available after restarting Harness.*
 
@@ -102,7 +116,9 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 
 ## FAQ
 
-**Missing the sidebar entry, or seeing an empty wall?** Make sure the plugin is enabled and restart DSH if it asks you to — the desktop app usually needs one restart before the sidebar entry appears. If the wall is empty, check for `.md` files in the default workspace, turn off the date filter, or enable subfolders if that’s where your notes are. To show another vault folder, click **+** and mount it as a workspace.
+**How do I change the interface language?** Go to **Settings → Manage & about → Interface language** and choose Follow Harness (default), 简体中文, or English. The change takes effect immediately in this client and does not change your notes or AI prompts.
+
+**Missing the sidebar entry, or seeing an empty wall?** Make sure the plugin is enabled and restart DSH if it asks you to — the desktop app usually needs one restart before the sidebar entry appears. If the wall is empty, check for `.md` files in the selected workspace and try turning off the date filter. If notes in Main space are in subfolders, enable **Include subfolders**. To show a folder outside Main space, add it with **+**.
 
 **Do I need a separate AI key? What if generation fails?** No. Comments use the Harness default model. Projects can use a different one under **Settings → AI → Project AI**. If generation fails, check your model setup and use the panel message to decide whether to retry or adjust the output budget.
 

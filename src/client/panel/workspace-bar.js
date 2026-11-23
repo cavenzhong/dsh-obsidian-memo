@@ -192,7 +192,7 @@ function WorkspaceBar({
 
   function pickSystemFolder() {
     if (!request) return Promise.resolve('');
-    return request('pickDirectory', { vaultPath: vaultPath })
+    return request('pickDirectory', { vaultPath: vaultPath, workspace: true })
       .then((value) => (value && typeof value.path === 'string' ? value.path : ''));
   }
 
@@ -373,6 +373,7 @@ function WorkspaceBar({
         history: history || [],
         disabled: false,
         request: request,
+        workspace: true,
         placeholder: t('workspace.chooseFolder'),
         open: true,
         excludeFolders: entries.filter((entry) => !entry.all).map((entry) => entry.path)

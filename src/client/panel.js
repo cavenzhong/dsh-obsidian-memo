@@ -11,6 +11,8 @@ import { EMPTY_SETTINGS, WORKSPACE_ALL_ID } from './constants.js';
 import { useNotesData } from './data/use-notes-data.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { useCardDrag } from './drag/use-card-drag.js';
+import { formatDiagnostic } from './i18n/diagnostics.js';
+import { useUiLanguage } from './i18n/use-ui-language.js';
 import { clearImageCache } from './images/cache.js';
 import { clearImageQueue } from './images/queue.js';
 import { renderPanelHeader } from './panel/header.js';
@@ -40,7 +42,7 @@ import { useWallFilters } from './wall/use-wall-filters.js';
 import { useWallPaging } from './wall/use-wall-paging.js';
 
 function StickyNotesPanel(props) {
-  const t = (props && props.t) || (runtime && runtime.t) || ((key) => key);
+  const { t, language, changeLanguage, htmlLang } = useUiLanguage(props?.t || runtime?.t, runtime?.locale);
   const tRef = React.useRef(t);
 
   tRef.current = t;
@@ -59,7 +61,7 @@ function StickyNotesPanel(props) {
   const {
     sortId, sortMenu, setSortMenu, sortWrapRef, dateFilter, dateEnabled, dateRealtime, dateMenu,
     setDateMenu, dateWrapRef, nowTick, setNowTick, toggleSortMenu, chooseSort, openDateMenu,
-    toggleDateEnabled, chooseDateFilter, toggleDateRealtime,
+    scheduleDateMenuClose, toggleDateEnabled, chooseDateFilter, toggleDateRealtime,
   } = useWallFilters();
   const refreshingRef = React.useRef(false);
   const actionsRef = React.useRef({});
@@ -293,7 +295,7 @@ function StickyNotesPanel(props) {
     onDragEnd: () => dragSessionRef.current?.parked ? undefined : endCardDrag(),
   };
   const errorBanner = view.loaded
-    ? (loadError || (view.notes.length > 0 ? view.error : null))
+    ? formatDiagnostic(t, loadError || (view.notes.length > 0 ? view.error : null))
     : null;
   const { renderContent } = useWallContent({
     actionsRef, dateRangeLabel, dragNote, emojis, filteredNotes, handleRefresh, handleWallClick,
@@ -393,7 +395,7 @@ function StickyNotesPanel(props) {
 
   return h('div', {
     className: 'SN_panel',
-    'data-sticky-notes': '',
+    'data-sticky-notes': '', lang: htmlLang,
     'data-card-dragging': dragNote ? 'true' : 'false',
     'data-resizing': resizingDrawer ? 'true' : 'false',
     ref: panelRef,
@@ -403,7 +405,7 @@ function StickyNotesPanel(props) {
   },
     renderPanelHeader({
       chooseDateFilter, chooseSort, dateEnabled, dateFilter, dateMenu, dateRangeLabel, dateRealtime,
-      dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
+      dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, scheduleDateMenuClose, setDateMenu,
       settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled,
       toggleDateRealtime, toggleSortMenu, toggleSubfolders, view, workspaceBar: workspaceBar,
       onHeaderPointerDown: headerGesture.onHeaderPointerDown,
@@ -447,14 +449,14 @@ function StickyNotesPanel(props) {
     !pinned && noteDrawerProps
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
-    h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast }),
+    h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast, t }),
     dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
       workspaceLabel: dropAction === 'workspace' ? workspaces.labelFor(dropTargetId) : '',
       paper: workspaces.activePaper,
       archiveSettings: currentSettings, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {
-        t: t,
+        t, language, onLanguageChange: changeLanguage,
         draft: settingsDraft, request, initialTab: settingsTab, onConfigSettings: acceptConfigSettings,
         picking: picking,
         saving: savingSettings,

@@ -3,6 +3,26 @@ import test from 'node:test'
 import { loadClient, captureNodes, CLIENT_SOURCE, hookRunner, deferred, flush } from '../../test-support/client.mjs'
 import assert from 'node:assert/strict'
 
+test('归档拖拽提示：主空间内相对默认目录，主空间外相对仓库', (t) => {
+  const { CardDragOverlay } = loadClient(t).mod.__test.components
+  const hint = (path, vaultPath, notesDir, archiveDir) => {
+    const nodes = captureNodes(CardDragOverlay({
+      note: { path }, point: {}, action: 'archive',
+      archiveSettings: { archiveMode: 'mapped', vaultPath, notesDir, archiveDir },
+      t: (key, args) => args?.path || key,
+    }))
+    return nodes.find(node => node.props.className === 'SN_dragFollow').children[1].children[0]
+  }
+  const cases = [
+    ['/vault/进行时/便签.md', '/vault', '/vault/进行时', '/vault/历史', '历史'],
+    ['/vault/进行时/任务/便签.md', '/vault', '/vault/进行时', '/vault/历史', '历史/任务'],
+    ['/vault/进行时-其他/任务/便签.md', '/vault', '/vault/进行时', '/vault/历史', '历史/进行时-其他/任务'],
+    ['/vault/便签.md', '/vault', '/vault/进行时', '/vault/历史', '历史'],
+    ['c:\\Vault\\工作\\任务\\便签.md', 'C:\\VAULT', 'C:\\VAULT\\进行时', 'C:\\VAULT\\历史', '历史/工作/任务'],
+  ]
+  for (const [path, vault, notes, archive, expected] of cases) assert.equal(hint(path, vault, notes, archive), expected)
+})
+
 test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详情，拖拽与删除正常', (t) => {
   const api = loadClient(t).mod.__test, calls = []
   const note = { path: '/vault/便签.md', title: '便签', images: [], comments: [] }

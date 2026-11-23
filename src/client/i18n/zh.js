@@ -2,6 +2,16 @@
 
 
 const zh = {
+  'ui.locale': 'zh',
+  'settings.language': '界面语言',
+  'settings.languageSystem': '跟随 Harness',
+  'settings.languageHint': '切换后立即生效，仅记在当前浏览器；不改变便签内容或 AI 提示词。',
+  'settings.projectBetaNotice': '该项目功能仍在测试与推进中，版本推进功能可能会大改。',
+  'drawer.taskCheck': '标记完成',
+  'drawer.taskUncheck': '取消勾选',
+  'drawer.filenameRequired': '便签文件名不能为空',
+  'image.loading': '图片加载中…',
+  'image.missing': '图片无法加载',
   'nav.label': 'Obsidian MEMO',
 
   'panel.title': 'Obsidian MEMO',
