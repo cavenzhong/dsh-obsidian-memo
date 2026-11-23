@@ -233,6 +233,26 @@ function useNoteEditor(options) {
     if (!draft) persistDraft();
   }
 
+  async function reorderTask(sourceLine, targetLine, after, expectedBody) {
+    const current = noteDrawerRef.current;
+    if (!current?.full || editingRef.current || taskBusyRef.current || savingNoteRef.current || current.full.body !== expectedBody) return;
+    const session = editorSessionRef.current;
+    taskBusyRef.current = true;
+    setTaskBusy(true);
+    try {
+      const result = await request('reorderTask', { path: current.path, sourceLine, targetLine, after, expectedRevision: current.full.contentRevision });
+      if (aliveRef.current && result.note) replaceNote(result.note);
+      if (aliveRef.current && editorSessionRef.current === session && noteDrawerRef.current?.path === current.path) await loadNote(current.path);
+      await refreshNow(false);
+    } catch (error) {
+      if (aliveRef.current && !isAbortError(error)) pushErrorToast(error);
+      if (aliveRef.current && editorSessionRef.current === session && noteDrawerRef.current?.path === current.path) await loadNote(current.path);
+    } finally {
+      taskBusyRef.current = false;
+      if (aliveRef.current) setTaskBusy(false);
+    }
+  }
+
   async function toggleTask(sourceLine, checked) {
     const current = noteDrawerRef.current;
     if (!current || !current.full || editingRef.current || taskBusyRef.current) return;
@@ -342,7 +362,7 @@ function useNoteEditor(options) {
   return { noteDrawer, noteDrawerRef, editing, editingRef, restoringDraftRef: resumeDraftRef, editTitleMode: editing ? editModeRef.current : titleMode,
   bodyDraft, titleDraft, setTitleDraft: handleTitleChange, editPositionRef, handleEditPositionChange,
   savingNote, savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer,
-  handleBodyChange, handleTitleChange, startEditing, toggleTask, cancelEditing, saveEditing };
+  handleBodyChange, handleTitleChange, startEditing, toggleTask, reorderTask, cancelEditing, saveEditing };
 }
 
 export { useNoteEditor };

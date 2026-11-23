@@ -30,7 +30,7 @@ import { WorkspaceBar } from './panel/workspace-bar.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
 import {
   WORKSPACE_COLORS, addWorkspace, filterNotesByWorkspace, moveWorkspace, nextWorkspaceColorId,
-  normalizeFolder, noteInsideWorkspace, normalizeStoredWorkspaces, popoverLeftFor, readStoredWorkspaces,
+  normalizeFolder, noteInsideWorkspace, noteWorkspacePaper, normalizeStoredWorkspaces, popoverLeftFor, readStoredWorkspaces,
   removeWorkspace, setWorkspaceColor, workspaceColor, workspaceLabels, writeStoredWorkspaces,
 } from './panel/workspaces.js';
 import {
@@ -41,6 +41,8 @@ import {
   storeCommentsHeight, storeDateEnabled, storeDateFilter, storeDateRealtime, storePinned, storePinnedNote,
 } from './preferences.js';
 import { NoteBlock, NoteComment } from './reader/blocks.js';
+import { handleListShortcut } from './reader/list-shortcuts.js';
+import { useTaskReorder } from './reader/use-task-reorder.js';
 import { NoteDrawer } from './reader/note-drawer.js';
 import {
   deriveTitle, findTitleLine, normalizeTitleMode, replaceTitleLine, sanitizeTitleText, stripTitleLine, titleLineFor,
@@ -76,7 +78,7 @@ const __test = {
   captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, focusPanelForCapture, captureRefocusField, cardDragLayout, createCardDragMotion,
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
-    useNotesData, useNoteEditor, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
+    useNotesData, useNoteEditor, useTaskReorder, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
     useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters,
   },
   // 0.18 工作空间：纯规则、持久化与标签栏组件。
@@ -98,6 +100,7 @@ const __test = {
   moveWorkspace: moveWorkspace,
   filterNotesByWorkspace: filterNotesByWorkspace,
   noteInsideWorkspace: noteInsideWorkspace,
+  noteWorkspacePaper: noteWorkspacePaper,
   workspacePopoverLeft: popoverLeftFor,
   PINNED_KEY: PINNED_KEY,
   PINNED_NOTE_KEY: PINNED_NOTE_KEY,
@@ -175,6 +178,7 @@ const __test = {
   expandFileNamePattern, sanitizeGeneratedName, truncateNoteName, buildPreviewName, resolveFileNamePattern,
   insertPatternToken, nextTitleMode,
   dictionaries: { zh: zh, en: en },
+  handleListShortcut,
   components: {
     CaptureComposer, DropActions, CardDragOverlay, ImageProcessingSettings, TitleModeSettings, TitleModeIcon,
     PanelIcon: PanelIcon,

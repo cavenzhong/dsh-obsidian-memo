@@ -6,6 +6,7 @@ import { commentHead } from '../wall/model.js';
 
 function NoteBlock(props) {
   const block = props.block || {};
+  const indentStyle = block.indent > 0 ? { marginInlineStart: Math.min(block.indent, 48) * 8 + 'px' } : undefined;
   const text = typeof block.text === 'string' ? block.text : '';
   if (block.kind === 'h') return h('h4', { className: 'SN_blockH' }, text);
   if (block.kind === 'hr') return h('hr', { className: 'SN_blockHr' });
@@ -13,7 +14,8 @@ function NoteBlock(props) {
   if (block.kind === 'li') {
     if (typeof block.checked === 'boolean') {
       const ordered = typeof block.marker === 'string';
-      return h('div', { className: 'SN_blockLi SN_blockTask' + (ordered ? ' SN_blockOrdered' : '') },
+      return h('div', { className: 'SN_blockLi SN_blockTask' + (ordered ? ' SN_blockOrdered' : ''), style: indentStyle, ...props.taskDrag?.row },
+        props.taskDrag?.handle ? h('button', props.taskDrag.handle, '⋮') : null,
         ordered ? h('span', { className: 'SN_listNumber' }, block.marker) : null,
         h('button', {
           type: 'button',
@@ -28,9 +30,9 @@ function NoteBlock(props) {
         h('span', { className: 'SN_taskText' }, text),
       );
     }
-    if (typeof block.marker === 'string') return h('div', { className: 'SN_blockLi SN_blockOrdered' },
+    if (typeof block.marker === 'string') return h('div', { className: 'SN_blockLi SN_blockOrdered', style: indentStyle },
       h('span', { className: 'SN_listNumber' }, block.marker), h('span', { className: 'SN_listText' }, text));
-    return h('div', { className: 'SN_blockLi' }, text);
+    return h('div', { className: 'SN_blockLi', style: indentStyle }, text);
   }
   if (block.kind === 'quote') return h('blockquote', { className: 'SN_blockQuote' }, text);
   if (block.kind === 'code') return h('pre', { className: 'SN_blockCode' }, text);

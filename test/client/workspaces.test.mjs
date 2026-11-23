@@ -102,9 +102,9 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   const api = mod.__test
   api.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时/日记', color: 'mist' }], 'a')
   api.writeStoredWorkspaces('/vault-b', [{ id: 'b', path: '项目', color: 'moss' }], ALL)
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a' })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a', primaryColor: 'paper' })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL, primaryColor: 'paper' })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL, primaryColor: 'paper' })
 
   storage.setItem(api.WORKSPACES_KEY, JSON.stringify({ version: 1, vaults: {
     '/vault-a': { items: [{ id: 'x', path: '进行时/日记' }, { id: 'y', path: '进行时/日记' }, { id: 'z', path: '.' }, { id: 'w', path: '../外面' }], activeId: 'missing' },
@@ -116,10 +116,10 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   assert.ok(api.WORKSPACE_COLORS.some((color) => color.id === migrated.items[0].color), '旧记录自动补一个预设纸色')
 
   storage.setItem(api.WORKSPACES_KEY, '{broken')
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper' })
   const { mod: noStorage } = loadClient(t, { storage: null })
   assert.doesNotThrow(() => noStorage.__test.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时' }], 'a'))
-  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL })
+  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper' })
 })
 
 test('添加弹层定位：贴着「＋」，靠右时改为右对齐，窄栏不越出标签栏', (t) => {
@@ -131,29 +131,21 @@ test('添加弹层定位：贴着「＋」，靠右时改为右对齐，窄栏�
   assert.equal(api.workspacePopoverLeft(null, 600, 330), 4, '缺少锚点时退回左侧')
 })
 
-test('工作空间标签栏：所有/自定义标签、点击切换、右键菜单只在自定义标签出现', (t) => {
-  const api = loadClient(t).mod.__test
-  const selected = [], removed = []
-  const bar = api.components.WorkspaceBar({
-    t: (key) => key,
-    entries: entriesFixture(),
-    activeId: 'ws-1',
-    vaultPath: '/vault',
-    notesDir: '/vault/进行时',
-    request: async () => ({ folders: [] }),
-    history: [],
-    dragActive: false,
-    dropId: null,
-    onSelect: (id) => selected.push(id),
-    onAdd: () => ({ ok: true }),
-    onRemove: (id) => removed.push(id),
-    onReorder() {},
-    onHoverWorkspace() {},
-    onClearWorkspaceHover() {},
-    onDropWorkspace() {},
-  })
-  const nodes = captureNodes(bar)
-  const tabs = nodes.filter((node) => node.props.className === 'SN_wsTab')
+test('工作空间标签栏：所有/自定义标签、点击切换、右键菜单含纸色，主空间不可删除', (t) => {
+  const runner = hookRunner(t), api = runner.api
+  const previousDocument = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  t.after(() => { if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument })
+  const selected = [], removed = [], colors = []
+  const props = {
+    t: (key) => key, entries: entriesFixture(), activeId: 'ws-1', vaultPath: '/vault', notesDir: '/vault/进行时',
+    request: async () => ({ folders: [] }), history: [], dragActive: false, dropId: null,
+    onSelect: (id) => selected.push(id), onAdd: () => ({ ok: true }), onRemove: (id) => removed.push(id),
+    onSetColor: (...args) => colors.push(args), onReorder() {}, onHoverWorkspace() {}, onClearWorkspaceHover() {}, onDropWorkspace() {},
+  }
+  const render = () => captureNodes(runner.render(api.components.WorkspaceBar, props))
+  let nodes = render()
+  let tabs = nodes.filter((node) => node.props.className === 'SN_wsTab')
   assert.equal(tabs.length, 3)
   assert.equal(tabs[0].props['data-all'], 'true')
   assert.equal(tabs[1].props['data-active'], 'true')
@@ -161,37 +153,45 @@ test('工作空间标签栏：所有/自定义标签、点击切换、右键菜�
   assert.equal(tabs[0].props.tabIndex, -1)
   assert.equal(tabs[1].props.tabIndex, 0)
   assert.equal(nodes.find((node) => node.props.className === 'SN_wsTabs').props.role, 'tablist')
-  assert.equal(nodes.filter((node) => node.props.className === 'SN_wsTool SN_wsAdd').length, 1, '没有溢出时只有加号')
-
-  for (const target of ['ws-2', ALL]) {
-    const tab = tabs.find((node) => node.props['data-workspace-id'] === target)
-    tab.props.onClick({})
-  }
+  assert.equal(nodes.filter((node) => node.props.className === 'SN_wsTool SN_wsAdd').length, 1)
+  for (const target of ['ws-2', ALL]) tabs.find((node) => node.props['data-workspace-id'] === target).props.onClick({})
   assert.deepEqual(selected, ['ws-2', ALL])
 
-  const customMenu = tabs[1].props.onContextMenu({ preventDefault() {}, stopPropagation() {}, clientX: 100, clientY: 120 })
-  assert.equal(customMenu, undefined)
+  const custom = tabs[1].props.onContextMenu({ preventDefault() {}, stopPropagation() {}, clientX: 100, clientY: 120 })
+  assert.equal(custom, undefined)
   let prevented = 0
   tabs[0].props.onContextMenu({ preventDefault() { prevented++ }, stopPropagation() {}, clientX: 10, clientY: 10 })
-  assert.equal(prevented, 1, '「所有」吞掉原生右键菜单但不打开工作空间菜单')
-  assert.equal(captureNodes(bar).some((node) => node.props.className === 'SN_wsMenu'), false)
+  assert.equal(prevented, 1)
+  nodes = render()
+  assert.equal(nodes.filter((node) => node.props.className === 'SN_wsSwatch').length, api.WORKSPACE_COLORS.length)
+  assert.equal(nodes.some((node) => node.props.className === 'SN_wsMenuItem SN_wsMenuDelete'), false)
+  nodes.find((node) => node.props.className === 'SN_wsSwatch' && node.props['aria-label'] === 'workspace.color.lilac').props.onClick()
+  assert.deepEqual(colors, [[ALL, 'lilac']])
+  assert.equal(render().some((node) => node.props.className === 'SN_wsMenu'), false)
 
+  tabs = render().filter((node) => node.props.className === 'SN_wsTab')
+  const customTab = tabs[1]
+  customTab.props.onContextMenu({ preventDefault() {}, stopPropagation() {}, clientX: 100, clientY: 120 })
+  nodes = render()
+  assert.equal(nodes.some((node) => node.props.className === 'SN_wsMenuItem SN_wsMenuDelete'), true)
+  nodes.find((node) => node.props.className === 'SN_wsMenuItem SN_wsMenuDelete').props.onClick()
+  assert.deepEqual(removed, ['ws-1'])
+  assert.equal(render().some((node) => node.props.className === 'SN_wsMenu'), false)
+
+  tabs = render().filter((node) => node.props.className === 'SN_wsTab')
   const arrow = tabs[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {}, currentTarget: tabs[0] })
   assert.equal(arrow, undefined)
   assert.equal(selected.at(-1), 'ws-1', '方向键切换标签')
-  assert.equal(removed.length, 0)
-
-  // 源码守卫：溢出菜单、长按与拖放钩子都在，且标签栏取代旧路径行。
   assert.match(CLIENT_SOURCE, /WORKSPACE_HOLD_MS/)
   assert.match(CLIENT_SOURCE, /SN_wsMoreMenu/)
   assert.match(CLIENT_SOURCE, /SN_wsCaret/)
   assert.match(CLIENT_SOURCE, /'data-workspace-bar'/)
   assert.match(CLIENT_SOURCE, /className: 'SN_headTop'/)
-  assert.doesNotMatch(CLIENT_SOURCE, /SN_headPath/, '旧路径行已被工作空间标签栏取代')
+  assert.doesNotMatch(CLIENT_SOURCE, /SN_headPath/)
   assert.match(CLIENT_SOURCE, /onDrop: \(event\) => dragDrop\(event, entry\)/)
   assert.match(CLIENT_SOURCE, /SN_wsColors/)
   assert.match(CLIENT_SOURCE, /WORKSPACE_COLORS\.map/)
-  assert.match(CLIENT_SOURCE, /document\.addEventListener\('pointerdown', outside, true\)/, '右键菜单点击外部立即收起')
+  assert.match(CLIENT_SOURCE, /document\.addEventListener\('pointerdown', outside, true\)/)
 })
 
 test('工作空间标签拖放：仓库内所有工作空间都接收便签', (t) => {
@@ -274,6 +274,8 @@ test('顶栏：标题/版本/计数与图标同一行，第二行渲染工作空
   assert.match(CLIENT_SOURCE, /\.SN_wsBar\{[^}]*min-height:34px/)
   assert.match(CLIENT_SOURCE, /\.SN_wsBar\{[^}]*margin-top:-2px/, '标签栏与标题行的空隙收紧')
   assert.match(CLIENT_SOURCE, /\.SN_wsTab\[data-active='true'\]::after\{background:var\(--sn-accent\)/)
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_wsTab\{background:var\(--sn-ws-paper/)
+  assert.match(CLIENT_SOURCE, /body\[data-ds-dark-theme\] \.SN_wsSwatch\{background:var\(--sn-ws-paper-dark\)/)
 })
 
 test('useWorkspaces：加载当前仓库标签、新增/重复保护、当前空间筛选与便签迁移', async (t) => {
@@ -315,7 +317,7 @@ test('useWorkspaces：加载当前仓库标签、新增/重复保护、当前空
 
   state.setColor(added.item.id, 'mist')
   state = runner.render(api.hooks.useWorkspaces, props)
-  assert.equal(state.activePaper.light, '#F4F8FC', '选色后当前墙使用该纸色')
+  assert.equal(state.activePaper.light, '#F4F8FC', '选色后当前空间的卡片使用所选纸色')
   assert.equal(api.readStoredWorkspaces('/vault').items.find((item) => item.id === added.item.id).color, 'mist', '选色写入本地存储')
 
   const duplicate = state.add('进行时/日记')

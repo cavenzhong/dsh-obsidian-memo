@@ -39,6 +39,7 @@ const readerStyles = `
 .SN_noteEditor{flex:1;min-height:144px;width:100%;padding:16px 18px;border:0;resize:none;outline:none;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;tab-size:2}
 .SN_noteEditor:disabled{opacity:.7;cursor:wait}
 .SN_noteEditBar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#f2f0ec)}
+.SN_noteEditHints{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.SN_noteEditActions{flex-shrink:0}
 .SN_noteEditHint{font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary)}
 .SN_noteEditActions{display:flex;align-items:center;gap:8px;flex:none}
 .SN_blockP{margin:0 0 14px;font-size:13.5px;line-height:1.85;color:var(--dsw-alias-label-primary);color:color-mix(in srgb,var(--dsw-alias-label-primary) 80%,transparent);white-space:pre-wrap;word-break:break-word}
@@ -53,8 +54,8 @@ const readerStyles = `
 .SN_listText{flex:1;min-width:0}
 .SN_blockTask{display:flex;align-items:flex-start;gap:8px;padding-left:0}
 .SN_blockTask::before{display:none}
-.SN_taskCheck{flex:none;width:14px;height:14px;margin-top:.4em;border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l3));border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:var(--dsw-alias-label-primary-foreground,#fff);background:transparent}
-.SN_taskCheck[data-checked='true']{background:var(--dsw-alias-brand-primary,#2f6feb);border-color:var(--dsw-alias-brand-primary,#2f6feb);color:var(--dsw-alias-label-primary-foreground,#fff)}
+.SN_taskCheck{flex:none;width:14px;height:14px;margin-top:5px;border:1px solid color-mix(in srgb,var(--dsw-alias-label-primary,#1f1f1f) 68%,transparent);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:14px;color:var(--dsw-alias-label-primary-foreground,#fff);background:transparent}
+.SN_taskCheck[data-checked='true']{background:var(--sn-accent);border-color:var(--sn-accent);color:#fff}
 .SN_taskText{min-width:0;flex:1;word-break:break-word}
 .SN_blockQuote{margin:0 0 14px;padding:2px 0 2px 14px;border-left:2px solid var(--dsw-alias-border-l3);font-size:13px;line-height:1.8;color:var(--dsw-alias-label-primary);color:color-mix(in srgb,var(--dsw-alias-label-primary) 80%,transparent);white-space:pre-wrap;word-break:break-word}
 .SN_blockCode{margin:0 0 14px;padding:10px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f2f0ec);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.65;color:var(--dsw-alias-label-primary);white-space:pre-wrap;overflow:auto}
@@ -62,6 +63,12 @@ const readerStyles = `
 .SN_noteImage{display:block;max-width:100%;max-height:480px;object-fit:contain;margin:8px auto 16px;border-radius:6px}
 .SN_imageLoading,.SN_imageMissing{padding:12px;border:1px dashed var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);text-align:center;font-size:12px}
 .SN_taskCheck{padding:0;cursor:pointer}
+.SN_taskGrip{position:absolute;inset-inline-start:-16px;top:0;width:14px;height:1.8em;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;line-height:1;opacity:0;cursor:grab;transition:opacity .12s ease;touch-action:none}
+.SN_blockTask:hover .SN_taskGrip,.SN_taskGrip:focus-visible{opacity:.6}
+.SN_taskGrip:active{cursor:grabbing;opacity:1}
+.SN_taskGrip:disabled{cursor:wait}
+.SN_blockTask[data-task-drop='before']{box-shadow:0 -2px 0 var(--sn-accent)}
+.SN_blockTask[data-task-drop='after']{box-shadow:0 2px 0 var(--sn-accent)}
 .SN_taskCheck:disabled{cursor:wait;opacity:.5}
 .SN_noteEditBar .SN_primaryBtn{background:var(--dsw-alias-brand-primary,#2f6feb);color:var(--dsw-alias-label-primary-foreground,#fff)}
 .SN_projects{margin-top:20px;display:flex;align-items:baseline;gap:10px;padding:10px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f2f0ec);font-size:12px;line-height:1.6}

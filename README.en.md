@@ -32,7 +32,7 @@
 
 You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.0** or later on the Plugins page.
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.3** or later on the Plugins page.
 2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
 3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
@@ -55,7 +55,7 @@ In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ 
 
 ### Browse on the left, work on a note on the right
 
-Main space color-codes notes by subfolder; a custom workspace uses one paper color for all its cards. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Select **Open in Obsidian** to keep writing there.
+Each note uses the color of its deepest mounted workspace. Changing a parent workspace does not override a child workspace listed in the workspace bar; changing the child also updates its cards, tag backgrounds, and reader capsules when shown in the parent view. Subfolders without their own workspace inherit the nearest mounted parent color. Workspace tabs themselves keep a clean neutral background. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Select **Open in Obsidian** to keep writing there.
 
 ![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/en/reader.png)
 

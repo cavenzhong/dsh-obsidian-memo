@@ -25,7 +25,7 @@ const overridesStyles = `
 .SN_actionDivider{height:1px;margin:1px 2px;background:linear-gradient(to right,rgba(90,72,45,.18),rgba(90,72,45,0))}
 
 /* ── 0.13 抽屉：锁定按钮 / 底部固定评论区 ── */
-.SN_noteDrawerHeadActions{flex:none;display:flex;align-items:center;gap:2px}
+.SN_noteDrawerHeadActions{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px}
 .SN_noteDrawerComments{position:relative;flex:none;display:flex;flex-direction:column;min-height:96px;max-height:42%;border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1,#fff)}
 /* 折叠后只留标题与 AI 操作；显式高度让位给 auto，避免留下空白。 */
 .SN_noteDrawerComments[data-collapsed='true']{height:auto!important;min-height:0;max-height:none}

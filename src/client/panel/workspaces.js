@@ -53,6 +53,22 @@ function noteInsideWorkspace(note, folder, vaultPath) {
   return Boolean(root && path.startsWith(root + '/' + prefix));
 }
 
+/** 便签沿用所属的最深层已挂载空间纸色；未单独挂载的子文件夹随父空间。 */
+function noteWorkspacePaper(note, entries, vaultPath) {
+  let owner = null;
+  let ownerDepth = -1;
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const folder = normalizeFolder(entry.path);
+    if (folder === null || !noteInsideWorkspace(note, folder, vaultPath)) continue;
+    const depth = folder === '.' ? 0 : folder.split('/').length;
+    if (depth > ownerDepth) {
+      owner = entry;
+      ownerDepth = depth;
+    }
+  }
+  return owner ? workspaceColor(owner.color) : null;
+}
+
 /**
  * 只保留当前工作空间里的便签；options.topOnly 时只看该目录顶层
  * （主空间关闭「显示子文件夹」时用，避免其它工作空间根把子文件夹便签带进主空间）。
@@ -192,7 +208,7 @@ function normalizeStoredWorkspaces(raw) {
   const activeId = typeof source.activeId === 'string' && items.some((item) => item.id === source.activeId)
     ? source.activeId
     : WORKSPACE_ALL_ID;
-  return { items: items, activeId: activeId };
+  return { items: items, activeId: activeId, primaryColor: workspaceColor(source.primaryColor)?.id || 'paper' };
 }
 
 function readWorkspaceStore() {
@@ -211,13 +227,13 @@ function readWorkspaceStore() {
 }
 
 function readStoredWorkspaces(vaultPath) {
-  if (typeof vaultPath !== 'string' || vaultPath === '') return { items: [], activeId: WORKSPACE_ALL_ID };
+  if (typeof vaultPath !== 'string' || vaultPath === '') return { items: [], activeId: WORKSPACE_ALL_ID, primaryColor: 'paper' };
   const store = readWorkspaceStore();
   const record = Object.prototype.hasOwnProperty.call(store.vaults, vaultPath) ? store.vaults[vaultPath] : null;
   return normalizeStoredWorkspaces(record);
 }
 
-function writeStoredWorkspaces(vaultPath, items, activeId) {
+function writeStoredWorkspaces(vaultPath, items, activeId, primaryColor) {
   if (typeof vaultPath !== 'string' || vaultPath === '') return;
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
@@ -225,6 +241,7 @@ function writeStoredWorkspaces(vaultPath, items, activeId) {
     store.vaults[vaultPath] = {
       items: (Array.isArray(items) ? items : []).map((item) => ({ id: item.id, path: item.path, color: item.color })),
       activeId: activeId,
+      primaryColor: workspaceColor(primaryColor)?.id || workspaceColor(store.vaults[vaultPath]?.primaryColor)?.id || 'paper',
     };
     window.localStorage.setItem(WORKSPACES_KEY, JSON.stringify(store));
   } catch (error) {
@@ -241,6 +258,7 @@ export {
   normalizeFolder,
   normalizeStoredWorkspaces,
   noteInsideWorkspace,
+  noteWorkspacePaper,
   popoverLeftFor,
   readStoredWorkspaces,
   removeWorkspace,

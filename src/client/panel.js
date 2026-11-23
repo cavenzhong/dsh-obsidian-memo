@@ -83,7 +83,7 @@ function StickyNotesPanel(props) {
   const {
     noteDrawer, noteDrawerRef, editing, editingRef, restoringDraftRef, editTitleMode, bodyDraft, titleDraft, handleTitleChange, savingNote,
     savingNoteRef, taskBusy, closeNoteDrawer, loadNote, openNoteDrawer, handleBodyChange, startEditing,
-    toggleTask, cancelEditing, saveEditing, editPositionRef, handleEditPositionChange,
+    toggleTask, reorderTask, cancelEditing, saveEditing, editPositionRef, handleEditPositionChange,
   } = useNoteEditor({
     tRef, aliveRef, controllersRef, request, refreshNow, replaceNote, replaceRenamedNote, pushToast, pushErrorToast,
     titleMode: titleMode,
@@ -304,7 +304,7 @@ function StickyNotesPanel(props) {
     workspaceActive: workspaces.activeFolder !== '.',
     workspaceLabel: workspaces.activeEntry.label,
     workspaceEmpty: workspaceNotes.length === 0,
-    workspacePaper: workspaces.activePaper,
+    workspacePaperForNote: workspaces.paperForNote,
     workspaceNeedsSubfolders: workspaces.showSubfolderHint,
     workspacePrimary: workspaces.activeEntry.primary === true,
     onExitWorkspace: () => workspaces.select(WORKSPACE_ALL_ID),
@@ -326,7 +326,7 @@ function StickyNotesPanel(props) {
       drawerWidth: effectiveDrawerWidth,
       resizing: resizingDrawer,
       pinned: pinned,
-      paper: workspaces.activePaper,
+      paper: workspaces.paperForNote(drawerNote),
       drawerActions: {
         emojis: emojis,
         pending: drawerPending,
@@ -351,6 +351,7 @@ function StickyNotesPanel(props) {
       },
       onTogglePinned: togglePinned,
       onToggleTask: toggleTask,
+      onReorderTask: reorderTask,
       taskBusy: taskBusy,
       titleDraft: titleDraft,
       titleMode: editTitleMode,
@@ -445,14 +446,14 @@ function StickyNotesPanel(props) {
         ? h(NoteDrawer, Object.assign({ key: 'inline', inline: true }, noteDrawerProps))
         : null,
     ),
-    // 未锁定 = 原有 overlay 态（绝对定位盖在便签墙之上）。
+    // 未锁定仍以 overlay 推出；便签墙按实测宽度避让，空白处点击关闭规则不变。
     !pinned && noteDrawerProps
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
     h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast, t }),
     dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
       workspaceLabel: dropAction === 'workspace' ? workspaces.labelFor(dropTargetId) : '',
-      paper: workspaces.activePaper,
+      paper: workspaces.paperForNote(dragNote),
       archiveSettings: currentSettings, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {

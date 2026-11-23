@@ -2,6 +2,7 @@ import { React } from '../react.js';
 
 function useEditorPosition({ editing, path, editPositionRef, onEditPositionChange }) {
   const titleRef = React.useRef(null), bodyRef = React.useRef(null), contentRef = React.useRef(null);
+  const pendingSelectionRef = React.useRef(null);
   const restoringRef = React.useRef(false);
   const position = editing ? editPositionRef?.current : null;
 
@@ -21,6 +22,17 @@ function useEditorPosition({ editing, path, editPositionRef, onEditPositionChang
     }
     // Restore on entering or remounting, not while the user is moving the caret.
   }, [editing, path, editPositionRef]);
+
+  React.useLayoutEffect(() => {
+    const pending = pendingSelectionRef.current, input = bodyRef.current;
+    if (!pending || !editing || !input) return;
+    pendingSelectionRef.current = null;
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(pending.start, pending.end, pending.direction);
+    input.scrollTop = pending.top;
+    input.scrollLeft = pending.left;
+    record('body', input);
+  });
 
   function record(field, input) {
     if (restoringRef.current || !onEditPositionChange || !Number.isInteger(input?.selectionStart)) return;
@@ -45,6 +57,11 @@ function useEditorPosition({ editing, path, editPositionRef, onEditPositionChang
 
   return {
     fieldProps,
+    applyBodyChange(result, onChange) {
+      const input = bodyRef.current;
+      pendingSelectionRef.current = { ...result, direction: input?.selectionDirection || 'none', top: input?.scrollTop || 0, left: input?.scrollLeft || 0 };
+      onChange(result.text);
+    },
     contentProps: {
       ref: contentRef,
       onScroll(event) {

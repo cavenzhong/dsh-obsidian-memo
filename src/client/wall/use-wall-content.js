@@ -8,7 +8,7 @@ function useWallContent({
   actionsRef, dateRangeLabel, dragNote, emojis, filteredNotes, handleRefresh, handleWallClick,
   handleWallMouseDown, hoverPath, loadError, loadMoreRef, loadingMore, localPending, noteDrawer,
   openSettings, setDateMenu, setShowBackTop, sortedNotes, t, view, visibleLimit,
-  workspaceActive, workspaceLabel, workspaceEmpty, workspaceNeedsSubfolders, workspacePrimary, onExitWorkspace, onShowSubfolders, workspacePaper,
+  workspaceActive, workspaceLabel, workspaceEmpty, workspaceNeedsSubfolders, workspacePrimary, onExitWorkspace, onShowSubfolders, workspacePaperForNote,
 }) {
   const cardLocaleRef = React.useRef({ t: t, tick: 0 });
 
@@ -18,11 +18,11 @@ function useWallContent({
 
   const wallCards = React.useMemo(() => sortedNotes.slice(0, visibleLimit).map((note) => h(NoteCard, {
     key: cardLocaleRef.current.tick + ':' + note.path,
-    note, emojis, paper: workspacePaper, pending: note.pending || localPending[note.path] || null,
+    note, emojis, paper: workspacePaperForNote(note), pending: note.pending || localPending[note.path] || null,
     hoverActive: Boolean(hoverPath && hoverPath.path === note.path),
     drawerOpen: Boolean(noteDrawer),
     dragging: Boolean(dragNote && dragNote.path === note.path), actions: actionsRef,
-  })), [sortedNotes, visibleLimit, emojis, localPending, hoverPath, Boolean(noteDrawer), dragNote?.path, cardLocaleRef.current.tick, workspacePaper]);
+  })), [sortedNotes, visibleLimit, emojis, localPending, hoverPath, Boolean(noteDrawer), dragNote?.path, cardLocaleRef.current.tick, workspacePaperForNote]);
 
   function renderWall() {
     // 0.13.8 动态加载：只渲染前 visibleLimit 张（默认 50）；哨兵滚进视口再补下一批。

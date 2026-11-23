@@ -1,4 +1,4 @@
-/** 测量浮动阅读面板宽度，为底部输入和拖拽操作栏预留空间。 */
+/** 测量浮动阅读面板宽度，让整块便签墙、底部输入和拖拽操作栏一起避让。 */
 import { React } from '../react.js';
 
 function useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned }) {

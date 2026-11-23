@@ -90,6 +90,7 @@ const zh = {
   'drawer.editDiscarded': '已取消编辑',
   'drawer.saved': '已保存',
   'drawer.bodyAria': '正文 Markdown 编辑器',
+  'drawer.taskReorder': '拖动调整待办顺序（同层级）',
   'drawer.shortcutHint': 'Cmd/Ctrl+S 保存 · Esc 取消',
   'drawer.resize': '拖拽调整宽度（双击恢复默认）',
   'drawer.lock': '锁定在右侧',

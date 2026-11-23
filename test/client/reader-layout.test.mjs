@@ -182,7 +182,13 @@ test('v0.16 阅读标签沿用便签纸色，双击提示仅复用空正文占�
   }
   nodes = captureNodes(api.components.NoteDrawer({ ...props, editing: true }))
   assert.equal(nodes.some((node) => node.children.includes('drawer.editHint')), false)
-  assert.ok(nodes.find((node) => node.props.className === 'SN_noteEditHint').children.includes('drawer.shortcutHint'))
+  const editHints = nodes.filter((node) => node.props.className === 'SN_noteEditHint')
+  assert.equal(editHints.length, 1, '编辑状态只保留一条简短提示')
+  assert.ok(editHints[0].children.includes('drawer.shortcutHint'))
+  assert.doesNotMatch(CLIENT_SOURCE, /drawer\.listShortcutHint/)
+  const headerActions = nodes.find((node) => node.props.className === 'SN_noteDrawerHeadActions')
+  assert.deepEqual(headerActions.children.map((node) => node.props['aria-label']), ['drawer.close', 'drawer.lock'], '关闭在上，固定图钉在下')
+  assert.match(CLIENT_SOURCE, /\.SN_noteDrawerHeadActions\{[^}]*flex-direction:column/)
 })
 
 test('长标题编辑随内容折行，编辑区可滚动而保存栏在外；双击相应区域聚焦', (t) => {

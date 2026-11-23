@@ -3,7 +3,7 @@ import { UNDO_MS, WORKSPACE_ALL_ID, WORKSPACES_MAX } from '../constants.js';
 import { React } from '../react.js';
 import { isAbortError, isAbsolutePath, joinPath, vaultRelative } from '../utils.js';
 import {
-  addWorkspace, moveWorkspace, normalizeFolder, noteInsideWorkspace,
+  addWorkspace, moveWorkspace, normalizeFolder, noteInsideWorkspace, noteWorkspacePaper,
   readStoredWorkspaces, removeWorkspace, setWorkspaceColor, workspaceColor, workspaceLabels, writeStoredWorkspaces,
 } from './workspaces.js';
 
@@ -21,6 +21,7 @@ function useWorkspaces({
   const vaultRef = React.useRef(vaultPath);
   vaultRef.current = vaultPath;
 
+  const [primaryColor, setPrimaryColor] = React.useState('paper');
   const [items, setItems] = React.useState([]);
   const [activeId, setActiveId] = React.useState(WORKSPACE_ALL_ID);
   const itemsRef = React.useRef(items);
@@ -30,15 +31,17 @@ function useWorkspaces({
 
   React.useEffect(() => {
     if (vaultPath === '') {
+      setPrimaryColor('paper');
       setItems([]);
       setActiveId(WORKSPACE_ALL_ID);
       return;
     }
     const stored = readStoredWorkspaces(vaultPath);
+    setPrimaryColor(stored.primaryColor);
     setItems(stored.items);
     setActiveId(stored.activeId);
     // 旧记录缺少纸色时 normalize 会随机分配；写回一次让颜色稳定。
-    writeStoredWorkspaces(vaultPath, stored.items, stored.activeId);
+    writeStoredWorkspaces(vaultPath, stored.items, stored.activeId, stored.primaryColor);
     // 首次拿到仓库后把已挂载工作空间告诉 Host，补扫主空间之外的目录。
     if (stored.items.length > 0) refreshRoots();
   }, [vaultPath]);
@@ -62,12 +65,18 @@ function useWorkspaces({
       label: t('workspace.main'),
       all: true,
       primary: true,
+      color: primaryColor,
     }].concat(custom);
-  }, [items, notesFolder, t]);
+  }, [items, notesFolder, primaryColor, t]);
   const activeEntry = entries.find((entry) => entry.id === activeId) || entries[0];
   const resolvedActiveId = activeEntry.id;
   const activeFolder = activeEntry.path;
-  const activePaper = activeEntry.color ? workspaceColor(activeEntry.color) : null;
+  // 当前空间作为回退；子树内已挂载的空间保留自己的纸色，不受父空间改色影响。
+  const activePaper = workspaceColor(activeEntry.color) || workspaceColor(primaryColor);
+  const paperForNote = React.useCallback(
+    (note) => noteWorkspacePaper(note, entries, vaultPath) || activePaper,
+    [entries, vaultPath, activePaper],
+  );
   // 新建便签：主空间落在默认工作空间，其它空间落在该目录（Host 以仓库为边界）。
   const captureTarget = activeEntry.primary
     ? (settings.notesDir || '')
@@ -80,7 +89,7 @@ function useWorkspaces({
     if (id === resolvedActiveId) return;
     activeIdRef.current = id;
     setActiveId(id);
-    writeStoredWorkspaces(vaultRef.current, itemsRef.current, id);
+    writeStoredWorkspaces(vaultRef.current, itemsRef.current, id, primaryColor);
   }
 
   function restore(removed) {
@@ -92,7 +101,7 @@ function useWorkspaces({
     next.splice(Math.min(Math.max(0, removed.index), next.length), 0, removed.item);
     itemsRef.current = next;
     setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current);
+    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
     refreshRoots();
     pushToast({ text: tRef.current('toast.restored'), kind: 'success' });
   }
@@ -110,7 +119,7 @@ function useWorkspaces({
     activeIdRef.current = result.item.id;
     setItems(result.items);
     setActiveId(result.item.id);
-    writeStoredWorkspaces(vaultRef.current, result.items, result.item.id);
+    writeStoredWorkspaces(vaultRef.current, result.items, result.item.id, primaryColor);
     const label = workspaceLabels(result.items).get(result.item.id) || result.item.path;
     pushToast({ text: tRef.current('workspace.added', { label: label }), kind: 'success' });
     refreshRoots();
@@ -128,7 +137,7 @@ function useWorkspaces({
       activeIdRef.current = nextActive;
       setActiveId(nextActive);
     }
-    writeStoredWorkspaces(vaultRef.current, result.items, nextActive);
+    writeStoredWorkspaces(vaultRef.current, result.items, nextActive, primaryColor);
     refreshRoots();
     const label = workspaceLabels(before).get(id) || result.removed.item.path;
     pushToast({
@@ -139,11 +148,17 @@ function useWorkspaces({
   }
 
   function setColor(id, colorId) {
+    if (!workspaceColor(colorId)) return;
+    if (id === WORKSPACE_ALL_ID) {
+      setPrimaryColor(colorId);
+      writeStoredWorkspaces(vaultRef.current, itemsRef.current, activeIdRef.current, colorId);
+      return;
+    }
     const next = setWorkspaceColor(itemsRef.current, id, colorId);
     if (next === itemsRef.current) return;
     itemsRef.current = next;
     setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current);
+    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
   }
 
   function reorder(id, toIndex) {
@@ -151,7 +166,7 @@ function useWorkspaces({
     if (next === itemsRef.current) return;
     itemsRef.current = next;
     setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current);
+    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
     refreshRoots();
   }
 
@@ -233,6 +248,7 @@ function useWorkspaces({
     activeFolder: activeFolder,
     captureTarget: captureTarget,
     activePaper: activePaper,
+    paperForNote: paperForNote,
     showSubfolderHint: showSubfolderHint,
     select: select,
     add: add,

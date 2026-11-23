@@ -5,7 +5,7 @@ const captureStyles = `
 /* 浮岛不占墙的滚动空间；底部留白跟随正文展开后的实际高度。 */
 .SN_wallWrap[data-capture='true'] .SN_wall{padding-bottom:calc(var(--sn-capture-height,92px) + 36px)}
 .SN_wallWrap[data-capture='true'] .SN_center{padding-bottom:calc(var(--sn-capture-height,92px) + 40px)}
-.SN_captureDock{position:absolute;z-index:27;left:0;right:var(--sn-dock-right,0px);bottom:0;padding:22px clamp(12px,3vw,36px) 24px;pointer-events:none;--sn-capture-surface:rgba(255,255,255,.57);--sn-capture-line:rgba(90,80,75,.12)}
+.SN_captureDock{position:absolute;z-index:27;left:0;right:0;bottom:0;padding:22px clamp(12px,3vw,36px) 24px;pointer-events:none;--sn-capture-surface:rgba(255,255,255,.57);--sn-capture-line:rgba(90,80,75,.12)}
 .SN_captureDock::before{content:'';position:absolute;inset:-48px 0 0;background:linear-gradient(to top,#fff 0%,rgba(255,255,255,.94) 26%,rgba(255,255,255,.72) 52%,rgba(255,255,255,0) 100%);pointer-events:none}
 .SN_captureDock[data-card-dragging='true']::before{inset:-190px 0 0;background:linear-gradient(to top,#fff 0%,rgba(255,255,255,.97) 28%,rgba(255,255,255,.78) 66%,rgba(255,255,255,0) 100%)}
 .SN_capture{position:relative;display:flex;align-items:center;gap:12px;max-width:860px;margin:0 auto;padding:10px 12px 10px 14px;border:1px solid rgba(255,255,255,.85);border-radius:34px;background:var(--sn-capture-surface);box-shadow:0 6px 28px rgba(55,42,30,.07),0 1px 3px rgba(55,42,30,.04),inset 0 0 0 .5px rgba(80,70,60,.07);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);pointer-events:auto;transition:border-color .2s,box-shadow .2s}

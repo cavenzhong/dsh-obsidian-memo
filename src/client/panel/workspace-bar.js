@@ -148,10 +148,6 @@ function WorkspaceBar({
   function openMenu(event, entry) {
     event.preventDefault();
     event.stopPropagation();
-    if (entry.id === WORKSPACE_ALL_ID) {
-      closeOverlay();
-      return;
-    }
     cancelDrag();
     setOverlay({ kind: 'menu', id: entry.id, x: event.clientX, y: event.clientY });
   }
@@ -409,17 +405,17 @@ function WorkspaceBar({
           'aria-label': t('workspace.color.' + color.id),
           'aria-pressed': menuEntry.color === color.id ? 'true' : 'false',
           title: t('workspace.color.' + color.id),
-          style: { '--sn-ws-dot': color.dot },
+          style: { '--sn-ws-paper': color.light, '--sn-ws-paper-dark': color.dark },
           onClick: () => { onSetColor(menuEntry.id, color.id); closeOverlay(); },
         })),
       ),
-      h('div', { className: 'SN_wsMenuDivider', 'aria-hidden': 'true' }),
-      h('button', {
+      menuEntry.id !== WORKSPACE_ALL_ID ? h('div', { className: 'SN_wsMenuDivider', 'aria-hidden': 'true' }) : null,
+      menuEntry.id !== WORKSPACE_ALL_ID ? h('button', {
         type: 'button',
         role: 'menuitem',
         className: 'SN_wsMenuItem SN_wsMenuDelete',
         onClick: () => { onRemove(menu.id); closeOverlay(); },
-      }, h(ActionIcon, { kind: 'delete', size: 14 }), h('span', null, t('workspace.remove'))),
+      }, h(ActionIcon, { kind: 'delete', size: 14 }), h('span', null, t('workspace.remove'))) : null,
     ) : null,
   );
 }

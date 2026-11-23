@@ -7,13 +7,15 @@ import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { formatTime } from '../utils.js';
 import { emojiLabel } from '../wall/model.js';
 import { useEditorPosition } from './use-editor-position.js';
+import { handleListShortcut } from './list-shortcuts.js';
+import { useTaskReorder } from './use-task-reorder.js';
 
 function NoteDrawer(props) {
   const {
     t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, titleMode, pinned,
     inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
     onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
-    editPositionRef, onEditPositionChange,
+    editPositionRef, onEditPositionChange, onReorderTask,
   } = props;
   const editFromTitle = React.useRef(false);
   const editorPosition = useEditorPosition({ editing, path: drawer.path, editPositionRef, onEditPositionChange });
@@ -42,6 +44,8 @@ function NoteDrawer(props) {
   const projects = source.projects;
   const canEdit = Boolean(full);
 
+  const taskDragProps = useTaskReorder({ path: drawer.path, body: full?.body, bodyLineOffset: full?.bodyLineOffset || 0, editing, busy: taskBusy || saving || drawer.loading, onReorderTask, t });
+
   function handleBodyDoubleClick(event) {
     if (!canEdit) return;
     const target = event.target;
@@ -68,7 +72,7 @@ function NoteDrawer(props) {
     !drawer.loading && !drawer.error && blocks.length === 0
       ? h('p', { className: 'SN_noteViewEmpty' }, t('drawer.editHint'))
       : null,
-    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, t })),
+    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, taskDrag: taskDragProps(block), t })),
     projects ? h('div', { className: 'SN_projects' },
       h('span', { className: 'SN_projectsLabel' }, t('drawer.projects')),
       h('span', { className: 'SN_projectsValue' }, String(projects)),
@@ -237,16 +241,7 @@ function NoteDrawer(props) {
       ),
     ),
     h('div', { className: 'SN_noteDrawerHeadActions' },
-      h('button', {
-        type: 'button',
-        className: 'SN_iconBtn',
-        'data-active': pinned ? 'true' : 'false',
-        'aria-pressed': pinned ? 'true' : 'false',
-        'aria-label': pinned ? t('drawer.unlock') : t('drawer.lock'),
-        title: pinned ? t('drawer.unlock') : t('drawer.lock'),
-        onClick: onTogglePinned,
-      }, h(PinIcon, { pinned: pinned })),
-      // 第 3 轮：锁定态不渲染关闭按钮（只留锁定/解锁）；Esc 仍可关。
+      // 关闭按钮在上、固定按钮在下，操作列纵排以释放标题宽度。
       pinned
         ? null
         : h('button', {
@@ -256,6 +251,16 @@ function NoteDrawer(props) {
           'aria-label': t('drawer.close'),
           title: t('drawer.close'),
         }, h(CloseIcon, null)),
+      // 锁定态不渲染关闭按钮（只留锁定/解锁）；Esc 仍可关。
+      h('button', {
+        type: 'button',
+        className: 'SN_iconBtn',
+        'data-active': pinned ? 'true' : 'false',
+        'aria-pressed': pinned ? 'true' : 'false',
+        'aria-label': pinned ? t('drawer.unlock') : t('drawer.lock'),
+        title: pinned ? t('drawer.unlock') : t('drawer.lock'),
+        onClick: onTogglePinned,
+      }, h(PinIcon, { pinned: pinned })),
     ),
   );
   const drawerNode = h('aside', {
@@ -293,10 +298,12 @@ function NoteDrawer(props) {
             disabled: saving,
             'aria-label': t('drawer.bodyAria'),
             ...editorPosition.fieldProps('body', !editFromTitle.current, onBodyChange),
+            onKeyDown: (event) => handleListShortcut(event, (result) => editorPosition.applyBodyChange(result, onBodyChange)),
           }),
         ),
         h('div', { className: 'SN_noteEditBar' },
-          h('span', { className: 'SN_noteEditHint' }, saving ? t('drawer.saving') : t('drawer.shortcutHint')),
+          h('div', { className: 'SN_noteEditHints' },
+            h('span', { className: 'SN_noteEditHint' }, saving ? t('drawer.saving') : t('drawer.shortcutHint'))),
           h('div', { className: 'SN_noteEditActions' },
             h('button', {
               type: 'button',

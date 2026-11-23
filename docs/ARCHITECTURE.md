@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.18.0）
+# 代码结构与修改入口（0.18.3）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
@@ -30,7 +30,7 @@ Harness Web  → lib/client.js（生成）
 | 用户配置、外部变更、切换 JSON | `lib/host/configuration.js` | 持有当前设置、位置、签名和配置队列；通过 `getSettings()` 提供最新值 |
 | 多根扫描单飞与写后失效 | `lib/host/scanning.js`、`lib/scan.js` | 默认工作空间 + Client 上报的挂载目录；跳过当前目录归档文件夹或 mapped 归档根，持有 scanner、epoch、roots 与扫描队列，旧扫描不会回写新状态 |
 | state/settings 响应、复合 revision | `lib/host/state.js` | 组合扫描、配置与任务快照 |
-| 便签读写、新建（targetDir 落进任意挂载工作空间）、改名、待办 | `lib/host/notes.js` | 复用文件边界、内容版本和扫描失效 |
+| 便签读写、新建（targetDir 落进任意挂载工作空间）、改名、待办勾选与列表排序 | `lib/host/notes.js` | 复用文件边界、内容版本和扫描失效 |
 | 当前仓库与便签路径 | `lib/host/vault.js` | 读取最新配置；便签以仓库为边界、拒绝隐藏目录与越界符号链接 |
 | 全文与模型输入读取 | `lib/host/note-content.js` | 读原始 Markdown，不复用展示摘要 |
 | 本地图片读取与附件查找 | `lib/host/images.js` | 持有命中/负缓存；切库和删除后清理 |

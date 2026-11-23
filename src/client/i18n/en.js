@@ -90,6 +90,7 @@ const en = {
   'drawer.editDiscarded': 'Editing cancelled',
   'drawer.saved': 'Saved',
   'drawer.bodyAria': 'Markdown body editor',
+  'drawer.taskReorder': 'Drag to reorder tasks at the same level',
   'drawer.shortcutHint': 'Cmd/Ctrl+S to save · Esc to cancel',
   'drawer.resize': 'Drag to resize (double-click to reset)',
   'drawer.lock': 'Lock to the side',

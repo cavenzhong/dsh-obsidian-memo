@@ -47,7 +47,7 @@ const NoteCard = React.memo(function NoteCard(props) {
     note, emojis, pending, hoverActive, drawerOpen, actions,
   } = props;
   const t = actions.current.t;
-  // 工作空间纸色覆盖：同一空间里的卡片统一使用该纸色，仍保留 note 自带颜色作为默认。
+  // 按便签所属的最深层已挂载工作空间取纸色；note 自带颜色仅作为默认。
   const paper = props.paper && typeof props.paper === 'object' ? props.paper : null;
   const color = paper && typeof paper.light === 'string' && paper.light !== ''
     ? paper.light

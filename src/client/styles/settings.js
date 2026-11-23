@@ -22,8 +22,8 @@ const settingsStyles = `
 .SN_drawerSection>.SN_field+.SN_field{margin-top:6px}
 .SN_settingsTabs{display:flex;gap:4px;padding:8px 20px;border-bottom:.5px solid var(--dsw-alias-border-l1);flex:none}
 .SN_settingsTab{flex:1;border:0;border-radius:7px;padding:8px 4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;cursor:pointer}
-.SN_settingsTab[data-tab='project']{position:relative;padding-top:15px}
-.SN_settingsBeta{position:absolute;inset-block-start:2px;inset-inline-end:3px;padding:1px 4px;border-radius:5px;background:color-mix(in srgb,var(--sn-accent) 14%,transparent);color:var(--sn-accent);font:600 8px/1.1 system-ui,sans-serif;letter-spacing:.02em}
+.SN_settingsTab[data-tab='project']{position:relative}
+.SN_settingsBeta{position:absolute;inset-block-start:-5px;inset-inline-end:3px;padding:1px 4px;border-radius:5px;background:color-mix(in srgb,var(--sn-accent) 14%,transparent);color:var(--sn-accent);font:600 8px/1.1 system-ui,sans-serif;letter-spacing:.02em}
 .SN_projectBetaNotice{margin:0;padding:8px 10px;border-radius:7px;border-inline-start:2px solid var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 8%,transparent);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:1.55}
 .SN_settingsTab[aria-selected='true']{background:color-mix(in srgb,var(--sn-accent) 10%,transparent);color:var(--sn-accent);font-weight:600}
 .SN_settingsPage{display:flex;flex-direction:column;gap:22px}
