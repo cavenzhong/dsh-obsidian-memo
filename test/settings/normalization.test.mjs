@@ -369,3 +369,36 @@ test('项目整稿提示词：精确升级两代建档默认值与上一版补�
   const custom = normalizeSettings({ projectPrompt: '我的概况', projectAddPrompt: PREVIOUS_PROJECT_ADD + ' 我的定制' })
   assert.equal(custom.projectPrompt, '我的概况'); assert.equal(custom.projectAddPrompt, PREVIOUS_PROJECT_ADD + ' 我的定制')
 })
+
+test('0.18.6 发送设置：深度合并规范化，旧配置补齐默认，目标与形式可落盘', async (t) => {
+  assert.deepEqual(DEFAULT_SETTINGS.deepseekSend, { skipMenu: false, workspaceId: '', workspacePath: '', workspaceTitle: '', format: 'text' })
+  assert.deepEqual(normalizeSettings({}).deepseekSend, DEFAULT_SETTINGS.deepseekSend)
+  for (const raw of [null, undefined, 'x', 42, [], {}]) {
+    assert.deepEqual(normalizeSettings({ deepseekSend: raw }).deepseekSend, DEFAULT_SETTINGS.deepseekSend)
+  }
+  assert.deepEqual(normalizeSettings({
+    deepseekSend: {
+      skipMenu: true, workspaceId: '  ws-1 ', workspacePath: ' /Users/me/p ', workspaceTitle: ' 项目 ', format: 'document',
+    },
+  }).deepseekSend, {
+    skipMenu: true,
+    workspaceId: 'ws-1',
+    workspacePath: '/Users/me/p',
+    workspaceTitle: '项目',
+    format: 'document',
+  })
+  // 只有显式 true 才直发；未知形式回退原文。
+  assert.equal(normalizeSettings({ deepseekSend: { skipMenu: 1 } }).deepseekSend.skipMenu, false)
+  assert.equal(normalizeSettings({ deepseekSend: { format: 'html' } }).deepseekSend.format, 'text')
+  assert.equal(settingsEqual({}, { deepseekSend: { skipMenu: true } }), false)
+  assert.equal(settingsEqual({}, { deepseekSend: { format: 'document' } }), false)
+
+  const dir = await mkdtemp(join(tmpdir(), 'sticky-send-settings-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'settings.json')
+  await writeSettingsFile(file, { vaultPath: '/vault', deepseekSend: { skipMenu: true, workspaceId: 'ws-2', format: 'document' } })
+  const read = await readSettingsFile(file)
+  assert.equal(read.deepseekSend.skipMenu, true)
+  assert.equal(read.deepseekSend.workspaceId, 'ws-2')
+  assert.equal(read.deepseekSend.format, 'document')
+})

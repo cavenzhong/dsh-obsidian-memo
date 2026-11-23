@@ -1,6 +1,6 @@
 /** 阅读/编辑抽屉视图，接收草稿、布局和操作回调。 */
 import { formatDiagnostic } from '../i18n/diagnostics.js';
-import { ActionIcon, ChevronIcon, CloseIcon, ObsidianIcon, PinIcon } from '../components/icons.js';
+import { ActionIcon, ChevronIcon, CloseIcon, DeepSeekIcon, ObsidianIcon, PinIcon } from '../components/icons.js';
 import { Fragment, React, h } from '../react.js';
 import { NoteBlock, NoteComment } from './blocks.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
@@ -191,11 +191,16 @@ function NoteDrawer(props) {
           { kind: 'project', label: t('card.project'), onClick: drawerActions.onProject, disabled: Boolean(drawerActions.pending) },
           { kind: 'delete', label: t('card.delete'), onClick: drawerActions.onDelete, disabled: Boolean(drawerActions.pending) },
           { kind: 'copy', label: t('drawer.copy'), onClick: drawerActions.onCopy },
+          { kind: 'deepseek', label: t('send.action'), onClick: (event) => drawerActions.onDeepSeek(event.currentTarget) },
         ].map(({ kind, label, ...button }) => h('button', {
           key: kind, type: 'button', ...button,
-          className: 'SN_drawerActionBtn' + (kind === 'delete' ? ' SN_drawerDeleteBtn' : ''),
+          className: 'SN_drawerActionBtn'
+            + (kind === 'delete' ? ' SN_drawerDeleteBtn' : '')
+            + (kind === 'deepseek' ? ' SN_deepseekAction' : ''),
           'aria-label': label,
-        }, h(ActionIcon, { kind, size: 15 }), h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, label)))),
+        }, kind === 'deepseek'
+          ? h(DeepSeekIcon, { size: 15 })
+          : h(ActionIcon, { kind, size: 15 }), h('span', { className: 'SN_aiLabel', 'aria-hidden': 'true' }, label)))),
       ),
       h('button', {
         type: 'button', className: 'SN_mini SN_obsidianBtn',

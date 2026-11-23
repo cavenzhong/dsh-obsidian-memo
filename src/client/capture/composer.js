@@ -16,7 +16,7 @@ function resizeCaptureBody(field) {
 function CaptureComposer(props) {
   const {
     t, onCreate, onCreated, onError, enabled, imageCompression, titleMode, dragNote, dropAction,
-    dropTargetId, projectTargets, projectParked, onDragHover, onArchiveDrop, onProjectDrop, onProjectChoose, onDeleteDrop,
+    dropTargetId, projectTargets, projectParked, onDragHover, onArchiveDrop, onProjectDrop, onProjectChoose, onDeleteDrop, onDeepSeekDrop,
     showBackTop, onBackTop,
   } = props;
   const [draft, setDraft] = React.useState(readCaptureDraft);
@@ -177,7 +177,7 @@ function CaptureComposer(props) {
     showBackTop && !dragNote ? h('button', { type: 'button', className: 'SN_backTop', title: t('panel.backToTop'), 'aria-label': t('panel.backToTop'), onClick: onBackTop }, h(ActionIcon, { kind: 'up', size: 17 })) : null,
     dragNote ? h(DropActions, {
       t, active: dropAction, activeTargetId: dropTargetId, projectTargets: projectTargets || [], parked: projectParked, onHover: onDragHover,
-      onArchive: onArchiveDrop, onProject: onProjectDrop, onProjectChoose, onDelete: onDeleteDrop,
+      onArchive: onArchiveDrop, onProject: onProjectDrop, onProjectChoose, onDelete: onDeleteDrop, onDeepSeek: onDeepSeekDrop,
     }) : null,
     h('form', {
       className: 'SN_capture', ref: formRef, 'data-body': bodyOpen ? 'true' : 'false', 'data-dragging': dragging ? 'true' : 'false',

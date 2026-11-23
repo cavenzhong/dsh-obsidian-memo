@@ -1,5 +1,5 @@
 /** 可 memo 的卡片展示与事件转发；通过稳定 actions ref 调用交互。 */
-import { ActionIcon, ObsidianIcon } from '../components/icons.js';
+import { ActionIcon, DeepSeekIcon, ObsidianIcon } from '../components/icons.js';
 import { MAX_CARD_COMMENT_GROUPS } from '../constants.js';
 import { imageCacheKey } from '../images/cache.js';
 import { CardThumb } from '../images/components.js';
@@ -211,6 +211,18 @@ const NoteCard = React.memo(function NoteCard(props) {
             ),
             h('div', { className: 'SN_actionDivider', 'aria-hidden': 'true' }),
             h('div', { className: 'SN_actionRow' },
+              // DeepSeek 在复制左侧；归档 / 到项目统一从拖拽栏进入。
+              h('button', {
+                type: 'button',
+                className: 'SN_mini SN_deepSeekMini',
+                disabled: disabled,
+                title: t('send.action'),
+                'aria-label': t('send.action'),
+                onClick: (event) => {
+                  event.stopPropagation();
+                  actions.current.onDeepSeek(note, event.currentTarget);
+                },
+              }, h(DeepSeekIcon, { size: 13 })),
               h('button', {
                 type: 'button',
                 className: 'SN_mini',
@@ -220,7 +232,6 @@ const NoteCard = React.memo(function NoteCard(props) {
                   actions.current.onCopy(note);
                 },
               }, h(ActionIcon, { kind: 'copy', size: 13 }), t('card.copy')),
-              // 归档 / 到项目统一从拖拽栏进入；卡片只保留复制与 Obsidian。
               h('button', {
                 type: 'button',
                 className: 'SN_mini SN_obsidianBtn',

@@ -4,6 +4,7 @@ import { NS, PANEL_ID } from './constants.js';
 import { en, zh } from './i18n/index.js';
 import { StickyNotesPanel } from './panel.js';
 import { runtime, setRuntime } from './runtime.js';
+import { SidebarWideReporter } from './sidebar-state.js';
 import { injectStyles } from './styles/index.js';
 import { __test } from './testing.js';
 
@@ -13,10 +14,17 @@ function apply(ctx) {
   ctx.effect(() => ctx.locale.register(NS, { zh: zh, en: en }), 'sticky-notes: dictionaries');
   ctx.effect(() => injectStyles(), 'sticky-notes: styles');
   const t = ctx.locale.bind(NS);
-  setRuntime({ connection: ctx.connection, locale: ctx.locale, t: t });
+  setRuntime({ connection: ctx.connection, locale: ctx.locale, t: t, ctx: ctx });
   ctx.effect(() => () => {
     if (runtime && runtime.t === t) setRuntime(null);
   }, 'sticky-notes: runtime');
+
+  // 宿主侧栏折叠状态：无视觉输出，只把 wide 上报给主面板（顶部留白与发送目标用）。
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'sticky-notes-sidebar-state',
+    order: 100,
+  }, SidebarWideReporter));
 
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',

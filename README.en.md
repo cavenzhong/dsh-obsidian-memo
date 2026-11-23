@@ -19,20 +19,21 @@
   <a href="#everyday-use"><ins>Everyday use</ins></a> ·
   <a href="#workspaces"><ins>Workspaces</ins></a> ·
   <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
+  <a href="#send-to-deepseek"><ins>Send to DeepSeek</ins></a> ·
   <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
   <a href="#faq"><ins>FAQ</ins></a> ·
   <a href="README.md"><ins>简体中文</ins></a>
 </p>
 
-![Obsidian MEMO 0.18: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
+![Obsidian MEMO 0.18.6: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
 
-**New in 0.18:** Browse folders across your vault with workspace tabs. Switch tabs to capture a note in that folder, or drag an existing card onto another tab to move it. [See what changed (中文)](docs/CHANGELOG.md).
+**New in 0.18.6:** Send a note straight to a new DeepSeek conversation in DSH, choosing the default or an existing workspace from a shared picker, with title + content or the original `.md` file as an attachment. [See what changed (中文)](docs/CHANGELOG.md).
 
 ## Install
 
 You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.5** or later on the Plugins page.
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.6** or later on the Plugins page.
 2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
 3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
@@ -95,6 +96,16 @@ No need to paste a note into chat. Open it and pick an emoji in the comments pan
 *Two takes on the same audio-postcard idea: keep it simple, or test a rough version with three listeners.*
 
 Customize the four presets under **Settings → AI**.
+
+## Send to DeepSeek
+
+When reading a long answer inside the note wall is not ideal, send the note to a new DeepSeek conversation in DSH. Entry points are the reader action bar (after copy), the card hover menu, and the drag action bar; selecting text inside the plugin and right-clicking also offers copy and send-selected-text.
+
+- By default a shared picker opens: choose **Title + content** or **MD attachment**, then the default workspace or an existing DSH workspace. The page jumps to the new conversation with the content in the composer; press Enter to send.
+- **Title + content** puts the title in the first paragraph and appends the body without the `.md` name; **MD attachment** uploads the original `.md` file; the message text carries the title.
+- Check **Do not show the picker** under **Settings → Notes → Send to DeepSeek** (after Note title) to send directly to the configured workspace and format.
+
+Title + content sends the title and body; MD attachment sends the title and the original `.md` file. Sending selected text sends only that text. Existing AI comments are not included and the note is never modified.
 
 ## From note to project <img src="docs/assets/project-beta.svg" width="36" height="16" alt="Beta">
 

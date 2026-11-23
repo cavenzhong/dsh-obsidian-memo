@@ -3,10 +3,11 @@ import { baseStyles } from './base.js';
 import { captureStyles } from './capture.js';
 import { overridesStyles } from './overrides.js';
 import { readerStyles } from './reader.js';
+import { sendStyles } from './send.js';
 import { settingsStyles } from './settings.js';
 import { wallStyles } from './wall.js';
 
-const CSS = [baseStyles, captureStyles, wallStyles, readerStyles, settingsStyles, overridesStyles].join('\n');
+const CSS = [baseStyles, captureStyles, wallStyles, readerStyles, settingsStyles, sendStyles, overridesStyles].join('\n');
 
 function injectStyles() {
   if (typeof document === 'undefined' || !document.head) return undefined;

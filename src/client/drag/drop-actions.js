@@ -2,7 +2,7 @@
 import { ActionIcon } from '../components/icons.js';
 import { h } from '../react.js';
 
-function DropActions({ t, active, activeTargetId, projectTargets, parked, onHover, onArchive, onProject, onProjectChoose, onDelete }) {
+function DropActions({ t, active, activeTargetId, projectTargets, parked, onHover, onArchive, onProject, onProjectChoose, onDelete, onDeepSeek }) {
   function enter(event, kind, targetId = null) {
     event.preventDefault(); event.stopPropagation();
     event.dataTransfer.dropEffect = 'move';
@@ -12,6 +12,7 @@ function DropActions({ t, active, activeTargetId, projectTargets, parked, onHove
     event.preventDefault(); event.stopPropagation();
     if (kind === 'archive') onArchive(event);
     else if (kind === 'project') onProject(event, targetId);
+    else if (kind === 'deepseek') onDeepSeek(event);
     else onDelete(event);
   }
   const menu = active === 'project'
@@ -27,13 +28,13 @@ function DropActions({ t, active, activeTargetId, projectTargets, parked, onHove
     : null;
   return h('div', { className: 'SN_dropActions', role: 'group', 'aria-label': t('drag.actions') },
     h('p', { className: 'SN_dropHint', 'aria-live': 'polite' }, t('drag.hint')),
-    h('div', { className: 'SN_dropRow' }, ['archive', 'project', 'delete'].map((kind) => {
+    h('div', { className: 'SN_dropRow' }, ['archive', 'project', 'deepseek', 'delete'].map((kind) => {
       return h('div', { key: kind, className: 'SN_dropItem', 'data-action': kind,
         'data-parked': active === kind && parked ? 'true' : undefined,
         'data-active': active === kind ? 'true' : 'false',
         onDragEnter: (event) => enter(event, kind), onDragOver: (event) => enter(event, kind),
         onDragLeave: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) onHover(null, null); }, onDrop: (event) => drop(event, kind),
-      }, kind === 'project' ? menu : null, h(ActionIcon, { kind }), h('span', { className: 'SN_dropLabel' }, t(kind === 'delete' ? 'drag.delete' : 'card.' + kind)));
+      }, kind === 'project' ? menu : null, h(ActionIcon, { kind }), h('span', { className: 'SN_dropLabel' }, t(kind === 'delete' ? 'drag.delete' : kind === 'deepseek' ? 'drag.deepseek' : 'card.' + kind)));
     })),
   );
 }

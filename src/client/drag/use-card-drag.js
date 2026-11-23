@@ -3,7 +3,7 @@ import { focusCaptureOnTab } from '../capture/keyboard.js';
 import { React } from '../react.js';
 
 function useCardDrag({
-  aliveRef, moveWorkspaceNote, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
+  aliveRef, moveWorkspaceNote, projectTargets, queueProjectDrop, requestDeepSeek, panelRef, runArchive, runDelete,
   setDateMenu, setHoverPath, setSortMenu,
 }) {
   const [dragSession, setDragSession] = React.useState(null);
@@ -146,6 +146,17 @@ function useCardDrag({
     endCardDrag('drop', moveWorkspaceNote(note, workspace));
   }
 
+  /** 0.18.6：拖到发送位后结束拖拽，再打开共享工作区/形式菜单。 */
+  function deepSeekDrop(event) {
+    const session = dragSessionRef.current;
+    if (!session || session.ending) return;
+    const note = session.note;
+    const path = event.dataTransfer.getData('application/x-dsh-memo');
+    if (path !== note.path) { endCardDrag(); return; }
+    endCardDrag('drop');
+    requestDeepSeek(note, event.currentTarget);
+  }
+
   function projectDrop(event, targetId) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return;
@@ -169,7 +180,7 @@ function useCardDrag({
     endCardDrag('drop', queueProjectDrop(session.note, target.id === '__new__' ? null : target));
   }
 
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget, workspaceDrop };
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, deepSeekDrop, chooseProjectTarget, workspaceDrop };
 }
 
 export { useCardDrag };

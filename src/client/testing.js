@@ -6,6 +6,9 @@ import { CaptureComposer } from './capture/composer.js';
 import { captureFiles, captureImageSize, compressCaptureImage, readImageCompression } from './capture/images.js';
 import { captureRefocusField, focusCaptureOnTab, focusPanelForCapture } from './capture/keyboard.js';
 import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
+import { contextMenuPosition, readSelectedText, SelectionMenu } from './deepseek/selection-menu.js';
+import { SendMenu, sendMenuPosition } from './deepseek/send-menu.js';
+import { messageOf, useDeepSeekSend } from './deepseek/use-deepseek-send.js';
 import { CenterState, ToastStack } from './components/feedback.js';
 import { PanelIcon } from './components/icons.js';
 import {
@@ -21,6 +24,10 @@ import { DropActions } from './drag/drop-actions.js';
 import { cardDragLayout, createCardDragMotion } from './drag/motion.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { en, zh } from './i18n/index.js';
+import {
+  DEFAULT_SEND_SETTINGS, SEND_FORMATS, buildSendMessage, defaultWorkspaceIdOf,
+  isDefaultWorkspace, normalizeSendSettings, resolveSendTarget, sortWorkspaces, workspaceDisplayName,
+} from '../shared/send.js';
 import { clearImageCache, imageCacheBytes, imageCacheKey, imageCacheSize, readImageCache, writeImageCache } from './images/cache.js';
 import { CardThumb, NoteImage } from './images/components.js';
 import { clearImageQueue, enqueueImageLoad, imageQueueStats } from './images/queue.js';
@@ -28,6 +35,8 @@ import { StickyNotesPanel } from './panel.js';
 import { renderPanelHeader } from './panel/header.js';
 import { WorkspaceBar } from './panel/workspace-bar.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
+import { SidebarWideReporter, getSidebarWide, setSidebarWide, useSidebarWide } from './sidebar-state.js';
+import { DeepSeekSendSettings } from './settings/deepseek-send.js';
 import {
   WORKSPACE_COLORS, addWorkspace, filterNotesByWorkspace, moveWorkspace, nextWorkspaceColorId,
   normalizeFolder, noteInsideWorkspace, noteWorkspacePaper, normalizeStoredWorkspaces, popoverLeftFor, readStoredWorkspaces,
@@ -79,7 +88,7 @@ const __test = {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
     useNotesData, useNoteEditor, useTaskReorder, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
-    useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters,
+    useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters, useDeepSeekSend, useSidebarWide,
   },
   // 0.18 工作空间：纯规则、持久化与标签栏组件。
   WORKSPACES_KEY: WORKSPACES_KEY,
@@ -179,8 +188,25 @@ const __test = {
   insertPatternToken, nextTitleMode,
   dictionaries: { zh: zh, en: en },
   handleListShortcut,
+  // 0.18.6：发送到 DeepSeek 的共享纯规则、浮层定位与设置块。
+  DEFAULT_SEND_SETTINGS: DEFAULT_SEND_SETTINGS,
+  SEND_FORMATS: SEND_FORMATS,
+  normalizeSendSettings: normalizeSendSettings,
+  buildSendMessage: buildSendMessage,
+  isDefaultWorkspace: isDefaultWorkspace,
+  workspaceDisplayName: workspaceDisplayName,
+  sortWorkspaces: sortWorkspaces,
+  defaultWorkspaceIdOf: defaultWorkspaceIdOf,
+  resolveSendTarget: resolveSendTarget,
+  sendMenuPosition: sendMenuPosition,
+  contextMenuPosition: contextMenuPosition,
+  readSelectedText: readSelectedText,
+  getSidebarWide: getSidebarWide,
+  setSidebarWide: setSidebarWide,
+  messageOf: messageOf,
   components: {
     CaptureComposer, DropActions, CardDragOverlay, ImageProcessingSettings, TitleModeSettings, TitleModeIcon,
+    SendMenu, SelectionMenu, DeepSeekSendSettings, SidebarWideReporter,
     PanelIcon: PanelIcon,
     StickyNotesPanel: StickyNotesPanel,
     NoteCard: NoteCard,

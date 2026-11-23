@@ -16,9 +16,11 @@ const baseStyles = `
    由面板里的指针逻辑（拖动超过 3px 才 window.moveTo）接管；同一块顶栏
    （标题、目录、留白和按钮间隙）既能按住拖动窗口，也能单击收起抽屉。
    Windows / Web 仍走原来的 app-region 方案，按钮和菜单保持 no-drag。 */
-.SN_head{position:relative;flex:none;display:flex;flex-direction:column;min-height:56px;--sn-head-top-padding:14px;padding:var(--sn-head-top-padding) 20px 0 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag;-webkit-user-select:none;user-select:none}
+.SN_head{position:relative;flex:none;display:flex;flex-direction:column;min-height:56px;--sn-head-top-base:14px;--sn-head-top-padding:var(--sn-head-top-base);padding:var(--sn-head-top-padding) 20px 0 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag;-webkit-user-select:none;user-select:none}
 .SN_headActions,.SN_headActions *{-webkit-app-region:no-drag;app-region:no-drag}
-[data-platform='darwin'] .SN_head{--sn-head-top-padding:calc(var(--dsh-frame-top-clearance,0px) + 10px);-webkit-app-region:no-drag;app-region:no-drag}
+[data-platform='darwin'] .SN_head{--sn-head-top-base:calc(var(--dsh-frame-top-clearance,0px) + 10px);-webkit-app-region:no-drag;app-region:no-drag}
+/* 0.18.6：侧栏展开时 macOS 的红绿灯在侧栏上，主面板可收掉一半顶部净空；折叠时保留原距离避免压住窗口控件。 */
+.SN_panel[data-sidebar-wide='true'] .SN_head{--sn-head-top-padding:max(10px,calc(var(--sn-head-top-base) * .5 + 5px))}
 /* 0.18：第一行是标题/版本/计数与右侧图标，第二行是工作空间标签栏（取代旧路径行）。 */
 .SN_headTop{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;min-height:26px}
 .SN_headMain{justify-content:center;min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:2px}

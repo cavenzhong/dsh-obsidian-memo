@@ -9,6 +9,9 @@ import { ToastStack } from './components/feedback.js';
 import { useToasts } from './components/use-toasts.js';
 import { EMPTY_SETTINGS, WORKSPACE_ALL_ID } from './constants.js';
 import { useNotesData } from './data/use-notes-data.js';
+import { SelectionMenu } from './deepseek/selection-menu.js';
+import { SendMenu } from './deepseek/send-menu.js';
+import { useDeepSeekSend } from './deepseek/use-deepseek-send.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { useCardDrag } from './drag/use-card-drag.js';
 import { formatDiagnostic } from './i18n/diagnostics.js';
@@ -16,6 +19,9 @@ import { useUiLanguage } from './i18n/use-ui-language.js';
 import { clearImageCache } from './images/cache.js';
 import { clearImageQueue } from './images/queue.js';
 import { renderPanelHeader } from './panel/header.js';
+import { buildNoteDrawerProps } from './panel/note-drawer-props.js';
+import { useSelectionMenu } from './panel/use-selection-menu.js';
+import { replaceRenamedSummary, replaceSummary } from './panel/note-replacement.js';
 import { useHeaderDrag } from './panel/use-header-drag.js';
 import { usePanelShortcuts } from './panel/use-shortcuts.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
@@ -23,6 +29,7 @@ import { WorkspaceBar } from './panel/workspace-bar.js';
 import { filterNotesByWorkspace } from './panel/workspaces.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
+import { useSidebarWide } from './sidebar-state.js';
 import { useCommentActions } from './reader/use-comment-actions.js';
 import { useCommentsLayout } from './reader/use-comments-layout.js';
 import { useDockOffset } from './reader/use-dock-offset.js';
@@ -34,7 +41,7 @@ import { runtime } from './runtime.js';
 import { SettingsDrawer } from './settings/settings-drawer.js';
 import { useSettingsDraft } from './settings/use-settings-draft.js';
 import { isAbortError } from './utils.js';
-import { dateFilterOption, filterNotesByDate, replaceNoteAtPath, sortNotes } from './wall/model.js';
+import { dateFilterOption, filterNotesByDate, sortNotes } from './wall/model.js';
 import { useNoteActions } from './wall/use-note-actions.js';
 import { useSubfolders } from './wall/use-subfolders.js';
 import { useWallContent } from './wall/use-wall-content.js';
@@ -46,6 +53,7 @@ function StickyNotesPanel(props) {
   const tRef = React.useRef(t);
 
   tRef.current = t;
+  const sidebarWide = useSidebarWide();
   const panelRef = React.useRef(null);
   // 从侧栏/菜单切换到本面板后焦点仍停在入口按钮上，先交给面板容器；
   // 这样直接按 Enter 就会命中输入岛的聚焦逻辑，不必先点一下面板。
@@ -128,6 +136,8 @@ function StickyNotesPanel(props) {
   const { subfoldersBusy, toggleSubfolders } = useSubfolders({ aliveRef, pushErrorToast, pushToast, refreshNow, request, t, updateView, viewRef });
   const currentSettings = view.settings && typeof view.settings === 'object' ? view.settings : EMPTY_SETTINGS;
   const emojis = Array.isArray(currentSettings.emojis) ? currentSettings.emojis : [];
+  const deepseek = useDeepSeekSend({ aliveRef, currentSettings, pushErrorToast, request, tRef, titleMode });
+  const selection = useSelectionMenu({ aliveRef, deepseek, panelRef, pushErrorToast, pushToast, tRef });
   // 0.18 工作空间：标签只做视图筛选；列表按仓库路径存 localStorage，不写仓库。
   const workspaces = useWorkspaces({
     t, tRef, aliveRef, request, viewRef, updateView, refreshNow, pushToast, pushErrorToast,
@@ -144,10 +154,10 @@ function StickyNotesPanel(props) {
   });
   const {
     dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
-    startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget, workspaceDrop,
+    startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, deepSeekDrop, chooseProjectTarget, workspaceDrop,
   } = useCardDrag({
-    aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete, moveWorkspaceNote: workspaces.move,
-    setDateMenu, setHoverPath, setSortMenu,
+    aliveRef, projectTargets, queueProjectDrop, requestDeepSeek: (note, anchor) => { deepseek.requestSend(note, anchor); },
+    panelRef, runArchive, runDelete, moveWorkspaceNote: workspaces.move, setDateMenu, setHoverPath, setSortMenu,
   });
   React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
   const workspaceNotes = React.useMemo(
@@ -176,21 +186,13 @@ function StickyNotesPanel(props) {
   const anyOverlay = Boolean(sortMenu || dateMenu || commentConfirm || projectTarget || settingsOpen || noteDrawer);
 
   function replaceNote(summary) {
-    if (!summary || typeof summary.path !== 'string') return;
-    const prev = viewRef.current;
-    let changed = false;
-    const notes = prev.notes.map((note) => {
-      if (note.path !== summary.path) return note;
-      changed = true;
-      return Object.assign({}, note, summary, { pending: note.pending || summary.pending || null });
-    });
-    if (changed) updateView(Object.assign({}, prev, { notes: notes }));
+    const next = replaceSummary(viewRef.current, summary);
+    if (next) updateView(next);
   }
 
   function replaceRenamedNote(oldPath, summary) {
-    const prev = viewRef.current;
-    const notes = replaceNoteAtPath(prev.notes, oldPath, summary);
-    if (notes !== null) updateView(Object.assign({}, prev, { notes: notes }));
+    const next = replaceRenamedSummary(viewRef.current, oldPath, summary);
+    if (next) updateView(next);
   }
 
   function handleRefresh() {
@@ -293,6 +295,7 @@ function StickyNotesPanel(props) {
     onDelete: runDelete,
     onDragStart: startCardDrag,
     onDragEnd: () => dragSessionRef.current?.parked ? undefined : endCardDrag(),
+    onDeepSeek: (note, anchor) => deepseek.requestSend(note, anchor),
   };
   const errorBanner = view.loaded
     ? formatDiagnostic(t, loadError || (view.notes.length > 0 ? view.error : null))
@@ -310,63 +313,27 @@ function StickyNotesPanel(props) {
     onExitWorkspace: () => workspaces.select(WORKSPACE_ALL_ID),
     onShowSubfolders: toggleSubfolders,
   });
-  const drawerNote = noteDrawer
-    ? (view.notes.find((item) => item.path === noteDrawer.path) || noteDrawer.full || noteDrawer.summary || null)
-    : null;
-  const drawerPending = noteDrawer
-    ? (localPending[noteDrawer.path] || (drawerNote && drawerNote.pending) || null)
-    : null;
+  const drawerNote = noteDrawer ? (view.notes.find((item) => item.path === noteDrawer.path) || noteDrawer.full || noteDrawer.summary || null) : null;
+  const drawerPending = noteDrawer ? (localPending[noteDrawer.path] || (drawerNote && drawerNote.pending) || null) : null;
   const noteDrawerProps = noteDrawer
-    ? {
-      t: t,
-      drawer: noteDrawer,
-      editing: editing,
-      bodyDraft: bodyDraft,
-      saving: savingNote,
-      drawerWidth: effectiveDrawerWidth,
-      resizing: resizingDrawer,
-      pinned: pinned,
-      paper: workspaces.paperForNote(drawerNote),
-      drawerActions: {
-        emojis: emojis,
-        pending: drawerPending,
-        onComment: (emoji) => requestComment(currentDrawerNote(), emoji),
-        onArchive: () => runArchive(currentDrawerNote()),
-        onProject: () => openProjectDialog(currentDrawerNote()),
-        onOpenObsidian: () => openInObsidian(currentDrawerNote()),
-        onCopy: () => copyNote(currentDrawerNote()),
-        onDelete: () => runDelete(currentDrawerNote()),
-      },
-      commentsLayout: {
-        commentsCollapsed: commentsLayout.commentsCollapsed,
-        commentsHeight: commentsLayout.commentsHeight,
-        resizingComments: commentsLayout.resizingComments,
-        onToggle: commentsLayout.toggleComments,
-        onResizeStart: commentsLayout.startCommentsResize,
-        onResizeReset: commentsLayout.resetCommentsHeight,
-      },
-      commentsActions: {
-        deletingIndex: deletingCommentIndex,
-        onDelete: deleteComment,
-      },
-      onTogglePinned: togglePinned,
-      onToggleTask: toggleTask,
-      onReorderTask: reorderTask,
-      taskBusy: taskBusy,
-      titleDraft: titleDraft,
-      titleMode: editTitleMode,
-      onTitleChange: handleTitleChange,
-      onResizeStart: startDrawerResize,
-      onResizeReset: resetDrawerWidth,
-      onClose: closeNoteDrawer,
-      onRetry: () => loadNote(noteDrawer.path),
-      onStartEdit: startEditing,
-      onBodyChange: handleBodyChange,
-      editPositionRef: editPositionRef,
-      onEditPositionChange: handleEditPositionChange,
-      onSave: saveEditing,
-      onCancelEdit: cancelEditing,
-    }
+    ? buildNoteDrawerProps({
+      t, drawer: noteDrawer, editing, bodyDraft, saving: savingNote, drawerWidth: effectiveDrawerWidth,
+      resizing: resizingDrawer, pinned, paper: workspaces.paperForNote(drawerNote), emojis,
+      pending: drawerPending,
+      onComment: (emoji) => requestComment(currentDrawerNote(), emoji),
+      onArchive: () => runArchive(currentDrawerNote()),
+      onProject: () => openProjectDialog(currentDrawerNote()),
+      onOpenObsidian: () => openInObsidian(currentDrawerNote()),
+      onCopy: () => copyNote(currentDrawerNote()),
+      onDelete: () => runDelete(currentDrawerNote()),
+      onDeepSeek: (anchor) => deepseek.requestSend(currentDrawerNote(), anchor),
+      commentsLayout, deletingIndex: deletingCommentIndex, onDeleteComment: deleteComment,
+      onTogglePinned: togglePinned, onToggleTask: toggleTask, onReorderTask: reorderTask, taskBusy,
+      titleDraft, titleMode: editTitleMode, onTitleChange: handleTitleChange,
+      onResizeStart: startDrawerResize, onResizeReset: resetDrawerWidth, onClose: closeNoteDrawer,
+      onRetry: () => loadNote(noteDrawer.path), onStartEdit: startEditing, onBodyChange: handleBodyChange,
+      editPositionRef, onEditPositionChange: handleEditPositionChange, onSave: saveEditing, onCancelEdit: cancelEditing,
+    })
     : null;
   const workspaceBar = currentSettings.vaultPath && currentSettings.notesDir
     ? h(WorkspaceBar, {
@@ -399,7 +366,9 @@ function StickyNotesPanel(props) {
     'data-sticky-notes': '', lang: htmlLang,
     'data-card-dragging': dragNote ? 'true' : 'false',
     'data-resizing': resizingDrawer ? 'true' : 'false',
+    'data-sidebar-wide': sidebarWide === null ? undefined : (sidebarWide ? 'true' : 'false'),
     ref: panelRef,
+    onContextMenu: selection.handlePanelContextMenu,
     role: 'region',
     tabIndex: -1,
     'aria-label': t('panel.title'),
@@ -426,7 +395,7 @@ function StickyNotesPanel(props) {
         h(CaptureComposer, {
           t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
           dragNote, dropAction, dropTargetId, projectParked: Boolean(dragSession?.parked), projectTargets,
-          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop,
+          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop, onDeepSeekDrop: deepSeekDrop,
           showBackTop,
           onBackTop: () => panelRef.current?.querySelector('.SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
           onCreate: (payload) => request('createNote', Object.assign({}, payload, { targetDir: workspaces.captureTarget })),
@@ -450,6 +419,27 @@ function StickyNotesPanel(props) {
     !pinned && noteDrawerProps
       ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
       : null,
+    deepseek.menu
+      ? h(SendMenu, {
+        t: t,
+        menu: deepseek.menu,
+        workspaces: deepseek.workspaces,
+        defaultId: deepseek.workspaces.defaultId,
+        sending: deepseek.sending,
+        onChoose: deepseek.chooseWorkspace,
+        onFormat: deepseek.chooseFormat,
+        onClose: deepseek.closeMenu,
+      })
+      : null,
+    selection.selectionMenu
+      ? h(SelectionMenu, {
+        t: t,
+        menu: selection.selectionMenu,
+        onCopy: selection.copySelection,
+        onSend: selection.sendSelection,
+        onClose: selection.closeSelection,
+      })
+      : null,
     h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast, t }),
     dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
       workspaceLabel: dropAction === 'workspace' ? workspaces.labelFor(dropTargetId) : '',
@@ -459,6 +449,9 @@ function StickyNotesPanel(props) {
       ? h(SettingsDrawer, {
         t, language, onLanguageChange: changeLanguage,
         draft: settingsDraft, request, initialTab: settingsTab, onConfigSettings: acceptConfigSettings,
+        deepseekWorkspaces: deepseek.workspaces,
+        deepseekDefaultId: deepseek.workspaces.defaultId,
+        deepseekPrimaryId: deepseek.workspaces.primaryId,
         picking: picking,
         saving: savingSettings,
         onPatch: patchDraft,

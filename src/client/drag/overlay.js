@@ -80,7 +80,9 @@ function CardDragOverlay({ note, point, action, targetId, targetAnchor, projectT
       ? (target ? t('drag.releaseProjectTarget', { label: target.label || target.id }) : t('drag.releaseProject'))
       : action === 'workspace'
         ? t('drag.releaseWorkspace', { label: workspaceLabel || '' })
-        : action === 'delete' ? t('drag.release') : '';
+        : action === 'deepseek'
+          ? t('drag.releaseDeepSeek')
+          : action === 'delete' ? t('drag.release') : '';
   // 初始定位只交给 React 一次；后续移动/停靠/窗口缩放由同一个 motion 持有。
   const layout = React.useMemo(() => cardDragLayout(point, { width: window.innerWidth || 1024, height: window.innerHeight || 768 }), [point]);
   const layer = h('div', {

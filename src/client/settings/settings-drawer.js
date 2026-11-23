@@ -3,6 +3,7 @@ import { CloseIcon } from '../components/icons.js';
 import { Fragment, React, h } from '../react.js';
 import { AiBudgetRow } from './ai-budget-row.js';
 import { ConfigFileSettings } from './config-file.js';
+import { DeepSeekSendSettings } from './deepseek-send.js';
 import { ImageProcessingSettings } from './image-processing.js';
 import { LanguageSettings } from './language.js';
 import { TitleModeSettings } from './note-title.js';
@@ -21,6 +22,7 @@ function SettingsDrawer(props) {
   const {
     t, draft, picking, saving, onPatch, onPick, onPatchEmoji, onRemoveEmoji, onAddEmoji,
     onSave, onCancel, request, onConfigSettings, language, onLanguageChange,
+    deepseekWorkspaces, deepseekDefaultId, deepseekPrimaryId,
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
   const [activeEmoji, setActiveEmoji] = React.useState(null);
@@ -125,6 +127,15 @@ function SettingsDrawer(props) {
             disabled,
             onChangeMode: (titleMode) => onPatch({ titleMode }),
             onChangePattern: (fileNamePattern) => onPatch({ fileNamePattern }),
+          }),
+          h(DeepSeekSendSettings, {
+            t: t,
+            value: draft.deepseekSend,
+            workspaces: deepseekWorkspaces,
+            defaultId: deepseekDefaultId,
+            primaryId: deepseekPrimaryId,
+            disabled: disabled,
+            onChange: (deepseekSend) => onPatch({ deepseekSend }),
           }),
           h(ImageProcessingSettings, { t, value: draft.imageCompression, disabled, onChange: (imageCompression) => onPatch({ imageCompression }) },
             h(SettingsPathField, { ...folderProps,

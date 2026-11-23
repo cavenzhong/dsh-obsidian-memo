@@ -23,7 +23,7 @@ test('归档拖拽提示：主空间内相对默认目录，主空间外相对�
   for (const [path, vault, notes, archive, expected] of cases) assert.equal(hint(path, vault, notes, archive), expected)
 })
 
-test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详情，拖拽与删除正常', (t) => {
+test('v0.18.6 卡片：菜单保留复制、DeepSeek 和 Obsidian，Enter 不再打开详情，拖拽与删除正常', (t) => {
   const api = loadClient(t).mod.__test, calls = []
   const note = { path: '/vault/便签.md', title: '便签', images: [], comments: [] }
   const actions = { current: {
@@ -31,6 +31,7 @@ test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详�
     onCopy: (n) => calls.push(['copy', n.path]),
     onOpen: (n) => calls.push(['open', n.path]),
     onOpenObsidian: (n) => calls.push(['obsidian', n.path]),
+    onDeepSeek: (n) => calls.push(['deepseek', n.path]),
     onProject: (n) => calls.push(['project', n.path]),
     onDelete: (n) => calls.push(['delete', n.path]),
     onDragStart: (n) => calls.push(['drag', n.path]),
@@ -39,10 +40,13 @@ test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详�
   const card = api.components.NoteCard({ note, emojis: [], actions, hoverActive: true })
   const nodes = captureNodes(card)
   nodes.find((node) => node.children.includes('card.copy')).props.onClick({ stopPropagation() {} })
+  nodes.find((node) => node.props.className === 'SN_mini SN_deepSeekMini').props.onClick({ stopPropagation() {}, currentTarget: {} })
   nodes.find((node) => node.props.className === 'SN_mini SN_obsidianBtn').props.onClick({ stopPropagation() {} })
   assert.equal(nodes.some((node) => node.children.includes('card.archive') || node.children.includes('card.project')), false)
   const actionRow = nodes.find((node) => node.props.className === 'SN_actionRow')
-  assert.equal(actionRow.children.filter((node) => node.type === 'button').length, 2)
+  assert.equal(actionRow.children.filter((node) => node.type === 'button').length, 3)
+  assert.match(actionRow.children[0].props.className, /SN_deepSeekMini/, 'DeepSeek 图标应在复制左侧')
+  assert.equal(actionRow.children[1].props.className, 'SN_mini')
   assert.equal(nodes.some((node) => node.props.className === 'SN_cardDelete'), false)
   let stopped = 0, prevented = 0
   const element = {}, enter = { key: 'Enter', target: element, currentTarget: element, preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
@@ -55,7 +59,7 @@ test('v0.15 卡片：菜单仅保留复制和 Obsidian，Enter 不再打开详�
   const data = {}, transfer = { setData: (kind, value) => { data[kind] = value } }
   card.props.onDragStart({ target: { closest: () => null }, dataTransfer: transfer })
   card.props.onDragEnd()
-  assert.deepEqual(calls, [['copy', note.path], ['obsidian', note.path], ['delete', note.path], ['drag', note.path], ['end']])
+  assert.deepEqual(calls, [['copy', note.path], ['deepseek', note.path], ['obsidian', note.path], ['delete', note.path], ['drag', note.path], ['end']])
   assert.equal(data['application/x-dsh-memo'], note.path)
   assert.equal(transfer.effectAllowed, 'move')
 })
@@ -92,8 +96,10 @@ test('拖拽栏：归档直接执行，项目保留目标菜单，取消后输�
     onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
     onArchive: () => calls.push(['archive']),
     onProject: () => calls.push(['project']),
+    onDeepSeek: () => calls.push(['deepseek']),
     onDelete: () => calls.push(['delete']),
   }))
+  assert.deepEqual(menu.filter((node) => node.props.className === 'SN_dropLabel').map((node) => node.children[0]), ['card.archive', 'card.project', 'drag.deepseek', 'drag.delete'])
   const event = { dataTransfer: {}, preventDefault() {}, stopPropagation() {} }
   for (const node of menu.filter((node) => node.props['data-action'])) {
     node.props.onDragEnter(event)
@@ -101,7 +107,7 @@ test('拖拽栏：归档直接执行，项目保留目标菜单，取消后输�
     assert.equal(event.dataTransfer.dropEffect, 'move')
     node.props.onDrop(event)
   }
-  assert.deepEqual(calls, [['archive'], ['project'], ['delete']])
+  assert.deepEqual(calls, [['archive'], ['project'], ['deepseek'], ['delete']])
   const archiveHover = captureNodes(api.components.DropActions({
     t: (key) => key, active: 'archive', activeTargetId: null, projectTargets: [{ id: 'work', label: '进行时' }],
     onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
@@ -109,7 +115,7 @@ test('拖拽栏：归档直接执行，项目保留目标菜单，取消后输�
   }))
   assert.equal(archiveHover.some((node) => node.props.className === 'SN_dropTarget'), false)
   archiveHover.find((node) => node.props['data-action'] === 'archive').props.onDrop(event)
-  assert.deepEqual(calls[3], ['archive-again'])
+  assert.deepEqual(calls[4], ['archive-again'])
   const props = { enabled: true, t: (key) => key }
   let nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
   nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } })

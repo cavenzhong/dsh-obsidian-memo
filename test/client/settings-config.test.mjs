@@ -116,7 +116,7 @@ test('只注册侧栏和便签面板，不注入 DSH 内置插件设置', (t) =>
   mod.apply({ connection: {}, locale: { register() {}, bind: () => (key) => key },
     slots: { inject(name, fn) { injections.push(name); fn() }, register(options) { registrations.push(options.name); return () => {} } },
     effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose } })
-  assert.deepEqual(injections, ['sidebar.panellist', 'main'])
+  assert.deepEqual(injections, ['sidebar.footer.action', 'sidebar.panellist', 'main'])
   assert.deepEqual(registrations, injections)
 })
 

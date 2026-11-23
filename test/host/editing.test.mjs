@@ -341,3 +341,16 @@ test('toggleTask 0.16.8：正文模式标题行里的任务不可勾选', async 
   assert.equal(toggled.error.code, 'bad-request')
   assert.equal(await readFile(path, 'utf8'), '- [ ] 首行任务\n\n正文\n')
 })
+
+test('noteFile：附件模式读取原始 .md（含 frontmatter/BOM），不解析正文', async () => {
+  const text = '\uFEFF---\ntags: x\n---\n\n# 原始标题\n\n原始正文\n'
+  const c = await makeCase({ notes: { '附件.md': text } })
+  const result = await c.call('noteFile', { path: c.seeded['附件.md'] })
+  assert.equal(result.ok, true)
+  assert.equal(result.value.name, '附件.md')
+  assert.equal(result.value.text, text)
+  assert.equal(result.value.path, c.seeded['附件.md'])
+  const missing = await c.call('noteFile', { path: join(c.notesDir, '不存在.md') })
+  assert.equal(missing.ok, false)
+  assert.equal(missing.error.code, 'not-found')
+})

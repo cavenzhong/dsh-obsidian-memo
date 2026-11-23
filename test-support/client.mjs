@@ -156,12 +156,12 @@ function hookRunner(t) {
   return {
     api, storage, unmount,
     apply: mod.apply,
-    connect(call) {
-      mod.apply({
+    connect(call, services = {}) {
+      mod.apply(Object.assign({
         connection: { rpc: { call } },
         locale: { register() {}, bind: () => (key) => key }, slots: { inject() {} },
         effect(fn) { const dispose = fn(); if (typeof dispose === 'function') t.after(dispose); return dispose },
-      })
+      }, services))
     },
     render(fn, options, beforeEffects) {
       cursor = 0

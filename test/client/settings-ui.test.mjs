@@ -243,3 +243,24 @@ function runnerRenderDrawer(t) {
     t: (key) => key, draft: { vaultPath: '/v', notesDir: '/v/n', emojis: [] }, initialTab: 'notes',
   })
 }
+
+test('v0.18.6 设置：发送到 DeepSeek 在便签页、便签标题之后，而不是 AI 页', (t) => {
+  const runner = hookRunner(t)
+  const draft = {
+    vaultPath: '/v', notesDir: '/v/n', emojis: [],
+    deepseekSend: { skipMenu: false, workspaceId: '', workspacePath: '', workspaceTitle: '', format: 'text' },
+  }
+  const nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, {
+    t: (key) => key, draft, initialTab: 'notes', request: async () => ({ providers: [] }),
+    onPatch() {}, onPick: async () => null, onSave() {}, onCancel() {}, onAddEmoji() {}, onRemoveEmoji() {}, onPatchEmoji() {},
+  }))
+  const notes = nodes.find((node) => node.props['data-settings-tab'] === 'notes')
+  const ai = nodes.find((node) => node.props['data-settings-tab'] === 'ai')
+  const notesNodes = captureNodes(notes)
+  const deepseek = notesNodes.find((node) => node.type === runner.api.components.DeepSeekSendSettings)
+  assert.ok(deepseek, '便签页应有发送到 DeepSeek 设置块')
+  const titleIndex = notesNodes.findIndex((node) => node.type === runner.api.components.TitleModeSettings)
+  const deepseekIndex = notesNodes.findIndex((node) => node.type === runner.api.components.DeepSeekSendSettings)
+  assert.ok(titleIndex >= 0 && deepseekIndex > titleIndex, '发送设置应排在便签标题之后')
+  assert.equal(captureNodes(ai).some((node) => node.type === runner.api.components.DeepSeekSendSettings), false, 'AI 页不应再出现发送设置')
+})
