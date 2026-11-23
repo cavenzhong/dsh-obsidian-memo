@@ -32,7 +32,9 @@ test('样式模块：基础布局和主题变量随组合样式注入，HMR 替�
   const css = tags[0].textContent
   assert.match(css, /\.SN_taskCheck\{[^}]*margin-top:5px[^}]*border-radius:50%/)
   assert.match(css, /\.SN_taskCheck\[data-checked='true'\]\{background:var\(--sn-accent\);border-color:var\(--sn-accent\);color:#fff\}/)
-  assert.match(css, /\.SN_blockTask:hover \.SN_taskGrip,\.SN_taskGrip:focus-visible\{opacity:\.6\}/)
+  assert.match(css, /\.SN_blockLi:hover>\.SN_taskGrip,\.SN_taskGrip:focus-visible\{opacity:\.6\}/)
+  assert.match(css, /\[data-list-dragging='true'\]\{[^}]*background-image:linear-gradient\(/)
+  assert.match(css, /\.SN_blockLi\[data-list-drag-source='true'\]>\.SN_taskGrip\{opacity:1;cursor:grabbing\}/)
   assert.match(css, /\.SN_noteDrawerHeadActions\{[^}]*flex-direction:column/)
   assert.match(css, /\.SN_settingsTab\[data-tab='project'\]\{position:relative\}/)
   assert.match(css, /\.SN_settingsBeta\{position:absolute;inset-block-start:-5px;inset-inline-end:3px/)

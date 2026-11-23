@@ -113,9 +113,10 @@ function CardThumb(props) {
 
 function NoteImage(props) {
   const { src, failed, holderRef, onError } = useNoteImage(props);
-  if (failed) return h('div', { className: 'SN_imageMissing', ref: holderRef }, props.alt || props.t?.('image.missing'));
-  if (!src) return h('div', { className: 'SN_imageLoading', ref: holderRef }, props.t?.('image.loading'));
-  return h('img', { className: 'SN_noteImage', ref: holderRef, src, alt: props.alt || '', loading: 'lazy', referrerPolicy: 'no-referrer', onError });
+  const dragStyle = { 'data-list-dragging': props.dimmed };
+  if (failed) return h('div', { className: 'SN_imageMissing', ref: holderRef, ...dragStyle }, props.alt || props.t?.('image.missing'));
+  if (!src) return h('div', { className: 'SN_imageLoading', ref: holderRef, ...dragStyle }, props.t?.('image.loading'));
+  return h('img', { className: 'SN_noteImage', ref: holderRef, src, alt: props.alt || '', loading: 'lazy', ...dragStyle, referrerPolicy: 'no-referrer', onError });
 }
 
 export { CardThumb, NoteImage };

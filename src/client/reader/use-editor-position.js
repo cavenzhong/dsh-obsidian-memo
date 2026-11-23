@@ -1,6 +1,6 @@
 import { React } from '../react.js';
 
-function useEditorPosition({ editing, path, editPositionRef, onEditPositionChange }) {
+function useEditorPosition({ editing, path, editPositionRef, onEditPositionChange, onBodySelection }) {
   const titleRef = React.useRef(null), bodyRef = React.useRef(null), contentRef = React.useRef(null);
   const pendingSelectionRef = React.useRef(null);
   const restoringRef = React.useRef(false);
@@ -35,7 +35,9 @@ function useEditorPosition({ editing, path, editPositionRef, onEditPositionChang
   });
 
   function record(field, input) {
-    if (restoringRef.current || !onEditPositionChange || !Number.isInteger(input?.selectionStart)) return;
+    if (restoringRef.current || !Number.isInteger(input?.selectionStart)) return;
+    if (field === 'body') onBodySelection?.(input);
+    if (!onEditPositionChange) return;
     onEditPositionChange({
       field, start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection,
       top: input.scrollTop, left: input.scrollLeft, contentTop: contentRef.current?.scrollTop ?? 0,

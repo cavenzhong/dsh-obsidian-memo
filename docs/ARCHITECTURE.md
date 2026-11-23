@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.18.3）
+# 代码结构与修改入口（0.18.5）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
@@ -54,7 +54,9 @@ Harness Web  → lib/client.js（生成）
 | 工作空间标签：主空间/默认工作空间、多根上报、路径/筛选规则、纸色、localStorage、添加删除排序、长按排序、便签迁移 | `src/client/panel/workspaces.js`、`use-workspaces.js`、`use-workspace-reorder.js`、`workspace-bar.js` | workspaces |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
+| Project 便签底纹 | `src/client/wall/project-textures.js`、`src/client/styles/wall.js` | wall-rendering、project-textures |
 | 阅读块、抽屉编辑、宽度、钉住和编辑草稿恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
+| 阅读态列表拖动、正文快捷键和条件提示 | `src/client/reader/use-task-reorder.js`、`list-shortcuts.js`；共享规则在 `src/shared/list-editing.js` | list-interactions、list-editing、host/task-reorder |
 | 快速记录、文字草稿持久化、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
 | 拖拽浮层、动作栏、动画与会话（含拖到工作空间标签迁移） | `src/client/drag/` | drag-motion、drag-sessions、workspaces |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |

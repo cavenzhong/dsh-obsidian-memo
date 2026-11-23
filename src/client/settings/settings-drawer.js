@@ -229,7 +229,8 @@ function SettingsDrawer(props) {
           h(TrashSettings, { t, request, disabled: disabled || !draft.vaultPath }),
           h('section', { className: 'SN_drawerSection SN_about', 'aria-label': t('settings.about') },
             h('a', { href: 'https://github.com/cavenzhong/dsh-obsidian-memo', target: '_blank', rel: 'noopener noreferrer' }, 'GitHub'),
-            h('p', null, t('settings.author')))),
+            h('p', null, t('settings.author')),
+            h('p', { className: 'SN_aboutHint' }, t('settings.starHint')))),
       ),
       h('div', { className: 'SN_drawerFoot' },
         h('button', {

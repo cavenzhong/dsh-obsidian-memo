@@ -57,8 +57,9 @@ const settingsStyles = `
 .SN_configActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .SN_configActions>.SN_ghostBtn{flex:none;width:88px;padding:0 10px;text-align:center}
 .SN_configActions>select{appearance:none;-webkit-appearance:none;background-image:none}
-.SN_about{display:flex;flex-direction:row;align-items:baseline;gap:10px;font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8b8680)}
-.SN_about p{margin:0;white-space:nowrap}
+.SN_about{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8b8680)}
+.SN_about p{margin:0}
+.SN_aboutHint{flex-basis:100%;overflow-wrap:anywhere}
 .SN_about a{max-width:100%;overflow-wrap:anywhere;color:inherit;text-underline-offset:3px}
 .SN_configEditor{display:flex;flex-direction:column;gap:10px;padding-top:4px}
 .SN_configPathRow{display:flex;align-items:center;gap:6px;min-width:0}

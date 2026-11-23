@@ -3,6 +3,22 @@ import test from 'node:test'
 import { getTestApi, loadClient, CLIENT_SOURCE, captureNodes } from '../../test-support/client.mjs'
 import assert from 'node:assert/strict'
 
+test('Project 卡片按链接目标选底纹，别名与纸色不影响选择，普通卡片无底纹', (t) => {
+  const { components } = loadClient(t).mod.__test
+  const actions = { current: { t: (key) => key } }
+  const render = (projects, paper, preview = false) => components.NoteCard({
+    note: { path: '/vault/memo.md', projects }, actions, paper, preview,
+  })
+  const original = render('[[计划-项目]]')
+  const tinted = render('[[计划-项目.md#进展|别名]]', { light: '#FDF5F6', dark: '#2E2426' }, true)
+  assert.ok(original.props['data-texture'])
+  assert.equal(tinted.props['data-texture'], original.props['data-texture'])
+  assert.equal(tinted.props.style['--sn-card-bg'], '#FDF5F6')
+  assert.equal(tinted.props.style['--sn-card-bg-dark'], '#2E2426')
+  assert.equal(render(undefined).props['data-texture'], undefined)
+  assert.equal(render('无项目链接').props['data-texture'], undefined)
+})
+
 test('点击只给当前卡片播放轻量缩小回弹，拖拽、预览及减少动态效果不播放', (t) => {
   const { components } = loadClient(t).mod.__test
   const note = { path: '/vault/memo.md' }, opened = [], animations = []

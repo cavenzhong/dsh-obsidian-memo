@@ -6,6 +6,7 @@ import { CardThumb } from '../images/components.js';
 import { React, h } from '../react.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { cardCommentGroups, cardImages, emojiLabel } from './model.js';
+import { projectTexture } from './project-textures.js';
 
 function playCardPress(card) {
   if (!card?.animate || card.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -32,14 +33,6 @@ function cardExcerptContent(text, multiline, t) {
   if (from === 0) return text;
   if (from < text.length) parts.push(text.slice(from));
   return parts;
-}
-
-function projectTexture(meta) {
-  const target = meta?.match?.(/\[\[([^|\]#]+)(?:[|#][^\]]*)?\]\]/u)?.[1];
-  if (!target) return undefined;
-  let hash = 0;
-  for (const ch of target.trim().replace(/\.md$/iu, '').normalize('NFC')) hash = (31 * hash + ch.codePointAt(0)) >>> 0;
-  return ['dot', 'grid', 'linen', 'diagonal', 'ruled', 'cross'][hash % 6];
 }
 
 const NoteCard = React.memo(function NoteCard(props) {

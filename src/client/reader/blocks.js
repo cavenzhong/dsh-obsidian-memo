@@ -8,14 +8,16 @@ function NoteBlock(props) {
   const block = props.block || {};
   const indentStyle = block.indent > 0 ? { marginInlineStart: Math.min(block.indent, 48) * 8 + 'px' } : undefined;
   const text = typeof block.text === 'string' ? block.text : '';
-  if (block.kind === 'h') return h('h4', { className: 'SN_blockH' }, text);
-  if (block.kind === 'hr') return h('hr', { className: 'SN_blockHr' });
-  if (block.kind === 'image') return h(NoteImage, { path: props.path, source: block.source, alt: block.alt, wiki: block.wiki, t: props.t });
+  const row = props.taskDrag?.row;
+  const grip = props.taskDrag?.handle ? h('button', props.taskDrag.handle, '⋮') : null;
+  if (block.kind === 'h') return h('h4', { className: 'SN_blockH', ...row }, text);
+  if (block.kind === 'hr') return h('hr', { className: 'SN_blockHr', ...row });
+  if (block.kind === 'image') return h(NoteImage, { path: props.path, source: block.source, alt: block.alt, wiki: block.wiki, t: props.t, dimmed: row?.['data-list-dragging'] });
   if (block.kind === 'li') {
     if (typeof block.checked === 'boolean') {
       const ordered = typeof block.marker === 'string';
-      return h('div', { className: 'SN_blockLi SN_blockTask' + (ordered ? ' SN_blockOrdered' : ''), style: indentStyle, ...props.taskDrag?.row },
-        props.taskDrag?.handle ? h('button', props.taskDrag.handle, '⋮') : null,
+      return h('div', { className: 'SN_blockLi SN_blockTask' + (ordered ? ' SN_blockOrdered' : ''), style: indentStyle, ...row },
+        grip,
         ordered ? h('span', { className: 'SN_listNumber' }, block.marker) : null,
         h('button', {
           type: 'button',
@@ -30,13 +32,13 @@ function NoteBlock(props) {
         h('span', { className: 'SN_taskText' }, text),
       );
     }
-    if (typeof block.marker === 'string') return h('div', { className: 'SN_blockLi SN_blockOrdered', style: indentStyle },
+    if (typeof block.marker === 'string') return h('div', { className: 'SN_blockLi SN_blockOrdered', style: indentStyle, ...row },
       h('span', { className: 'SN_listNumber' }, block.marker), h('span', { className: 'SN_listText' }, text));
-    return h('div', { className: 'SN_blockLi', style: indentStyle }, text);
+    return h('div', { className: 'SN_blockLi', style: indentStyle, ...row }, grip, text);
   }
-  if (block.kind === 'quote') return h('blockquote', { className: 'SN_blockQuote' }, text);
-  if (block.kind === 'code') return h('pre', { className: 'SN_blockCode' }, text);
-  return h('p', { className: 'SN_blockP' }, text);
+  if (block.kind === 'quote') return h('blockquote', { className: 'SN_blockQuote', ...row }, text);
+  if (block.kind === 'code') return h('pre', { className: 'SN_blockCode', ...row }, text);
+  return h('p', { className: 'SN_blockP', ...row }, text);
 }
 
 function NoteComment(props) {

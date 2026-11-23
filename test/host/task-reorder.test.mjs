@@ -47,8 +47,21 @@ test('reorderTask：首部空行保留，源行偏移与阅读正文对应', asy
   assert.equal(await readFile(path, 'utf8'), LF + LF + '- [ ] 二' + LF + '- [ ] 一' + LF);
 });
 
-test('reorderTask：不允许移动代码样例、跨层级、跨段落或非任务项', async (t) => {
-  const lines = ['- [ ] 一', '  - [ ] 子项', '- 普通圆点', '', '段落', '- [ ] 二', '', '```md', '- [ ] 示例', '```'];
+test('reorderTask：无序圆点和待办可同层级混排，仍不能勾选普通圆点', async (t) => {
+  const lines = ['- 一 ^bullet', '  - 子项', '  续行', '- [x] 二', '- 三', ''];
+  const { c, path, note, move } = await setup(t, lines.join(LF));
+  assert.equal(note.blocks.find((block) => block.kind === 'li').sourceLine, 0);
+  assert.equal(note.blocks.find((block) => block.text === '续行').sourceLine, 2);
+  assert.equal((await c.call('toggleTask', { path, sourceLine: 0, checked: true, expectedBody: note.body })).error?.code, 'bad-request');
+  assert.equal((await move({ targetLine: 3 })).ok, true);
+  assert.equal(await readFile(path, 'utf8'), [lines[3], ...lines.slice(0, 3), ...lines.slice(4)].join(LF));
+  const full = (await c.call('note', { path })).value;
+  assert.equal((await move({ sourceLine: 0, targetLine: 4, expectedRevision: full.contentRevision })).ok, true);
+  assert.equal(await readFile(path, 'utf8'), [...lines.slice(0, 3), lines[4], lines[3], ''].join(LF));
+});
+
+test('reorderTask：拒绝代码样例、跨层级、跨段落或普通有序项', async (t) => {
+  const lines = ['- [ ] 一', '  - [ ] 子项', '1. 普通编号', '', '段落', '- [ ] 二', '', '```md', '- [ ] 示例', '```'];
   const original = lines.join(LF);
   const { path, move } = await setup(t, original);
   for (const patch of [{ targetLine: 1 }, { targetLine: 2 }, { targetLine: 5 }, { targetLine: 8 }, { sourceLine: -1 }, { sourceLine: '0' }, { after: 'yes' }, { targetLine: 0 }]) {
@@ -56,6 +69,13 @@ test('reorderTask：不允许移动代码样例、跨层级、跨段落或非任
     assert.equal(result.error?.code, 'bad-request', JSON.stringify(patch));
     assert.equal(await readFile(path, 'utf8'), original);
   }
+});
+
+test('reorderTask：不能把含空行的缩进代码围栏切开后写回', async (t) => {
+  const original = ['- 普通圆点', '- [ ] 项目', '  ```js', '  const x = 1', '', '  const y = 2', '  ```'].join(LF);
+  const { path, move } = await setup(t, original);
+  assert.equal((await move({ sourceLine: 1, targetLine: 0, after: false })).error?.code, 'bad-request');
+  assert.equal(await readFile(path, 'utf8'), original);
 });
 
 test('reorderTask：外部修改（含仅 YAML）、缺少版本都拒绝覆盖', async (t) => {

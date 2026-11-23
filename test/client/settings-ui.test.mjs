@@ -102,18 +102,27 @@ test('v0.16 设置：四分类与横向 Emoji 标签切换，末尾加号不随�
   assert.equal(nodes.some((node) => node.type === runner.api.components.TrashSettings), true)
 })
 
-test('v0.16 管理与关于：共享设置页包含 GitHub 与作者信息', (t) => {
+test('管理与关于：保留 GitHub 链接和署名，随界面语言显示 Star 邀请', (t) => {
   const api = loadClient(t).mod.__test
-  const nodes = captureNodes(api.components.SettingsDrawer({ t: (key) => key, draft: { emojis: [] }, initialTab: 'config' }))
-  const page = nodes.find((node) => node.props['data-settings-tab'] === 'config')
-  const about = captureNodes(page).find((node) => node.props.className === 'SN_drawerSection SN_about')
-  const link = captureNodes(about).find((node) => node.type === 'a')
-  assert.equal(link.props.href, PACKAGE_JSON.repository.url.replace(/^git\+|\.git$/g, ''))
-  assert.equal(link.props.rel, 'noopener noreferrer')
   assert.equal(api.dictionaries.zh['settings.tab.config'], '管理与关于')
-  assert.deepEqual(link.children, ['GitHub'])
-  assert.equal(api.dictionaries.zh['settings.author'], 'by ' + PACKAGE_JSON.author)
-  assert.deepEqual(about.children.map((node) => node.type), ['a', 'p'])
+  for (const [locale, invitation] of [
+    ['zh', '如果这个插件帮到了你，欢迎在 GitHub 点个 Star。'],
+    ['en', 'If this plugin helped you, feel free to give it a star on GitHub.'],
+  ]) {
+    const translate = (key) => api.dictionaries[locale][key] ?? key
+    const nodes = captureNodes(api.components.SettingsDrawer({ t: translate, draft: { emojis: [] }, initialTab: 'config' }))
+    const page = nodes.find((node) => node.props['data-settings-tab'] === 'config')
+    const about = captureNodes(page).find((node) => node.props.className === 'SN_drawerSection SN_about')
+    const [link, author, hint] = about.children
+    assert.equal(link.type, 'a')
+    assert.equal(link.props.href, PACKAGE_JSON.repository.url.replace(/^git\+|\.git$/g, ''))
+    assert.equal(link.props.target, '_blank')
+    assert.equal(link.props.rel, 'noopener noreferrer')
+    assert.deepEqual(link.children, ['GitHub'])
+    assert.deepEqual(author.children, ['by ' + PACKAGE_JSON.author])
+    assert.equal(hint.props.className, 'SN_aboutHint')
+    assert.deepEqual(hint.children, [invitation])
+  }
   assert.match(CLIENT_SOURCE, /\.SN_configActions>select\{appearance:none;-webkit-appearance:none;background-image:none/)
 })
 

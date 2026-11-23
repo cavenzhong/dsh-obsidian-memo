@@ -90,7 +90,8 @@ const zh = {
   'drawer.editDiscarded': '已取消编辑',
   'drawer.saved': '已保存',
   'drawer.bodyAria': '正文 Markdown 编辑器',
-  'drawer.taskReorder': '拖动调整待办顺序（同层级）',
+  'drawer.listReorder': '拖动调整列表项顺序（同层级）',
+  'drawer.listShortcutHint': '↑↓ 换行，←→ 层级变化，L 切换待办',
   'drawer.shortcutHint': 'Cmd/Ctrl+S 保存 · Esc 取消',
   'drawer.resize': '拖拽调整宽度（双击恢复默认）',
   'drawer.lock': '锁定在右侧',
@@ -248,6 +249,7 @@ Object.assign(zh, {
 Object.assign(zh, {
   'settings.tab.folders': '文件夹', 'settings.tab.notes': '便签', 'settings.tab.ai': 'AI', 'settings.tab.project': '项目', 'settings.tab.config': '管理与关于',
   'settings.about': '关于项目', 'settings.author': 'by cavenzhong',
+  'settings.starHint': '如果这个插件帮到了你，欢迎在 GitHub 点个 Star。',
   'settings.vault': 'Obsidian 仓库', 'settings.notes': '默认工作空间', 'settings.project': '项目索引目录', 'settings.archive': '便签归档',
   'settings.vaultHint': '选择一次仓库，其余文件夹均基于此位置。', 'settings.notesHint': '主空间（默认工作空间）从这里读取 Markdown。',
   'settings.projectHint': '项目 md 直接生成在这里，不为每个项目建立文件夹。',

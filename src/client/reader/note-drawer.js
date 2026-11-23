@@ -7,7 +7,7 @@ import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { formatTime } from '../utils.js';
 import { emojiLabel } from '../wall/model.js';
 import { useEditorPosition } from './use-editor-position.js';
-import { handleListShortcut } from './list-shortcuts.js';
+import { useListShortcuts } from './list-shortcuts.js';
 import { useTaskReorder } from './use-task-reorder.js';
 
 function NoteDrawer(props) {
@@ -18,7 +18,9 @@ function NoteDrawer(props) {
     editPositionRef, onEditPositionChange, onReorderTask,
   } = props;
   const editFromTitle = React.useRef(false);
-  const editorPosition = useEditorPosition({ editing, path: drawer.path, editPositionRef, onEditPositionChange });
+  const listShortcuts = useListShortcuts({ editing, path: drawer.path, saving });
+  const editorPosition = useEditorPosition({ editing, path: drawer.path, editPositionRef, onEditPositionChange, onBodySelection: listShortcuts.refresh });
+  const bodyField = editorPosition.fieldProps('body', !editFromTitle.current, onBodyChange);
   const drawerStyle = typeof drawerWidth === 'number' && Number.isFinite(drawerWidth)
     ? {
       width: drawerWidth + 'px',
@@ -297,13 +299,14 @@ function NoteDrawer(props) {
             spellCheck: false,
             disabled: saving,
             'aria-label': t('drawer.bodyAria'),
-            ...editorPosition.fieldProps('body', !editFromTitle.current, onBodyChange),
-            onKeyDown: (event) => handleListShortcut(event, (result) => editorPosition.applyBodyChange(result, onBodyChange)),
+            ...bodyField,
+            ...listShortcuts.fieldProps((result) => editorPosition.applyBodyChange(result, onBodyChange)),
+            onBlur(event) { listShortcuts.reset(); bodyField.onBlur(event); },
           }),
         ),
         h('div', { className: 'SN_noteEditBar' },
           h('div', { className: 'SN_noteEditHints' },
-            h('span', { className: 'SN_noteEditHint' }, saving ? t('drawer.saving') : t('drawer.shortcutHint'))),
+            h('span', { className: 'SN_noteEditHint' }, t(saving ? 'drawer.saving' : listShortcuts.showHint ? 'drawer.listShortcutHint' : 'drawer.shortcutHint'))),
           h('div', { className: 'SN_noteEditActions' },
             h('button', {
               type: 'button',

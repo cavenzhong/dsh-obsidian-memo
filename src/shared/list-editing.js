@@ -1,25 +1,43 @@
 /** 列表纯操作：只改目标行，保留其它文字、换行分隔符和末尾换行。 */
 import { closesFence, openingFence } from './markdown.js';
 
-const LIST = /^([ \t]*)([-*+]|[0-9]{1,9}[.)])([ \t]+)(?:\[([ xX])\]([ \t]+))?(.*)$/;
-const indentation = (text) => text.replace(/\t/g, '    ').length;
+const LIST = /^([ \t]*)([-*+]|[0-9]{1,9}[.)])([ \t]+|$)(?:\[([ xX])\]([ \t]+|$))?(.*)$/;
+const NON_PARAGRAPH = /^(?:>|#{1,6}(?:[ \t]|$)|(?:-[ \t]*){3,}$|(?:\*[ \t]*){3,}$|(?:_[ \t]*){3,}$)/;
+const indentation = (prefix) => prefix.replace(/\t/g, '    ').length;
+const lineIndent = (line) => indentation(line.match(/^[ \t]*/)[0]);
 
 function listDocument(text) {
   const raw = text.split(/(\r\n|\r|\n)/);
   const lines = raw.filter((_, index) => index % 2 === 0);
   let fence = null;
-  const items = lines.map((line) => {
+  const paragraphLines = new Set();
+  const fenceInterior = new Set();
+  const levels = [];
+  const items = lines.map((line, index) => {
     if (fence) {
+      fenceInterior.add(index);
       if (closesFence(line, fence)) fence = null;
       return null;
     }
+    const prefix = line.match(/^[ \t]*/)[0];
+    const indent = indentation(prefix);
+    const content = line.slice(prefix.length);
+    while (levels.length && levels.at(-1) >= indent) levels.pop();
     fence = openingFence(line);
-    if (fence) return null;
+    if (fence || NON_PARAGRAPH.test(content)) return null;
     const match = line.match(LIST);
-    return match ? { indent: indentation(match[1]), match } : null;
+    if (match) {
+      levels.push(indent);
+      return { indent, match };
+    }
+    // 深缩进的无标记行只在列表内部可编辑，避免将独立缩进代码改成圆点。
+    if (indent < 4 || levels.length > 0) paragraphLines.add(index);
+    if (!content.trim()) levels.length = 0;
+    return null;
   });
+  if (fence) fenceInterior.add(lines.length);
   const compose = (next) => raw.map((part, index) => index % 2 === 0 ? next[index / 2] : part).join('');
-  return { lines, items, compose, raw };
+  return { lines, items, paragraphLines, fenceInterior, compose, raw };
 }
 
 function itemEnd(doc, start) {
@@ -27,36 +45,57 @@ function itemEnd(doc, start) {
   let end = start + 1;
   while (end < doc.lines.length) {
     const line = doc.lines[end];
-    if (!line.trim() || indentation(line.match(/^[ \t]*/)[0]) <= level) break;
+    if (!line.trim() || lineIndent(line) <= level) break;
     end += 1;
   }
-  return end;
+  // 空行或退格可能正好落在子项代码围栏里；拒绝切开围栏（包括未闭合的尾部）。
+  return doc.fenceInterior.has(end) ? null : end;
 }
 
 /** 同一连续列表内移动整项（含缩进子项 / 续行）；不跨正文、空行或父级。 */
-function moveListItem(text, sourceLine, targetLine, after = false) {
-  const doc = listDocument(text);
+function planListMove(doc, sourceLine, targetLine, after) {
   if (!Number.isInteger(sourceLine) || !Number.isInteger(targetLine)) return null;
   const source = doc.items[sourceLine], target = doc.items[targetLine];
   if (!source || !target || source.indent !== target.indent || sourceLine === targetLine) return null;
   const end = itemEnd(doc, sourceLine);
   const targetEnd = itemEnd(doc, targetLine);
+  if (end === null || targetEnd === null) return null;
   const low = Math.min(sourceLine, targetLine), high = Math.max(end, targetEnd);
   for (let index = low; index < high; index += 1) {
     if (!doc.lines[index].trim()) return null;
     if ((doc.items[index]?.indent ?? Infinity) < source.indent) return null;
-    if (!doc.items[index] && indentation(doc.lines[index].match(/^[ \t]*/)[0]) <= source.indent) return null;
+    if (!doc.items[index] && lineIndent(doc.lines[index]) <= source.indent) return null;
   }
   const insertion = after ? targetEnd : targetLine;
   if (insertion >= sourceLine && insertion <= end) return null;
-  const next = doc.lines.slice();
-  const moved = next.splice(sourceLine, end - sourceLine);
-  const destination = insertion > sourceLine ? insertion - moved.length : insertion;
-  next.splice(destination, 0, ...moved);
-  return { text: doc.compose(next), line: destination };
+  return { end, destination: insertion > sourceLine ? insertion - (end - sourceLine) : insertion };
 }
 
-function editListAtSelection(text, start, end, action) {
+function moveInDocument(doc, sourceLine, targetLine, after) {
+  const plan = planListMove(doc, sourceLine, targetLine, after);
+  if (!plan) return null;
+  const { end, destination } = plan;
+  const next = doc.lines.slice();
+  const moved = next.splice(sourceLine, end - sourceLine);
+  next.splice(destination, 0, ...moved);
+  return { lines: next, line: destination };
+}
+
+function moveListItem(text, sourceLine, targetLine, after = false) {
+  const doc = listDocument(text);
+  const moved = moveInDocument(doc, sourceLine, targetLine, after);
+  return moved ? { text: doc.compose(moved.lines), line: moved.line } : null;
+}
+
+function listDragModel(text) {
+  const doc = listDocument(text);
+  return {
+    itemEnd: (line) => doc.items[line] ? itemEnd(doc, line) : null,
+    canMove: (source, target, after) => Boolean(planListMove(doc, source, target, after)),
+  };
+}
+
+function selectionLine(text, start, end) {
   if (typeof text !== 'string' || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > text.length) return null;
   const doc = listDocument(text);
   let offset = 0, line = 0;
@@ -64,32 +103,58 @@ function editListAtSelection(text, start, end, action) {
     offset += doc.lines[line].length + (doc.raw[line * 2 + 1]?.length || 0);
     line += 1;
   }
+  return start >= offset && end <= offset + doc.lines[line].length ? { doc, line, offset } : null;
+}
+
+function adjacentItem(doc, line, up) {
+  if (!up) return itemEnd(doc, line);
+  let target = line - 1;
+  while (target >= 0 && lineIndent(doc.lines[target]) > doc.items[line].indent) target -= 1;
+  return target;
+}
+
+function canMoveListAtSelection(text, start, end) {
+  const selection = selectionLine(text, start, end);
+  if (!selection || !selection.doc.items[selection.line]) return false;
+  const { doc, line } = selection;
+  return Boolean(planListMove(doc, line, adjacentItem(doc, line, true), false)
+    || planListMove(doc, line, adjacentItem(doc, line, false), true));
+}
+
+function editListAtSelection(text, start, end, action) {
+  const selection = selectionLine(text, start, end);
+  if (!selection) return null;
+  const { doc, line, offset } = selection;
   const item = doc.items[line];
-  if (!item || end > offset + doc.lines[line].length) return null;
-  const [original, indent, marker, space, checked, taskSpace, content] = item.match;
+  if (!item && (action !== 'cycle' || !doc.paragraphLines.has(line))) return null;
+  const original = doc.lines[line];
+  const [, indent, marker, space, checked, taskSpace, content] = item?.match || [];
   const next = doc.lines.slice();
   let delta = 0;
   if (action === 'cycle') {
-    next[line] = indent + marker + space + (checked === undefined ? '[ ] ' + content : checked === ' ' ? '[x]' + taskSpace + content : content);
+    if (!item) next[line] = original.replace(/^([ \t]*)/, '$1- ');
+    else if (checked === undefined) next[line] = indent + marker + (space || ' ') + '[ ] ' + content;
+    else if (checked === ' ') next[line] = indent + marker + space + '[x]' + taskSpace + content;
+    // 保留已有编号；四态循环适用于无序项。
+    else next[line] = indent + (/^\d/.test(marker) ? marker + space : '') + content;
     delta = next[line].length - original.length;
   } else if (action === 'indent' || action === 'outdent') {
     const remove = indent.startsWith('\t') ? 1 : Math.min(2, indent.length);
-    if (action === 'outdent' && remove === 0) return null;
-    for (let index = line; index < itemEnd(doc, line); index += 1) {
+    const itemLimit = itemEnd(doc, line);
+    if (itemLimit === null || (action === 'outdent' && remove === 0)) return null;
+    for (let index = line; index < itemLimit; index += 1) {
       next[index] = action === 'indent' ? '  ' + next[index] : next[index].slice(remove);
     }
     delta = action === 'indent' ? 2 : -remove;
   } else if (action === 'up' || action === 'down') {
-    let target = action === 'up' ? line - 1 : itemEnd(doc, line);
-    if (action === 'up') while (target >= 0 && (doc.items[target]?.indent ?? indentation(doc.lines[target].match(/^[ 	]*/)[0])) > item.indent) target -= 1;
-    const moved = moveListItem(text, line, target, action === 'down');
+    const moved = moveInDocument(doc, line, adjacentItem(doc, line, action === 'up'), action === 'down');
     if (!moved) return null;
-    const updated = listDocument(moved.text);
-    const newOffset = updated.raw.slice(0, moved.line * 2).join('').length;
-    return { text: moved.text, start: newOffset + start - offset, end: newOffset + end - offset };
+    let newOffset = 0;
+    for (let index = 0; index < moved.line; index += 1) newOffset += moved.lines[index].length + doc.raw[index * 2 + 1].length;
+    return { text: doc.compose(moved.lines), start: newOffset + start - offset, end: newOffset + end - offset };
   } else return null;
   const adjust = (position) => Math.max(offset, Math.min(offset + next[line].length, position + delta));
   return { text: doc.compose(next), start: adjust(start), end: adjust(end) };
 }
 
-export { editListAtSelection, moveListItem };
+export { canMoveListAtSelection, editListAtSelection, listDragModel, moveListItem };

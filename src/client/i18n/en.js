@@ -90,7 +90,8 @@ const en = {
   'drawer.editDiscarded': 'Editing cancelled',
   'drawer.saved': 'Saved',
   'drawer.bodyAria': 'Markdown body editor',
-  'drawer.taskReorder': 'Drag to reorder tasks at the same level',
+  'drawer.listReorder': 'Drag to reorder list items at the same level',
+  'drawer.listShortcutHint': '↑↓ Move line · ←→ Change level · L Cycle task',
   'drawer.shortcutHint': 'Cmd/Ctrl+S to save · Esc to cancel',
   'drawer.resize': 'Drag to resize (double-click to reset)',
   'drawer.lock': 'Lock to the side',
@@ -248,6 +249,7 @@ Object.assign(en, {
 Object.assign(en, {
   'settings.tab.folders': 'Folders', 'settings.tab.notes': 'Notes', 'settings.tab.ai': 'AI', 'settings.tab.project': 'Project', 'settings.tab.config': 'Manage & about',
   'settings.about': 'About this project', 'settings.author': 'by cavenzhong',
+  'settings.starHint': 'If this plugin helped you, feel free to give it a star on GitHub.',
   'settings.vault': 'Obsidian vault', 'settings.notes': 'Default workspace', 'settings.project': 'Project index folder', 'settings.archive': 'Note archiving',
   'settings.vaultHint': 'Choose the vault once. All other folders are relative to it.', 'settings.notesHint': 'The main space (default workspace) reads Markdown from here.',
   'settings.projectHint': 'Project md files are created here; no per-project folders are used.',

@@ -64,11 +64,15 @@ const readerStyles = `
 .SN_imageLoading,.SN_imageMissing{padding:12px;border:1px dashed var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);text-align:center;font-size:12px}
 .SN_taskCheck{padding:0;cursor:pointer}
 .SN_taskGrip{position:absolute;inset-inline-start:-16px;top:0;width:14px;height:1.8em;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;line-height:1;opacity:0;cursor:grab;transition:opacity .12s ease;touch-action:none}
-.SN_blockTask:hover .SN_taskGrip,.SN_taskGrip:focus-visible{opacity:.6}
+.SN_blockLi:hover>.SN_taskGrip,.SN_taskGrip:focus-visible{opacity:.6}
+.SN_noteDrawerBody [data-list-dragging='true']{--sn-list-drag-shade:rgb(0 0 0 / .10);background-image:linear-gradient(var(--sn-list-drag-shade),var(--sn-list-drag-shade));border-radius:4px}
+body[data-ds-dark-theme] .SN_noteDrawerBody [data-list-dragging='true']{--sn-list-drag-shade:rgb(0 0 0 / .32)}
+.SN_noteImage[data-list-dragging='true']{filter:brightness(.9)}
+.SN_blockLi[data-list-drag-source='true']>.SN_taskGrip{opacity:1;cursor:grabbing}
 .SN_taskGrip:active{cursor:grabbing;opacity:1}
 .SN_taskGrip:disabled{cursor:wait}
-.SN_blockTask[data-task-drop='before']{box-shadow:0 -2px 0 var(--sn-accent)}
-.SN_blockTask[data-task-drop='after']{box-shadow:0 2px 0 var(--sn-accent)}
+.SN_blockLi[data-task-drop='before']{box-shadow:0 -2px 0 var(--sn-accent)}
+.SN_blockLi[data-task-drop='after']{box-shadow:0 2px 0 var(--sn-accent)}
 .SN_taskCheck:disabled{cursor:wait;opacity:.5}
 .SN_noteEditBar .SN_primaryBtn{background:var(--dsw-alias-brand-primary,#2f6feb);color:var(--dsw-alias-label-primary-foreground,#fff)}
 .SN_projects{margin-top:20px;display:flex;align-items:baseline;gap:10px;padding:10px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f2f0ec);font-size:12px;line-height:1.6}

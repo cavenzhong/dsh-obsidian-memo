@@ -1,5 +1,8 @@
 /** 界面样式片段：wall；组合顺序由 styles/index.js 固定。 */
 import { DEFAULT_NOTE_COLOR } from './tokens.js';
+import { PROJECT_TEXTURES } from '../wall/project-textures.js';
+
+const textureRules = PROJECT_TEXTURES.map(({ key, mask }) => `.SN_card[data-texture='${key}']{--sn-project-mask:${mask}}`).join('\n');
 
 const wallStyles = `
 /* 0.13.8 动态加载：墙底部的简约加载指示（三点脉冲 + 淡字）；只在补下一批卡片时出现。 */
@@ -13,13 +16,13 @@ const wallStyles = `
 @keyframes SN_loadPulse{0%,80%,100%{opacity:.28;transform:scale(.8)}40%{opacity:.95;transform:scale(1)}}
 
 .SN_card{--sn-note-bg:var(--sn-card-bg,${DEFAULT_NOTE_COLOR});--sn-tag-ink:var(--sn-card-bg-dark,#2C2721);position:relative;height:208px;border-radius:11px;cursor:default;outline:none;transition:transform .16s ease,box-shadow .16s ease;box-shadow:0 1px 2px rgba(40,30,10,.05),0 0 0 .5px rgba(70,55,30,.10)}
-.SN_card[data-texture] .SN_cardClip::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;color:var(--dsw-alias-label-primary,#5c5142);opacity:.065;background-size:9px 9px;background-image:var(--sn-grain)}
-.SN_card[data-texture='dot']{--sn-grain:radial-gradient(currentColor 1px,transparent 1.3px)}
-.SN_card[data-texture='grid']{--sn-grain:linear-gradient(90deg,currentColor 1px,transparent 1px),linear-gradient(currentColor 1px,transparent 1px)}
-.SN_card[data-texture='linen']{--sn-grain:repeating-linear-gradient(90deg,currentColor 0 1px,transparent 1px 4px)}
-.SN_card[data-texture='diagonal']{--sn-grain:repeating-linear-gradient(135deg,currentColor 0 1px,transparent 1px 6px)}
-.SN_card[data-texture='ruled']{--sn-grain:linear-gradient(transparent 8px,currentColor 8px)}
-.SN_card[data-texture='cross']{--sn-grain:linear-gradient(45deg,transparent 45%,currentColor 49%,transparent 55%),linear-gradient(135deg,transparent 45%,currentColor 49%,transparent 55%)}
+/* 只在支持 SVG 蒙版的宿主上绘制；纹理不遮挡内容或拦截指针。 */
+@supports (mask-image:none) or (-webkit-mask-image:none){
+  .SN_card[data-texture] .SN_cardClip{isolation:isolate}
+  .SN_card[data-texture] .SN_cardClip::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:#2e2e2e;opacity:.6;-webkit-mask:var(--sn-project-mask) center/100% 100% no-repeat;mask:var(--sn-project-mask) center/100% 100% no-repeat}
+  body[data-ds-dark-theme] .SN_card[data-texture] .SN_cardClip::before{background:#e6e6e6;opacity:.52}
+}
+${textureRules}
 .SN_card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(40,30,10,.12),0 0 0 .5px rgba(70,55,30,.12)}
 .SN_card:focus-visible{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px rgba(40,30,10,.16)}
 .SN_panel .SN_card[data-dragging='true']{outline:2px dashed var(--sn-ink-muted,#9a9085);outline-offset:-2px;box-shadow:none;transform:none;background:transparent}
