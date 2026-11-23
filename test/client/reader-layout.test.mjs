@@ -102,7 +102,9 @@ test('v0.16.6 抽屉操作条：四个线图标在左、Obsidian 在右同一行
   assert.deepEqual(commentsHead.children.map((node) => node.props.className), ['SN_commentToggle', 'SN_commentEmojiRow'])
   const toggle = commentsHead.children[0]
   assert.equal(toggle.type, 'button')
-  assert.equal(toggle.props['aria-expanded'], 'true')
+  // 没有评论时评论区自动折叠（0.18.0）。
+  assert.equal(toggle.props['aria-expanded'], 'false')
+  assert.equal(toggle.props.disabled, true)
   assert.deepEqual(captureNodes(toggle).find((node) => node.props.className === 'SN_noteViewSection').children, ['drawer.comments'])
   const emojiButtons = captureNodes(commentsHead).filter((node) => node.type === 'button' && node.props.className === 'SN_aiBtn')
   assert.deepEqual(emojiButtons.map((node) => node.props['aria-label']), ['🔥 毒舌', '🌱 落地'])
@@ -330,6 +332,32 @@ test('评论区折叠仍显示四个 AI 按钮和提示，只有非零评论显�
   assert.equal(handle.props.onPointerDown, undefined)
 })
 
+test('评论区 0.18.0：暂无评论自动折叠，有评论才恢复用户拉好的高度', (t) => {
+  const api = loadClient(t).mod.__test
+  const comment = { emoji: '😈', label: '毒舌', time: '2026-11-13 10:00', text: '评论正文' }
+  const layout = { commentsCollapsed: false, commentsHeight: 240, resizingComments: false, onToggle() {} }
+  const render = (comments) => captureNodes(api.components.NoteDrawer({
+    t: (key) => key,
+    drawer: { full: { title: '便签', blocks: [], comments } },
+    commentsLayout: layout,
+  }))
+
+  const empty = render([])
+  const emptySection = empty.find((node) => node.props.className === 'SN_noteDrawerComments')
+  assert.equal(emptySection.props['data-collapsed'], 'true', '暂无评论时强制折叠')
+  assert.equal(emptySection.props.style, undefined, '空评论不套用用户拉高的高度')
+  const emptyToggle = empty.find((node) => node.props.className === 'SN_commentToggle')
+  assert.equal(emptyToggle.props.disabled, true, '空评论区不需要展开/折叠')
+  assert.equal(emptyToggle.props.title, 'drawer.noComments')
+  assert.equal(empty.some((node) => node.props.className === 'SN_noteDrawerCommentsBody'), false)
+
+  const filled = render([comment])
+  const filledSection = filled.find((node) => node.props.className === 'SN_noteDrawerComments')
+  assert.equal(filledSection.props['data-collapsed'], 'false', '出现评论后恢复用户状态')
+  assert.equal(filledSection.props.style.height, '240px', '恢复用户拉好的高度')
+  assert.equal(filled.some((node) => node.props.className === 'SN_noteDrawerCommentsBody'), true)
+})
+
 test('v0.16.7 评论区高度：拖拽手柄接线、显式高度与双击复位', (t) => {
   const api = loadClient(t).mod.__test
   const calls = []
@@ -339,7 +367,7 @@ test('v0.16.7 评论区高度：拖拽手柄接线、显式高度与双击复位
   }
   const nodes = captureNodes(api.components.NoteDrawer({
     t: (key) => key,
-    drawer: { full: { title: '便签', blocks: [], comments: [] } },
+    drawer: { full: { title: '便签', blocks: [], comments: [{ emoji: '😈', label: '毒舌', time: '2026-11-13 10:00', text: '正文' }] } },
     commentsLayout: layout,
   }))
   const section = nodes.find((node) => node.props.className === 'SN_noteDrawerComments')

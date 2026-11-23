@@ -3,7 +3,7 @@ import { focusCaptureOnTab } from '../capture/keyboard.js';
 import { React } from '../react.js';
 
 function useCardDrag({
-  aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
+  aliveRef, moveWorkspaceNote, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
   setDateMenu, setHoverPath, setSortMenu,
 }) {
   const [dragSession, setDragSession] = React.useState(null);
@@ -93,6 +93,14 @@ function useCardDrag({
     setSortMenu(false); setDateMenu(false);
   }
 
+  /** 立即清掉拖放目标（离开标签栏空白处时用，不走 150ms 防抖）。 */
+  function clearDropTarget() {
+    const session = dragSessionRef.current;
+    if (!session || session.ending || session.parked) return;
+    clearTimeout(leaveTimer.current);
+    setDropTarget(null);
+  }
+
   function hoverDragAction(kind, targetId, anchor = null) {
     if (!dragSessionRef.current || dragSessionRef.current.ending || dragSessionRef.current.parked) return;
     clearTimeout(leaveTimer.current);
@@ -128,6 +136,16 @@ function useCardDrag({
     endCardDrag('drop', runArchive(note));
   }
 
+  /** 0.18：把卡片拖到工作空间标签上，松手即移动到该文件夹。 */
+  function workspaceDrop(event, workspace) {
+    const session = dragSessionRef.current;
+    if (!session || session.ending || session.parked || !workspace) return;
+    const note = session.note;
+    const path = event.dataTransfer.getData('application/x-dsh-memo');
+    if (path !== note.path) { endCardDrag(); return; }
+    endCardDrag('drop', moveWorkspaceNote(note, workspace));
+  }
+
   function projectDrop(event, targetId) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return;
@@ -151,7 +169,7 @@ function useCardDrag({
     endCardDrag('drop', queueProjectDrop(session.note, target.id === '__new__' ? null : target));
   }
 
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget };
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget, workspaceDrop };
 }
 
 export { useCardDrag };

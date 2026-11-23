@@ -238,14 +238,14 @@ test('archive：指定归档根目录必须在仓库内且不能与便签目录�
   const overlap = await c.call('saveSettings', { settings: { ...current, archiveMode: 'mapped', archiveDir: c.notesDir } })
   assert.equal(overlap.ok, false)
   assert.equal(overlap.error.code, 'bad-request')
-  assert.match(overlap.error.message, /不能与便签目录重叠/)
+  assert.match(overlap.error.message, /不能与默认工作空间重叠/)
 
   const linkedArchive = join(c.vault, '归档链接')
   await symlink(c.notesDir, linkedArchive, 'dir')
   const linkedOverlap = await c.call('saveSettings', { settings: { ...current, archiveMode: 'mapped', archiveDir: linkedArchive } })
   assert.equal(linkedOverlap.ok, false)
   assert.equal(linkedOverlap.error.code, 'bad-request')
-  assert.match(linkedOverlap.error.message, /不能与便签目录重叠/)
+  assert.match(linkedOverlap.error.message, /不能与默认工作空间重叠/)
   assert.equal(await exists(c.seeded['甲.md']), true)
 })
 

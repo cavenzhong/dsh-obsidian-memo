@@ -3,7 +3,7 @@ import { WALL_PAGE_SIZE, WALL_PRELOAD_PX } from '../constants.js';
 import { React } from '../react.js';
 import { nextVisibleCount } from './model.js';
 
-function useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view }) {
+function useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view, workspaceId }) {
   const [visibleLimit, setVisibleLimit] = React.useState(WALL_PAGE_SIZE);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const visibleLimitRef = React.useRef(WALL_PAGE_SIZE);
@@ -18,7 +18,7 @@ function useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelR
   React.useEffect(() => {
     visibleLimitRef.current = WALL_PAGE_SIZE;
     setVisibleLimit(WALL_PAGE_SIZE);
-  }, [sortId, dateFilter, dateRealtime, dateEnabled]);
+  }, [sortId, dateFilter, dateRealtime, dateEnabled, workspaceId]);
 
   function requestMore() {
     if (loadingMoreRef.current) return;

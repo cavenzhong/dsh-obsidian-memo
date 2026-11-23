@@ -1,18 +1,19 @@
 /** 仓库字段和库内文件夹下拉，支持历史、浏览和新建。 */
 import { Fragment, React, h } from '../react.js';
-import { isAbsolutePath, joinPath } from '../utils.js';
+import { isAbsolutePath, joinPath, vaultRelative } from '../utils.js';
 
-function vaultRelative(vault, value) {
-  const clean = (path) => String(path || '').split(String.fromCharCode(92)).join('/');
-  let root = clean(vault);
-  while (root.endsWith('/')) root = root.slice(0, -1);
-  const path = clean(value);
-  if (root && path === root) return '.';
-  return root && path.startsWith(root + '/') ? path.slice(root.length + 1) : path;
-}
-
-function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onChange, onPick, request, placeholder }) {
-  const [open, setOpen] = React.useState(false);
+function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onChange, onPick, request, placeholder, open: controlledOpen, onOpenChange, showCreated, hideTrigger, excludeFolders }) {
+  // 0.18：工作空间需要在“选择被拒绝”时保持菜单打开，支持受控 open；设置页仍用内部状态。
+  const [innerOpen, setInnerOpen] = React.useState(false);
+  const isControlled = typeof controlledOpen === 'boolean';
+  const open = isControlled ? controlledOpen : innerOpen;
+  // 0.18：工作空间弹层复用同一个文件夹选择器，打开/关闭需要同步给外层弹层。
+  const openChangeRef = React.useRef(onOpenChange);
+  openChangeRef.current = onOpenChange;
+  function applyOpen(next) {
+    if (!isControlled) setInnerOpen(next);
+    if (typeof openChangeRef.current === 'function') openChangeRef.current(next);
+  }
   const [folders, setFolders] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
@@ -29,8 +30,12 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
     return () => { scope.current.alive = false; };
   }, []);
   const isCurrent = () => scope.current.alive && scope.current.vaultPath === vaultPath;
+  const previousVaultRef = React.useRef(vaultPath);
   React.useEffect(() => {
-    setOpen(false); setCreating(false); setCreatingBusy(false); setLoading(false); setCreated(''); setError('');
+    // 只在仓库真正变化时收起；首次挂载不受影响（工作空间的受控 open 保持展开）。
+    if (previousVaultRef.current === vaultPath) return;
+    previousVaultRef.current = vaultPath;
+    applyOpen(false); setCreating(false); setCreatingBusy(false); setLoading(false); setCreated(''); setError('');
   }, [vaultPath]);
   const [menuLayout, setMenuLayout] = React.useState({ up: false, height: 340 });
   React.useLayoutEffect(() => {
@@ -52,7 +57,7 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
   const fail = (cause) => setError(cause.message || String(cause));
   React.useEffect(() => {
     if (!open) return undefined;
-    const outside = (event) => { if (!wrap.current?.contains(event.target)) setOpen(false); };
+    const outside = (event) => { if (!wrap.current?.contains(event.target)) applyOpen(false); };
     document.addEventListener('mousedown', outside, true);
     return () => document.removeEventListener('mousedown', outside, true);
   }, [open]);
@@ -64,12 +69,21 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
       .catch((cause) => { if (alive) fail(cause); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [open, vaultPath]);
-  const choose = (path) => { onChange(path); setOpen(false); setQuery(''); setCreating(false); setCreated(''); };
+  const choose = (path) => { onChange(path); applyOpen(false); setQuery(''); setCreating(false); setCreated(''); };
   const recent = [...new Set((history || []).map((path) => vaultRelative(vaultPath, path)).filter((path) => !isAbsolutePath(path)))];
-  const options = [...new Set(recent.concat(folders))].filter((path) => path.toLowerCase().includes(query.toLowerCase()));
-  return h('div', { className: 'SN_folderPicker', ref: wrap, onKeyDown: (event) => { if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); } } },
-    h('button', { type: 'button', className: 'SN_folderTrigger', disabled: disabled || !vaultPath, title: value || '',
-      'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => setOpen(!open) },
+  // 已经挂成标签的文件夹（以及「所有」占用的仓库根）不再重复列出。
+  const normalizeOption = (path) => {
+    const cleaned = String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    return cleaned === '' || cleaned === '.' || cleaned === './' ? '.' : cleaned;
+  };
+  const excluded = new Set((Array.isArray(excludeFolders) ? excludeFolders : []).map(normalizeOption));
+  const options = [...new Set(recent.concat(folders))]
+    .filter((path) => !excluded.has(normalizeOption(path)))
+    .filter((path) => path.toLowerCase().includes(query.toLowerCase()));
+  return h('div', { className: 'SN_folderPicker', ref: wrap, onKeyDown: (event) => { if (event.key === 'Escape') { event.stopPropagation(); applyOpen(false); } } },
+    // 0.18：工作空间弹层自带标题和关闭按钮，不再重复一个触发器。
+    hideTrigger === true ? null : h('button', { type: 'button', className: 'SN_folderTrigger', disabled: disabled || !vaultPath, title: value || '',
+      'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => applyOpen(!open) },
       h('span', null, value ? vaultRelative(vaultPath, value) : placeholder || t('settings.chooseFolder')), h('span', { 'aria-hidden': 'true' }, '⌄')),
     open ? h('div', { className: 'SN_folderMenu', role: 'dialog', 'aria-label': label, 'data-up': menuLayout.up ? 'true' : 'false', style: { maxHeight: menuLayout.height } },
       h('button', { type: 'button', className: 'SN_folderOption', disabled: loading, onClick: () => setCreating(!creating) }, '＋ ', t('settings.newFolder')),
@@ -83,7 +97,7 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
         h('p', { className: 'SN_fieldHint' }, t('settings.newFolderHint')),
         name.trim() ? h('code', { className: 'SN_configPath' }, t('settings.createAt') + ': ' + joinPath(vaultPath, name.trim())) : null) : null,
       h('button', { type: 'button', className: 'SN_folderOption', disabled: loading, onClick: () => {
-        Promise.resolve().then(onPick).then((path) => { if (isCurrent()) { if (path) choose(path); else setOpen(false); } })
+        Promise.resolve().then(onPick).then((path) => { if (isCurrent()) { if (path) choose(path); else applyOpen(false); } })
           .catch((cause) => { if (isCurrent()) fail(cause); });
       } }, t('settings.browseFolder')),
       value ? h('button', { type: 'button', className: 'SN_folderOption', onClick: () => choose('') }, t('settings.clearFolder')) : null,
@@ -94,7 +108,7 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
         onClick: () => choose(path), title: path }, h('span', null, path === '.' ? t('settings.vaultRoot') : path),
         recent.includes(path) ? h('small', null, t('settings.recent')) : null))),
     ) : null,
-    created ? h('p', { className: 'SN_fieldHint SN_folderCreated', role: 'status' }, t('settings.folderCreated', { path: created })) : null);
+    created && showCreated !== false ? h('p', { className: 'SN_fieldHint SN_folderCreated', role: 'status' }, t('settings.folderCreated', { path: created })) : null);
 }
 
 function SettingsPathField(props) {

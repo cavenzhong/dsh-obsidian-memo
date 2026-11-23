@@ -83,6 +83,7 @@ const captureStyles = `
 .SN_dragFollow[data-action='archive']{background:#286c55}
 .SN_dragFollow[data-action='project']{background:#4565a3}
 .SN_dragFollow[data-action='delete']{background:#b93d45}
+.SN_dragFollow[data-action='workspace']{background:var(--sn-accent,#8B5CF6)}
 .SN_dragLayer:is([data-settling='true'],[data-parked='true']) .SN_dragFollow,.SN_dragLayer:is([data-settling='true'],[data-parked='true'])+.SN_dragTargetHint{visibility:hidden}
 .SN_backTop{position:absolute;z-index:2;top:-22px;left:50%;transform:translateX(-50%);width:32px;height:32px;border:1px solid var(--sn-capture-line);border-radius:50%;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#7e756c);box-shadow:0 3px 14px rgba(55,42,30,.08);display:grid;place-items:center;pointer-events:auto;cursor:pointer}
 .SN_backTop:hover{color:var(--sn-accent);border-color:var(--sn-accent)}

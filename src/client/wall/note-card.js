@@ -47,9 +47,15 @@ const NoteCard = React.memo(function NoteCard(props) {
     note, emojis, pending, hoverActive, drawerOpen, actions,
   } = props;
   const t = actions.current.t;
-  const color = typeof note.color === 'string' && note.color !== '' ? note.color : DEFAULT_NOTE_COLOR;
+  // 工作空间纸色覆盖：同一空间里的卡片统一使用该纸色，仍保留 note 自带颜色作为默认。
+  const paper = props.paper && typeof props.paper === 'object' ? props.paper : null;
+  const color = paper && typeof paper.light === 'string' && paper.light !== ''
+    ? paper.light
+    : typeof note.color === 'string' && note.color !== '' ? note.color : DEFAULT_NOTE_COLOR;
   // Host 的深色配套纸色；缺失（旧数据/未升级 Host）时回退到浅色纸色。
-  const darkColor = typeof note.darkColor === 'string' && note.darkColor !== '' ? note.darkColor : color;
+  const darkColor = paper && typeof paper.dark === 'string' && paper.dark !== ''
+    ? paper.dark
+    : typeof note.darkColor === 'string' && note.darkColor !== '' ? note.darkColor : color;
   const title = note.title || note.name || '';
   // 有图时保留缩略图与一类评论；标题和摘要按卡片的剩余高度分配。
   const { items: images, more: moreImages } = cardImages(note);

@@ -35,6 +35,9 @@ const overridesStyles = `
 /* 标题本身是折叠按钮：图标在文字左侧；点图标或文字都能切换。 */
 .SN_commentToggle{display:inline-flex;flex:none;align-items:center;gap:5px;white-space:nowrap;margin:0;padding:2px 0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:6px}
 .SN_commentToggle:hover .SN_noteViewSection{color:var(--dsw-alias-brand-primary,#2f6feb)}
+.SN_commentToggle:disabled{cursor:default}
+.SN_commentToggle:disabled:hover .SN_noteViewSection,.SN_commentToggle:disabled:hover .SN_chevron{color:inherit}
+.SN_commentToggle:disabled .SN_chevron{opacity:.55}
 .SN_commentToggle:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}
 .SN_commentToggle .SN_chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .SN_commentToggle:hover .SN_chevron{color:var(--dsw-alias-brand-primary,#2f6feb)}

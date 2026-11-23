@@ -43,7 +43,7 @@ test('saveSettings：越界路径 / 不存在的便签目录 / 非法 payload �
   })
   assert.equal(missing.ok, false)
   assert.equal(missing.error.code, 'bad-request')
-  assert.match(missing.error.message, /便签目录不存在/)
+  assert.match(missing.error.message, /默认工作空间不存在/)
 
   for (const settings of [null, [], 'x', 42]) {
     const invalid = await c.call('saveSettings', { settings })
@@ -56,15 +56,21 @@ test('saveSettings：越界路径 / 不存在的便签目录 / 非法 payload �
   assert.equal(state.value.settings.notesDir, c.notesDir)
 })
 
-test('路径校验：saveNote 便签目录外 / 非 md / 缺 path 都被拒绝', async () => {
+test('路径校验：saveNote 仓库外 / 非 md / 缺 path 都被拒绝，仓库内其它工作空间可写', async () => {
   const c = await makeCase({ notes: { '甲.md': '# 甲\n' } })
 
-  const outsideNote = join(c.vault, '目录外.md')
-  await writeFile(outsideNote, '# 外\n', 'utf8')
-  const outside = await saveNote(c, { path: outsideNote, body: '一' })
+  // 0.18：工作空间可挂载仓库内任意可见文件夹，默认工作空间外的便签也能读写。
+  const otherWorkspaceNote = join(c.vault, '其他空间.md')
+  await writeFile(otherWorkspaceNote, '# 其他\n', 'utf8')
+  const other = await saveNote(c, { path: otherWorkspaceNote, body: '一' })
+  assert.equal(other.ok, true, JSON.stringify(other))
+
+  const outsideVault = join(c.dir, '仓库外.md')
+  await writeFile(outsideVault, '# 外\n', 'utf8')
+  const outside = await saveNote(c, { path: outsideVault, body: '一' })
   assert.equal(outside.ok, false)
   assert.equal(outside.error.code, 'bad-request')
-  assert.match(outside.error.message, /便签不在配置的便签目录内/)
+  assert.match(outside.error.message, /便签不在仓库内/)
 
   const notMd = join(c.notesDir, '不是便签.txt')
   await writeFile(notMd, 'txt', 'utf8')

@@ -3,6 +3,7 @@ import { EMPTY_STATE, POLL_BASE, POLL_HIDDEN } from '../constants.js';
 import { mergeState } from './state.js';
 import { panelIsVisible } from './visibility.js';
 import { nextPollDelay } from '../preferences.js';
+import { readStoredWorkspaces } from '../panel/workspaces.js';
 import { React } from '../react.js';
 import { callRpc } from '../runtime.js';
 import { isAbortError } from '../utils.js';
@@ -23,7 +24,10 @@ function createStateReader(options) {
       const controller = new AbortController();
       active = controller;
       try {
-        const value = await options.call({ knownRevision: forceFull ? null : options.getRevision() }, controller.signal);
+        const value = await options.call({
+          knownRevision: forceFull ? null : options.getRevision(),
+          workspaces: typeof options.getWorkspaces === 'function' ? options.getWorkspaces() : [],
+        }, controller.signal);
         if (ticket !== generation || controller.signal.aborted) return null;
         active = null;
         options.onValue(value);
@@ -53,6 +57,12 @@ function useNotesData(options) {
     readerRef.current = createStateReader({
       call: (payload, signal) => callRpc('state', payload, signal),
       getRevision: () => viewRef.current.revision,
+      getWorkspaces: () => {
+        const settings = viewRef.current.settings;
+        const vaultPath = settings && typeof settings.vaultPath === 'string' ? settings.vaultPath : '';
+        if (vaultPath === '') return [];
+        return readStoredWorkspaces(vaultPath).items.map((item) => item.path);
+      },
       onValue(value) {
         if (!aliveRef.current) return;
         lastPollErrorRef.current = null;

@@ -1,6 +1,6 @@
-# 代码结构与修改入口（0.17.3）
+# 代码结构与修改入口（0.18.0）
 
-先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。本次升级回归与实机验收项见 [0.17 复核](AUDIT-0.17.md)。
+先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
 ## 运行与源码
 
@@ -28,21 +28,21 @@ Harness Web  → lib/client.js（生成）
 | 认证、请求大小、信封协议 | `lib/host/rpc.js` | 只处理传输；不读写笔记 |
 | endpoint 调度、操作串行化 | `lib/host/dispatch.js`、`writes.js` | 配置/删除队列与逐文件写锁保持原有顺序 |
 | 用户配置、外部变更、切换 JSON | `lib/host/configuration.js` | 持有当前设置、位置、签名和配置队列；通过 `getSettings()` 提供最新值 |
-| 扫描单飞与写后失效 | `lib/host/scanning.js` | 持有 scanner、epoch 与扫描队列；旧扫描不会回写新状态 |
+| 多根扫描单飞与写后失效 | `lib/host/scanning.js`、`lib/scan.js` | 默认工作空间 + Client 上报的挂载目录；跳过当前目录归档文件夹或 mapped 归档根，持有 scanner、epoch、roots 与扫描队列，旧扫描不会回写新状态 |
 | state/settings 响应、复合 revision | `lib/host/state.js` | 组合扫描、配置与任务快照 |
-| 便签读写、新建、改名、待办 | `lib/host/notes.js` | 复用文件边界、内容版本和扫描失效 |
-| 当前仓库与便签路径 | `lib/host/vault.js` | 读取最新配置并校验真实路径 |
+| 便签读写、新建（targetDir 落进任意挂载工作空间）、改名、待办 | `lib/host/notes.js` | 复用文件边界、内容版本和扫描失效 |
+| 当前仓库与便签路径 | `lib/host/vault.js` | 读取最新配置；便签以仓库为边界、拒绝隐藏目录与越界符号链接 |
 | 全文与模型输入读取 | `lib/host/note-content.js` | 读原始 Markdown，不复用展示摘要 |
 | 本地图片读取与附件查找 | `lib/host/images.js` | 持有命中/负缓存；切库和删除后清理 |
 | AI 评论 / 项目跟踪 | `lib/host/ai-jobs.js`、`lib/host/projects.js` | 共用任务表与写锁；项目服务持有取消句柄及双文件验收快照 |
 | 项目文档 / 归属字段 | `lib/project.js`、`lib/project-revision.js`、`lib/project-meta.js` | 评估协议、AI 概况与新增记录、Host 原文合并、便签归属字段；不执行文件操作 |
 | 评论删除与撤回 | `lib/host/comments.js`、`lib/comments.js` | 按序号定位 callout；撤回 token 与删除前原文由实例 session 持有 |
 | 任务、撤回 token、过期回收 | `lib/host/session.js` | 持有当前实例的 jobs、归档与删除 token |
-| 归档、删除、撤回、系统回收站 | `lib/host/mutations.js` | 复用现有独占移动与整组回滚 |
+| 归档、工作空间迁移、删除、撤回、系统回收站 | `lib/host/mutations.js` | 复用现有独占移动、同名避让与整组回滚 |
 | 目录浏览、新建、系统选择 | `lib/host/folders.js` | 保持仓库和符号链接边界 |
 | 版本、安装位置、调试日志 | `lib/host/environment.js` | 版本只读 `package.json`，旧配置仍从包根目录迁移 |
 
-配置服务在接受新设置后通过 `onSettingsChange(next, previous)` 通知组合入口。只有扫描范围变化才重置 scanner，仓库或便签目录变化才清理图片缓存；AI/图片参数变化不会清空整库摘要。
+配置服务在接受新设置后通过 `onSettingsChange(next, previous)` 通知组合入口。只有扫描范围变化才重置 scanner，仓库或默认工作空间变化才清理图片缓存；AI/图片参数变化不会清空整库摘要。
 
 ## Client：按功能定位
 
@@ -50,12 +50,13 @@ Harness Web  → lib/client.js（生成）
 | --- | --- | --- |
 | 插件注册、样式/字典生命周期 | `src/client/index.js`、`runtime.js` | `test/client/registration.test.mjs` |
 | 主面板组合 | `src/client/panel.js` | reader-layout、drag-sessions |
-| 顶栏与全局快捷键 | `src/client/panel/` | preferences、reader-layout |
+| 顶栏与全局快捷键 | `src/client/panel/` | preferences、reader-layout、workspaces |
+| 工作空间标签：主空间/默认工作空间、多根上报、路径/筛选规则、纸色、localStorage、添加删除排序、长按排序、便签迁移 | `src/client/panel/workspaces.js`、`use-workspaces.js`、`use-workspace-reorder.js`、`workspace-bar.js` | workspaces |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
 | 阅读块、抽屉编辑、宽度、钉住和编辑草稿恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
 | 快速记录、文字草稿持久化、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
-| 拖拽浮层、动作栏、动画与会话 | `src/client/drag/` | drag-motion、drag-sessions |
+| 拖拽浮层、动作栏、动画与会话（含拖到工作空间标签迁移） | `src/client/drag/` | drag-motion、drag-sessions、workspaces |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
 | 评论确认、到项目、任务通知 | `src/client/ai/` | ai、notifications |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/` | settings-ui、settings-draft、settings-config |
@@ -68,11 +69,11 @@ Harness Web  → lib/client.js（生成）
 
 `panel.js` 组合数据、编辑、设置与交互 hooks，并把明确的回调交给视图。每个 hook 持有自己创建的 state/ref/effect；异步任务继续通过 `aliveRef`、请求代次和会话代次拒绝过期回调。高频拖拽移动仍只更新浮层 transform，不经过整墙渲染。
 
-样式按 base → capture → wall → reader → settings → overrides 顺序组合。最后一层保留原有覆盖与深色规则；拆分时不调整 CSS 层叠顺序。
+样式按 base（含顶栏与工作空间标签）→ capture → wall → reader → settings → overrides 顺序组合。最后一层保留原有覆盖与深色规则；拆分时不调整 CSS 层叠顺序。
 
 ## 基础能力
 
-`src/shared/markdown.js` 管换行/block id/行内 Markdown 清洗；`title.js` 管三种标题模式与标题行草稿；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`note-rules.js` 管两端共用的标题与文件名限额。`lib/` 中的对应入口导出共享实现。
+`src/shared/markdown.js` 管换行/block id/行内 Markdown 清洗；`title.js` 管三种标题模式与标题行草稿；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`note-rules.js` 管两端共用的标题与文件名限额；`note-colors.js` 是 Host 的 tag 纸色与 Client 工作空间纸色共用的色板。`lib/` 中的对应入口导出共享实现。
 
 `lib/files.js` 管路径、内容版本和原子/独占文件操作；`notes.js` 管 Markdown 展示解析与用户操作后的写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存（缓存 key 含标题模式）；`capture.js` 管新建笔记、标题行、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。显示模式变化只派生视图，不调用文件写入。
 

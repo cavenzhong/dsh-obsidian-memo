@@ -90,7 +90,10 @@ test('v0.16 卡片标签：不占标题行，仅随菜单激活显示在右上�
   assert.deepEqual(layer.children, [tag])
   assert.match(CLIENT_SOURCE, /\.SN_cardTagLayer\{[^}]*background:linear-gradient\(to bottom,[^}]*var\(--sn-note-bg\)/)
   assert.match(CLIENT_SOURCE, /\.SN_cardTag,\.SN_noteDrawerTag\{[^}]*color:var\(--sn-tag-ink\);background:var\(--sn-note-bg\)/)
-  assert.doesNotMatch(CLIENT_SOURCE, /cursor:grabb?ing|cursor:grab[;}]/)
+  // 卡片始终是普通箭头；只有工作空间标签在长按拖动时才临时用抓手光标。
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card(?:\[[^\]]*\])?\{[^}]*cursor:grabb?ing/)
+  assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card(?:\[[^\]]*\])?\{[^}]*cursor:grab[;}]/)
+  assert.match(CLIENT_SOURCE, /\.SN_wsTab\[data-dragging='true'\]\{[^}]*cursor:grabbing/, '标签长按拖动时才出现抓手光标')
   assert.match(CLIENT_SOURCE, /\.SN_card\{[^}]*cursor:default/)
   assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card(?:\[[^\]]*\])?\{[^}]*cursor:pointer/)
 })

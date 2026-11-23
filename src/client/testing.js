@@ -13,6 +13,7 @@ import {
   CAPTURE_TOTAL_BYTES, COMMENTS_COLLAPSED_KEY, COMMENTS_HEIGHT_KEY, DATE_FILTERS, DATE_FILTER_ENABLED_KEY,
   DEFAULT_DATE_FILTER, DEFAULT_DATE_FILTER_ENABLED, DEFAULT_FILE_NAME_PATTERN, DEFAULT_TITLE_MODE,
   FILE_NAME_PATTERN_MAX, NOTE_NAME_MAX_BYTES, PINNED_KEY, PINNED_NOTE_KEY, SORT_OPTIONS, TITLE_MODES, WALL_PAGE_SIZE,
+  WORKSPACES_KEY, WORKSPACES_MAX, WORKSPACE_ALL_ID, WORKSPACE_HOLD_MS,
 } from './constants.js';
 import { decorateNotes, jobsSignature, mergeState, pendingFromJob } from './data/state.js';
 import { createStateReader, useNotesData } from './data/use-notes-data.js';
@@ -24,6 +25,14 @@ import { clearImageCache, imageCacheBytes, imageCacheKey, imageCacheSize, readIm
 import { CardThumb, NoteImage } from './images/components.js';
 import { clearImageQueue, enqueueImageLoad, imageQueueStats } from './images/queue.js';
 import { StickyNotesPanel } from './panel.js';
+import { renderPanelHeader } from './panel/header.js';
+import { WorkspaceBar } from './panel/workspace-bar.js';
+import { useWorkspaces } from './panel/use-workspaces.js';
+import {
+  WORKSPACE_COLORS, addWorkspace, filterNotesByWorkspace, moveWorkspace, nextWorkspaceColorId,
+  normalizeFolder, noteInsideWorkspace, normalizeStoredWorkspaces, popoverLeftFor, readStoredWorkspaces,
+  removeWorkspace, setWorkspaceColor, workspaceColor, workspaceLabels, writeStoredWorkspaces,
+} from './panel/workspaces.js';
 import {
   clampCommentsHeight, clampDrawerWidth, clearStoredCommentsHeight, clearStoredPinnedNote,
   commentsHeightBounds, drawerWidthBounds, nextPollDelay, readStoredCommentsCollapsed,
@@ -67,8 +76,28 @@ const __test = {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
     useNotesData, useNoteEditor, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
-    useCommentActions, useCommentsLayout,
+    useCommentActions, useCommentsLayout, useWorkspaces,
   },
+  // 0.18 工作空间：纯规则、持久化与标签栏组件。
+  WORKSPACES_KEY: WORKSPACES_KEY,
+  WORKSPACES_MAX: WORKSPACES_MAX,
+  WORKSPACE_ALL_ID: WORKSPACE_ALL_ID,
+  WORKSPACE_COLORS: WORKSPACE_COLORS,
+  workspaceColor: workspaceColor,
+  nextWorkspaceColorId: nextWorkspaceColorId,
+  setWorkspaceColor: setWorkspaceColor,
+  WORKSPACE_HOLD_MS: WORKSPACE_HOLD_MS,
+  normalizeWorkspaceFolder: normalizeFolder,
+  normalizeStoredWorkspaces: normalizeStoredWorkspaces,
+  readStoredWorkspaces: readStoredWorkspaces,
+  writeStoredWorkspaces: writeStoredWorkspaces,
+  workspaceLabels: workspaceLabels,
+  addWorkspace: addWorkspace,
+  removeWorkspace: removeWorkspace,
+  moveWorkspace: moveWorkspace,
+  filterNotesByWorkspace: filterNotesByWorkspace,
+  noteInsideWorkspace: noteInsideWorkspace,
+  workspacePopoverLeft: popoverLeftFor,
   PINNED_KEY: PINNED_KEY,
   PINNED_NOTE_KEY: PINNED_NOTE_KEY,
   readStoredPinned: readStoredPinned,
@@ -150,6 +179,8 @@ const __test = {
     PanelIcon: PanelIcon,
     StickyNotesPanel: StickyNotesPanel,
     NoteCard: NoteCard,
+    WorkspaceBar: WorkspaceBar,
+    PanelHeader: renderPanelHeader,
     CardThumb: CardThumb,
     NoteImage,
     NoteBlock: NoteBlock,

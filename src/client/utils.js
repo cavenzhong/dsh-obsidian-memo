@@ -45,6 +45,16 @@ function baseName(value) {
   return parts.length === 0 ? value : parts[parts.length - 1];
 }
 
+/** 仓库相对路径：仓库根返回 '.'；不在仓库内时原样返回（用于设置里的路径显示）。 */
+function vaultRelative(vault, value) {
+  const clean = (path) => String(path || '').split(String.fromCharCode(92)).join('/');
+  let root = clean(vault);
+  while (root.endsWith('/')) root = root.slice(0, -1);
+  const path = clean(value);
+  if (root && path === root) return '.';
+  return root && path.startsWith(root + '/') ? path.slice(root.length + 1) : path;
+}
+
 function resolvedPath(vaultPath, path) {
   if (typeof path !== 'string' || path === '') return '';
   if (isAbsolutePath(path)) return path;
@@ -63,4 +73,4 @@ function formatTime(ms) {
   }
 }
 
-export { formatVersionLabel, makeError, isAbortError, cloneJson, isAbsolutePath, joinPath, baseName, resolvedPath, formatTime };
+export { formatVersionLabel, makeError, isAbortError, cloneJson, isAbsolutePath, joinPath, baseName, resolvedPath, formatTime, vaultRelative };

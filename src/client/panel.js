@@ -7,7 +7,7 @@ import { focusPanelForCapture } from './capture/keyboard.js';
 import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
 import { ToastStack } from './components/feedback.js';
 import { useToasts } from './components/use-toasts.js';
-import { EMPTY_SETTINGS } from './constants.js';
+import { EMPTY_SETTINGS, WORKSPACE_ALL_ID } from './constants.js';
 import { useNotesData } from './data/use-notes-data.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { useCardDrag } from './drag/use-card-drag.js';
@@ -16,6 +16,9 @@ import { clearImageQueue } from './images/queue.js';
 import { renderPanelHeader } from './panel/header.js';
 import { useHeaderDrag } from './panel/use-header-drag.js';
 import { usePanelShortcuts } from './panel/use-shortcuts.js';
+import { useWorkspaces } from './panel/use-workspaces.js';
+import { WorkspaceBar } from './panel/workspace-bar.js';
+import { filterNotesByWorkspace } from './panel/workspaces.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
 import { useCommentActions } from './reader/use-comment-actions.js';
@@ -123,6 +126,11 @@ function StickyNotesPanel(props) {
   const { subfoldersBusy, toggleSubfolders } = useSubfolders({ aliveRef, pushErrorToast, pushToast, refreshNow, request, t, updateView, viewRef });
   const currentSettings = view.settings && typeof view.settings === 'object' ? view.settings : EMPTY_SETTINGS;
   const emojis = Array.isArray(currentSettings.emojis) ? currentSettings.emojis : [];
+  // 0.18 工作空间：标签只做视图筛选；列表按仓库路径存 localStorage，不写仓库。
+  const workspaces = useWorkspaces({
+    t, tRef, aliveRef, request, viewRef, updateView, refreshNow, pushToast, pushErrorToast,
+    noteDrawerRef, closeNoteDrawer, editingRef,
+  });
   const { projectTarget, projectName, setProjectName, projectBusy, projectTargets, refreshProjectTargets, queueProjectDrop, notices, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, jobs: view.jobs, projectDir: currentSettings.projectDir, vaultPath: currentSettings.vaultPath, notesDir: currentSettings.notesDir, projectKey: currentSettings.projectKey, projectDropConfirmEnabled: currentSettings.projectDropConfirmEnabled !== false, pushErrorToast, pushToast, refreshNow, request, setSortMenu, t });
   const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setHoverPath, tRef, viewRef, watchedJobsRef });
   const { deletingIndex: deletingCommentIndex, deleteComment } = useCommentActions({
@@ -134,20 +142,32 @@ function StickyNotesPanel(props) {
   });
   const {
     dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
-    startCardDrag, hoverDragAction, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget,
+    startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, chooseProjectTarget, workspaceDrop,
   } = useCardDrag({
-    aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete,
+    aliveRef, projectTargets, queueProjectDrop, panelRef, runArchive, runDelete, moveWorkspaceNote: workspaces.move,
     setDateMenu, setHoverPath, setSortMenu,
   });
   React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
+  const workspaceNotes = React.useMemo(
+    () => filterNotesByWorkspace(view.notes, workspaces.activeFolder, currentSettings.vaultPath, {
+      // 主空间关闭「显示子文件夹」时只取顶层；其它工作空间始终包含子树。
+      topOnly: workspaces.activeEntry.primary === true && currentSettings.includeSubfolders === false,
+    }),
+    [view.notes, workspaces.activeFolder, currentSettings.vaultPath, workspaces.activeEntry.primary, currentSettings.includeSubfolders],
+  );
   const filteredNotes = React.useMemo(
-    () => filterNotesByDate(view.notes, dateFilter, dateRealtime, nowTick, undefined, dateEnabled),
-    [view.notes, dateFilter, dateRealtime, nowTick, dateEnabled],
+    () => filterNotesByDate(workspaceNotes, dateFilter, dateRealtime, nowTick, undefined, dateEnabled),
+    [workspaceNotes, dateFilter, dateRealtime, nowTick, dateEnabled],
   );
   const sortedNotes = React.useMemo(() => sortNotes(filteredNotes, sortId), [filteredNotes, sortId]);
 
   usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view });
-  const { visibleLimit, loadingMore, loadMoreRef } = useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view });
+  const { visibleLimit, loadingMore, loadMoreRef } = useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view, workspaceId: workspaces.activeId });
+  // 切换工作空间后回到墙顶，避免停在上一个空间滚到的位置。
+  React.useEffect(() => {
+    const wall = panelRef.current?.querySelector('.SN_wall');
+    if (wall) wall.scrollTop = 0;
+  }, [workspaces.activeId]);
   const dateRangeLabel = t(dateFilterOption(dateFilter).labelKey);
   const includeSubfolders = currentSettings.includeSubfolders !== false;
   const { dockRight } = useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned });
@@ -272,7 +292,6 @@ function StickyNotesPanel(props) {
     onDragStart: startCardDrag,
     onDragEnd: () => dragSessionRef.current?.parked ? undefined : endCardDrag(),
   };
-  const dirLabel = currentSettings.notesDir || currentSettings.vaultPath || '';
   const errorBanner = view.loaded
     ? (loadError || (view.notes.length > 0 ? view.error : null))
     : null;
@@ -280,6 +299,14 @@ function StickyNotesPanel(props) {
     actionsRef, dateRangeLabel, dragNote, emojis, filteredNotes, handleRefresh, handleWallClick,
     handleWallMouseDown, hoverPath, loadError, loadMoreRef, loadingMore, localPending, noteDrawer,
     openSettings, setDateMenu, setShowBackTop, sortedNotes, t, view, visibleLimit,
+    workspaceActive: workspaces.activeFolder !== '.',
+    workspaceLabel: workspaces.activeEntry.label,
+    workspaceEmpty: workspaceNotes.length === 0,
+    workspacePaper: workspaces.activePaper,
+    workspaceNeedsSubfolders: workspaces.showSubfolderHint,
+    workspacePrimary: workspaces.activeEntry.primary === true,
+    onExitWorkspace: () => workspaces.select(WORKSPACE_ALL_ID),
+    onShowSubfolders: toggleSubfolders,
   });
   const drawerNote = noteDrawer
     ? (view.notes.find((item) => item.path === noteDrawer.path) || noteDrawer.full || noteDrawer.summary || null)
@@ -297,6 +324,7 @@ function StickyNotesPanel(props) {
       drawerWidth: effectiveDrawerWidth,
       resizing: resizingDrawer,
       pinned: pinned,
+      paper: workspaces.activePaper,
       drawerActions: {
         emojis: emojis,
         pending: drawerPending,
@@ -337,6 +365,27 @@ function StickyNotesPanel(props) {
       onCancelEdit: cancelEditing,
     }
     : null;
+  const workspaceBar = currentSettings.vaultPath && currentSettings.notesDir
+    ? h(WorkspaceBar, {
+      t: t,
+      entries: workspaces.entries,
+      activeId: workspaces.activeId,
+      vaultPath: currentSettings.vaultPath,
+      notesDir: currentSettings.notesDir,
+      request: request,
+      history: currentSettings.folderHistory,
+      dragActive: Boolean(dragNote) && !dragSession?.parked,
+      dropId: dropAction === 'workspace' ? dropTargetId : null,
+      onSelect: workspaces.select,
+      onAdd: workspaces.add,
+      onRemove: workspaces.remove,
+      onSetColor: workspaces.setColor,
+      onReorder: workspaces.reorder,
+      onHoverWorkspace: (entry, anchor) => hoverDragAction('workspace', entry.id, anchor),
+      onClearWorkspaceHover: clearDropTarget,
+      onDropWorkspace: workspaceDrop,
+    })
+    : null;
   const confirmEmoji = commentConfirm
     ? emojis.find((item) => item && item.id === commentConfirm.emojiId) || null
     : null;
@@ -354,9 +403,9 @@ function StickyNotesPanel(props) {
   },
     renderPanelHeader({
       chooseDateFilter, chooseSort, dateEnabled, dateFilter, dateMenu, dateRangeLabel, dateRealtime,
-      dateWrapRef, dirLabel, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
+      dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
       settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled,
-      toggleDateRealtime, toggleSortMenu, toggleSubfolders, view,
+      toggleDateRealtime, toggleSortMenu, toggleSubfolders, view, workspaceBar: workspaceBar,
       onHeaderPointerDown: headerGesture.onHeaderPointerDown,
       onHeaderPointerMove: headerGesture.onHeaderPointerMove,
       onHeaderPointerUp: headerGesture.onHeaderPointerUp,
@@ -377,7 +426,7 @@ function StickyNotesPanel(props) {
           onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop,
           showBackTop,
           onBackTop: () => panelRef.current?.querySelector('.SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
-          onCreate: (payload) => request('createNote', payload),
+          onCreate: (payload) => request('createNote', Object.assign({}, payload, { targetDir: workspaces.captureTarget })),
           onCreated: (result) => {
             if (result && result.note) {
               const prev = viewRef.current;
@@ -400,6 +449,8 @@ function StickyNotesPanel(props) {
       : null,
     h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast }),
     dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
+      workspaceLabel: dropAction === 'workspace' ? workspaces.labelFor(dropTargetId) : '',
+      paper: workspaces.activePaper,
       archiveSettings: currentSettings, t }) : null,
     settingsOpen && settingsDraft
       ? h(SettingsDrawer, {

@@ -9,10 +9,12 @@ test('state 请求顺序：较新的响应先到时，迟到的旧响应不能�
   const reader = api.createStateReader({
     call(payload, signal) { const pending = deferred(); requests.push({ ...pending, payload, signal }); return pending.promise },
     getRevision: () => 'known',
+    getWorkspaces: () => ['工作', '进行时/日记'],
     onValue: (value) => applied.push(value),
   })
   const first = reader.read(false), second = reader.read(true)
   assert.equal(requests[0].signal.aborted, true)
+  assert.deepEqual(requests[0].payload.workspaces, ['工作', '进行时/日记'], 'state 请求携带已挂载工作空间根')
   assert.equal(requests[1].payload.knownRevision, null)
   requests[1].resolve({ revision: 'new' })
   await second

@@ -145,8 +145,27 @@ function CalendarIcon() {
   );
 }
 
-function ChevronIcon(props) {
-  const size = props && typeof props.size === 'number' && props.size > 0 ? props.size : 12;
+function PlusIcon() {
+  return h('svg', {
+    width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none',
+    'aria-hidden': 'true', focusable: 'false', style: { display: 'block' },
+  },
+    h('path', { d: 'M12 5.2v13.6M5.2 12h13.6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' }),
+  );
+}
+
+function MoreIcon() {
+  return h('svg', {
+    width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none',
+    'aria-hidden': 'true', focusable: 'false', style: { display: 'block' },
+  },
+    h('circle', { cx: 5.6, cy: 12, r: 1.5, fill: 'currentColor' }),
+    h('circle', { cx: 12, cy: 12, r: 1.5, fill: 'currentColor' }),
+    h('circle', { cx: 18.4, cy: 12, r: 1.5, fill: 'currentColor' }),
+  );
+}
+
+function ChevronIcon(props) {  const size = props && typeof props.size === 'number' && props.size > 0 ? props.size : 12;
   return h('svg', {
     width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
     'aria-hidden': 'true', focusable: 'false', className: 'SN_chevron',
@@ -166,9 +185,10 @@ function ActionIcon({ kind, size = 20 }) {
     project: 'M3 7V5h6l2 2h10v12H3zM12 10v6m-3-3h6',
     copy: 'M8 8h12v12H8zM16 8V4H4v12h4',
     up: 'M12 19V5m-6 6 6-6 6 6',
+    move: 'M12 3.6v9.8m-4.1-4 4.1 4.1 4.1-4.1M4.5 19.5h15',
   };
   return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
     h('path', { d: paths[kind], stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }));
 }
 
-export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SortIcon, ObsidianIcon, CalendarIcon, ChevronIcon, ActionIcon };
+export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SortIcon, ObsidianIcon, CalendarIcon, ChevronIcon, ActionIcon, PlusIcon, MoreIcon };

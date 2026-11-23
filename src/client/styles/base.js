@@ -1,4 +1,5 @@
 /** 界面样式片段：base；组合顺序由 styles/index.js 固定。 */
+import { WORKSPACE_POPOVER_WIDTH } from '../constants.js';
 import { SERIF, SANS, INK_TITLE, INK_BODY, INK_COMMENT, INK_MUTED } from './tokens.js';
 
 const baseStyles = `
@@ -15,17 +16,73 @@ const baseStyles = `
    由面板里的指针逻辑（拖动超过 3px 才 window.moveTo）接管；同一块顶栏
    （标题、目录、留白和按钮间隙）既能按住拖动窗口，也能单击收起抽屉。
    Windows / Web 仍走原来的 app-region 方案，按钮和菜单保持 no-drag。 */
-.SN_head{position:relative;flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;--sn-head-top-padding:14px;padding:var(--sn-head-top-padding) 20px 12px 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag;-webkit-user-select:none;user-select:none}
+.SN_head{position:relative;flex:none;display:flex;flex-direction:column;min-height:56px;--sn-head-top-padding:14px;padding:var(--sn-head-top-padding) 20px 0 22px;border-bottom:.5px solid var(--dsw-alias-border-l1);-webkit-app-region:drag;app-region:drag;-webkit-user-select:none;user-select:none}
 .SN_headActions,.SN_headActions *{-webkit-app-region:no-drag;app-region:no-drag}
 [data-platform='darwin'] .SN_head{--sn-head-top-padding:calc(var(--dsh-frame-top-clearance,0px) + 10px);-webkit-app-region:no-drag;app-region:no-drag}
-.SN_headMain{align-self:stretch;justify-content:center;min-width:0;flex:0 1 auto;display:flex;flex-direction:column;gap:2px}
+/* 0.18：第一行是标题/版本/计数与右侧图标，第二行是工作空间标签栏（取代旧路径行）。 */
+.SN_headTop{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;min-height:26px}
+.SN_headMain{justify-content:center;min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:2px}
 .SN_titleRow{display:flex;align-items:baseline;gap:10px;min-width:0;overflow:hidden}
 .SN_title{font-family:var(--sn-serif);font-size:18px;font-weight:600;letter-spacing:.02em;line-height:1.35;margin:0;color:var(--dsw-alias-label-primary);white-space:nowrap}
 .SN_count{font-size:11.5px;line-height:1.4;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
 /* 0.13 修正轮：byline 只在顶栏大标题之后（baseline 对齐、不换行、约 11px / opacity .45）。 */
 .SN_headByline{font-family:var(--sn-sans);font-size:11px;font-weight:400;line-height:1.2;letter-spacing:.01em;color:var(--dsw-alias-label-primary);opacity:.45;white-space:nowrap;user-select:none}
-.SN_headPath{font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.SN_headActions{flex:none;display:flex;align-items:center;gap:2px}
+.SN_headActions{flex:none;display:flex;align-items:center;align-self:center;gap:2px}
+
+/* ── 0.18 工作空间标签栏：仿浏览器标签的紧凑文字 + 选中下划线；窄面板横向滚动，溢出收进「…」 ── */
+.SN_wsBar{position:relative;display:flex;align-items:center;gap:8px;min-width:0;min-height:34px;margin-top:-2px}
+/* 标签/按钮/弹层保持可点击；标签栏空白处仍可拖动窗口（Windows 的 app-region）。 */
+.SN_wsBar button,.SN_wsBar input,.SN_wsBar textarea,.SN_wsBar [role='dialog'],.SN_wsBar [role='dialog'] *,.SN_wsBar [role='menu']{-webkit-app-region:no-drag;app-region:no-drag}
+.SN_wsTabs{position:relative;display:flex;align-items:flex-end;gap:1px;flex:0 1 auto;min-width:0;max-width:calc(100% - 72px);height:34px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 2px}
+.SN_wsTabs::-webkit-scrollbar{display:none}
+.SN_wsTab{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:32px;max-width:240px;padding:0 11px;border:0;border-radius:8px 8px 0 0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;font-weight:500;line-height:1;white-space:nowrap;cursor:pointer;transition:color .12s ease,background .12s ease,opacity .12s ease;touch-action:pan-x}
+.SN_wsTabLabel{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.SN_wsTab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05))}
+.SN_wsTab::after{content:'';position:absolute;left:11px;right:11px;bottom:0;height:2px;border-radius:2px 2px 0 0;background:transparent;transition:background .16s ease,left .16s ease,right .16s ease}
+.SN_wsTab[data-active='true']{color:var(--sn-accent)}
+.SN_wsTab[data-active='true'] .SN_wsTabLabel{font-weight:600}
+.SN_wsTab[data-active='true']::after{background:var(--sn-accent)}
+.SN_wsTab[data-active='true']:hover{background:transparent;color:var(--sn-accent)}
+.SN_wsTab[data-drop='true']{color:var(--sn-accent);background:rgba(139,92,246,.13);background:color-mix(in srgb,var(--sn-accent) 13%,transparent);border-radius:8px 8px 0 0;box-shadow:inset 0 0 0 1px rgba(139,92,246,.26);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 26%,transparent)}
+.SN_wsTab[data-drop='true']::after{left:6px;right:6px;background:var(--sn-accent)}
+.SN_wsTab[data-dragging='true']{z-index:5;color:var(--sn-accent);background:var(--dsw-alias-bg-layer-2,#fff);border-radius:8px;box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px rgba(139,92,246,.28);box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 28%,transparent);transform:translate3d(var(--sn-ws-drag-x,0),0,0);cursor:grabbing;opacity:.97}
+.SN_wsTab[data-dragging='true']::after{background:transparent}
+.SN_wsTabMove{display:inline-flex;align-items:center;flex:none;opacity:.55;color:currentColor}
+.SN_wsTab[data-drop='true'] .SN_wsTabMove{opacity:1}
+/* 拖卡片时：可接收的空间保留紫色下划线提示。 */
+.SN_panel[data-card-dragging='true'] .SN_wsTab::after{background:rgba(139,92,246,.3);background:color-mix(in srgb,var(--sn-accent) 30%,transparent)}
+.SN_wsCaret{position:absolute;top:6px;bottom:0;width:2px;margin-left:-1px;border-radius:2px;background:var(--sn-accent);box-shadow:0 0 0 3px rgba(139,92,246,.14);box-shadow:0 0 0 3px color-mix(in srgb,var(--sn-accent) 14%,transparent);pointer-events:none}
+.SN_wsTools{position:relative;flex:none;display:flex;align-items:center;gap:2px;padding-bottom:2px}
+.SN_wsTool{width:26px;height:26px;flex:none;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-tertiary);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:background .12s ease,color .12s ease}
+.SN_wsTool:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));color:var(--dsw-alias-label-primary)}
+.SN_wsTool[data-active='true']{color:var(--sn-accent);background:rgba(139,92,246,.10);background:color-mix(in srgb,var(--sn-accent) 10%,transparent)}
+.SN_wsPop{position:absolute;top:calc(100% + 8px);z-index:48;-webkit-user-select:text;user-select:text;width:min(${WORKSPACE_POPOVER_WIDTH}px,calc(100% - 8px));max-height:min(560px,calc(100vh - 140px));overflow:auto;padding:12px;border-radius:12px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 18px 44px rgba(30,20,10,.18);animation:SN_toastIn .16s ease}
+.SN_wsPopHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.SN_wsPopTitle{font-size:12.5px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
+.SN_wsPopClose{width:24px;height:24px;flex:none;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.SN_wsPopClose:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));color:var(--dsw-alias-label-primary)}
+.SN_wsPopHint{margin:9px 2px 0;font-size:11px;line-height:1.55;color:var(--dsw-alias-label-tertiary)}
+.SN_wsPop .SN_folderMenu{position:static;max-height:min(44vh,300px)!important;margin-top:6px;box-shadow:none;background:var(--dsw-alias-bg-layer-1,#fff)}
+.SN_wsMenu{position:fixed;z-index:60;min-width:196px;max-width:280px;padding:6px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 14px 36px rgba(0,0,0,.2);animation:SN_toastIn .13s ease}
+.SN_wsMenuHead{display:flex;flex-direction:column;gap:2px;padding:6px 8px 7px;margin-bottom:4px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+.SN_wsMenuTitle{font-size:12px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.SN_wsMenuPath{font-size:10.5px;line-height:1.4;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.SN_wsMenuItem{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:7px;background:transparent;padding:7px 8px;font:inherit;font-size:12px;line-height:1.45;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.SN_wsMenuItem:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05))}
+.SN_wsMenuItem svg{flex:none}
+.SN_wsColors{display:flex;align-items:center;gap:7px;padding:7px 8px 8px}
+.SN_wsSwatch{width:14px;height:14px;flex:none;border:0;border-radius:50%;padding:0;background:var(--sn-ws-dot,#ccc);cursor:pointer;box-shadow:inset 0 0 0 .5px rgba(60,45,30,.18);transition:transform .12s ease,box-shadow .12s ease}
+.SN_wsSwatch:hover{transform:scale(1.14)}
+.SN_wsSwatch[data-active='true']{box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-2,#fff),0 0 0 3.5px var(--dsw-alias-label-primary,#1f1f1f)}
+.SN_wsSwatch:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:3px}
+.SN_wsMenuDivider{height:1px;margin:0 2px 4px;background:var(--dsw-alias-border-l1)}
+.SN_wsMenuDelete{color:var(--dsw-alias-state-error-primary,#c23b43)}
+.SN_wsMenuDelete:hover{background:rgba(194,59,67,.09);background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#c23b43) 9%,transparent)}
+.SN_wsMenuCheck{flex:none;width:13px;font-size:11px;color:var(--sn-accent)}
+.SN_wsMenuLabel{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.SN_wsMenuPathShort{margin-left:auto;max-width:120px;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;color:var(--dsw-alias-label-tertiary)}
+.SN_wsMoreMenu{position:absolute;top:calc(100% + 8px);right:0;max-height:min(58vh,360px);overflow-y:auto;scrollbar-width:thin}
+.SN_wsMoreMenu .SN_wsMenuItem[data-active='true']{font-weight:600;color:var(--sn-accent)}
 .SN_iconBtn{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:background .12s ease,color .12s ease}
 .SN_iconBtn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));color:var(--dsw-alias-label-primary)}
 .SN_iconBtn:disabled{opacity:.5;cursor:default}

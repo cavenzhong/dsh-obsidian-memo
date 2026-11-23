@@ -108,7 +108,9 @@ function NoteDrawer(props) {
     : null;
 
   // 评论区固定底部：标题行可折叠；顶边可上下拖动调整高度（双击恢复默认）；编辑态隐藏。
-  const collapsed = Boolean(commentsLayout && commentsLayout.commentsCollapsed);
+  // 暂无评论时强制折叠；有评论后才恢复用户保存的折叠/拉高状态。
+  const hasComments = comments.length > 0;
+  const collapsed = !hasComments || Boolean(commentsLayout && commentsLayout.commentsCollapsed);
   const resizingComments = Boolean(commentsLayout && commentsLayout.resizingComments);
   const commentsHeight = commentsLayout && typeof commentsLayout.commentsHeight === 'number'
     && Number.isFinite(commentsLayout.commentsHeight) ? commentsLayout.commentsHeight : null;
@@ -119,11 +121,13 @@ function NoteDrawer(props) {
   const commentsToggle = h('button', {
     type: 'button',
     className: 'SN_commentToggle',
+    disabled: !hasComments,
     'aria-expanded': collapsed ? 'false' : 'true',
     'aria-controls': 'SN_noteDrawerCommentsBody',
-    title: collapsed ? t('drawer.commentsExpand') : t('drawer.commentsCollapse'),
+    title: !hasComments ? t('drawer.noComments') : collapsed ? t('drawer.commentsExpand') : t('drawer.commentsCollapse'),
     onClick: (event) => {
       event.stopPropagation();
+      if (!hasComments) return;
       if (commentsLayout && typeof commentsLayout.onToggle === 'function') commentsLayout.onToggle();
     },
   },
@@ -261,7 +265,11 @@ function NoteDrawer(props) {
     'data-window-drag-exclude': '',
     role: 'dialog',
     'aria-label': t('drawer.aria'),
-    style: { ...drawerStyle, '--sn-card-bg': source.color || DEFAULT_NOTE_COLOR, '--sn-card-bg-dark': source.darkColor || source.color || DEFAULT_NOTE_COLOR },
+    style: {
+      ...drawerStyle,
+      '--sn-card-bg': (props.paper && props.paper.light) || source.color || DEFAULT_NOTE_COLOR,
+      '--sn-card-bg-dark': (props.paper && props.paper.dark) || source.darkColor || source.color || DEFAULT_NOTE_COLOR,
+    },
   },
     h('div', {
       className: 'SN_noteDrawerHandle',

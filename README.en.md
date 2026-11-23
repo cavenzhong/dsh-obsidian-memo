@@ -29,8 +29,8 @@
 
 You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.17.3** or later on the Plugins page.
-2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **Notes folder**.
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.0** or later on the Plugins page.
+2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
 3. Type a thought and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
 You can also ask an agent to install it:
@@ -55,6 +55,17 @@ In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ 
 Notes are color-coded by subfolder, and you can filter them by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Drag a note to archive it, or select **Open in Obsidian** to keep writing there.
 
 ![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/reader.png)
+
+### Workspaces: a view per folder
+
+The second header row holds workspace tabs. **Main space** is the **default workspace** from Settings; **+** mounts any visible folder in the vault as a tab, and selecting it shows only the notes inside that folder and its subfolders. Mounted folders are scanned; unmounted folders stay off the wall.
+
+- **Scope**: Main space is the default workspace; custom tabs can be any visible vault folder, even outside the default workspace or above it.
+- **Add / remove**: the plus reuses the settings folder picker (search, recent, new folder, system picker). Right-click a tab to remove it; the folder itself is untouched and the removal can be undone for a few seconds.
+- **Reorder**: **Main space** always comes first; long-press another tab for about 0.4s to drag it into place. A short press still switches tabs.
+- **Color**: right-click a custom tab to pick one of eight paper colors (random by default); every card in that workspace uses it, while Main space keeps the folder-based palette.
+- **Move notes**: drag a card onto any tab to move that note into the folder (duplicates get a suffix). Tabs outside the default workspace accept notes too, and the move can be undone from the toast.
+- **Capture**: writing a note while a workspace is selected puts the new note in that folder.
 
 ## AI comments: Four perspectives
 
@@ -91,7 +102,7 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 
 ## FAQ
 
-**Missing the sidebar entry, or seeing an empty wall?** Make sure the plugin is enabled and restart DSH if it asks you to — the desktop app usually needs one restart before the sidebar entry appears. If the wall is empty, check for `.md` files in your notes folder, turn off the date filter, or enable subfolders if that’s where your notes are.
+**Missing the sidebar entry, or seeing an empty wall?** Make sure the plugin is enabled and restart DSH if it asks you to — the desktop app usually needs one restart before the sidebar entry appears. If the wall is empty, check for `.md` files in the default workspace, turn off the date filter, or enable subfolders if that’s where your notes are. To show another vault folder, click **+** and mount it as a workspace.
 
 **Do I need a separate AI key? What if generation fails?** No. Comments use the Harness default model. Projects can use a different one under **Settings → AI → Project AI**. If generation fails, check your model setup and use the panel message to decide whether to retry or adjust the output budget.
 
@@ -102,6 +113,8 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 **Are my notes uploaded?** Notes and images stay in the local vault. The plugin has no telemetry. Only when you use AI comments or project features are the relevant note and any needed project content sent to your configured model provider.
 
 **What if I delete a note by accident?** It goes to the vault’s `.trash`, not straight to permanent deletion. Undo from the notification while it’s visible, or recover the note from the vault’s trash later.
+
+**Do workspaces sync across devices?** No. Tabs are a local view preference for this Harness profile (keyed by vault path); they are not written to the vault or the settings JSON. Re-add them on another device or after clearing app data; your notes are unaffected.
 
 ---
 

@@ -1,4 +1,4 @@
-/** 顶栏的纯渲染函数：版本、计数、日期、子目录、排序和设置入口。 */
+/** 顶栏的纯渲染函数：标题/版本/计数与操作一行，工作空间标签栏在下方。 */
 import { CalendarIcon, FolderTreeIcon, GearIcon, SortIcon } from '../components/icons.js';
 import { DATE_FILTERS, SORT_OPTIONS } from '../constants.js';
 import { h } from '../react.js';
@@ -6,9 +6,9 @@ import { formatVersionLabel } from '../utils.js';
 
 function renderPanelHeader({
   chooseDateFilter, chooseSort, dateEnabled, dateFilter, dateMenu, dateRangeLabel, dateRealtime,
-  dateWrapRef, dirLabel, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
+  dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, setDateMenu,
   settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled, toggleDateRealtime,
-  toggleSortMenu, toggleSubfolders, view, onHeaderPointerDown, onHeaderPointerMove,
+  toggleSortMenu, toggleSubfolders, view, workspaceBar, onHeaderPointerDown, onHeaderPointerMove,
   onHeaderPointerUp, onHeaderPointerCancel, onHeaderClick,
 }) {
     return h('header', {
@@ -20,16 +20,16 @@ function renderPanelHeader({
       onLostPointerCapture: onHeaderPointerCancel,
       onClick: onHeaderClick,
     },
-      h('div', { className: 'SN_headMain' },
-        h('div', { className: 'SN_titleRow' },
-          h('h1', { className: 'SN_title' }, t('panel.title')),
-          // 0.13：byline 只在顶栏大标题之后（h1 之后、计数之前）；版本号自动取插件实际版本。
-          h('span', { className: 'SN_headByline' }, formatVersionLabel(view.version) ? 'v' + formatVersionLabel(view.version) : ''),
-          view.loaded ? h('span', { className: 'SN_count' }, t('panel.count', { count: filteredNotes.length })) : null,
+      h('div', { className: 'SN_headTop' },
+        h('div', { className: 'SN_headMain' },
+          h('div', { className: 'SN_titleRow' },
+            h('h1', { className: 'SN_title' }, t('panel.title')),
+            // 0.13：byline 只在顶栏大标题之后（h1 之后、计数之前）；版本号自动取插件实际版本。
+            h('span', { className: 'SN_headByline' }, formatVersionLabel(view.version) ? 'v' + formatVersionLabel(view.version) : ''),
+            view.loaded ? h('span', { className: 'SN_count' }, t('panel.count', { count: filteredNotes.length })) : null,
+          ),
         ),
-        dirLabel ? h('div', { className: 'SN_headPath', title: dirLabel }, dirLabel) : null,
-      ),
-      h('div', { className: 'SN_headActions' },
+        h('div', { className: 'SN_headActions' },
         // 0.14 日期筛选（顶栏第一个）：点击切换，悬停或方向键打开档位菜单。
         h('div', { className: 'SN_sortWrap SN_dateGroup', ref: dateWrapRef,
           onMouseEnter: openDateMenu,
@@ -148,7 +148,9 @@ function renderPanelHeader({
           'aria-label': t('panel.settings'),
           title: t('panel.settings'),
         }, h(GearIcon, null)),
+        ),
       ),
+      workspaceBar,
     );
   }
 

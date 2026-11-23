@@ -47,6 +47,52 @@ test('scan：未配置 vaultPath / notesDir 时 configured:false 且无 error', 
   assert.equal(noVault.error, null)
 })
 
+test('scan 0.18：补扫挂载的工作空间根，tag 相对各自的根，非法根忽略', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, '进行时')
+  await writeNote(join(notesDir, '主.md'), '# 主\n')
+  await writeNote(join(vault, '工作', '项目A', '外部.md'), '# 外部\n')
+  const settings = { vaultPath: vault, notesDir, includeSubfolders: true, archiveMode: 'local', archiveFolderName: '归档' }
+  const scanner = new NotesScanner()
+
+  const base = await scanner.scan(settings)
+  assert.deepEqual(base.notes.map((note) => note.relPath), ['进行时/主.md'])
+
+  const scoped = await scanner.scan(settings, ['工作'])
+  assert.deepEqual(scoped.notes.map((note) => note.relPath).sort(), ['进行时/主.md', '工作/项目A/外部.md'].sort())
+  const outside = scoped.notes.find((note) => note.relPath === '工作/项目A/外部.md')
+  assert.equal(outside.tag, '项目A', 'tag 相对工作空间根')
+  assert.equal(outside.name, '外部')
+  assert.notEqual(scoped.revision, base.revision)
+
+  const invalid = await scanner.scan(settings, ['../外面', '.隐藏', '/绝对', '不存在', '.'])
+  assert.deepEqual(invalid.notes.map((note) => note.relPath), ['进行时/主.md'], '越界/隐藏/绝对/缺失/仓库根都不作为扫描根')
+})
+
+test('scan 0.18：mapped 归档根即使被挂载也不会重新出现在活动便签墙', async (t) => {
+  const root = await makeRoot(t)
+  const vault = join(root, 'vault')
+  const notesDir = join(vault, '进行时')
+  const archiveDir = join(vault, '历史便签')
+  await writeNote(join(notesDir, '主.md'), '# 主\n')
+  await writeNote(join(vault, '工作', '项目A', '外部.md'), '# 外部\n')
+  await writeNote(join(archiveDir, '工作', '项目A', '外部.md'), '# 已归档\n')
+  const settings = {
+    vaultPath: vault,
+    notesDir,
+    includeSubfolders: true,
+    archiveMode: 'mapped',
+    archiveFolderName: '归档',
+    archiveDir,
+  }
+  const scanner = new NotesScanner()
+
+  const scoped = await scanner.scan(settings, ['工作', '历史便签'])
+  assert.deepEqual(scoped.notes.map((note) => note.relPath).sort(), ['进行时/主.md', '工作/项目A/外部.md'].sort(),
+    '归档根及 archiveDir 子树都不进入活动列表')
+})
+
 test('scan：notesDir 不存在时 configured:false + error', async (t) => {
   const root = await makeRoot(t)
   const vault = join(root, 'vault')
@@ -57,7 +103,7 @@ test('scan：notesDir 不存在时 configured:false + error', async (t) => {
   assert.equal(result.configured, false)
   assert.equal(result.revision, 'unconfigured')
   assert.deepEqual(result.notes, [])
-  assert.match(result.error, /读不到便签目录/)
+  assert.match(result.error, /读不到默认工作空间/)
   assert.match(result.error, /ENOENT/)
 })
 
