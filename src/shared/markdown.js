@@ -9,6 +9,10 @@
 // 锚点后面的文字（下一行）保留；同时不会误删行内代码 / 行中上标里的 `^`。
 const BLOCK_ID = /(?:^|[ \t])\^[A-Za-z0-9][A-Za-z0-9_-]*(?:[ \t]+\^[A-Za-z0-9][A-Za-z0-9_-]*)*[ \t]*$/
 
+/** Obsidian callout 标题与 Markdown 引用行语法；Host 解析和附件清理共用。 */
+export const CALLOUT_HEAD = /^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s*(.*)$/
+export const QUOTE_LINE = /^\s*>\s?(.*)$/
+
 /** NUL/C0 控制符、零宽与双向控制符；标题清洗与文件名清洗各自按需使用。 */
 export const INVISIBLE_CHARS = /[\x00-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g
 

@@ -22,16 +22,16 @@ function getWorkspaceSource() {
 
 /**
  * 读取 DSH 工作区列表；默认工作区排在第一。
- * @returns {{ items: object[], defaultId: string, primaryId: string, phase: string, ready: boolean }}
+ * @returns {{ items: object[], defaultId: string, primaryId: string, phase: string }}
  */
 function readWorkspaces() {
   const source = getWorkspaceSource();
-  if (!source) return { items: [], defaultId: '', primaryId: '', phase: 'pending', ready: false };
+  if (!source) return { items: [], defaultId: '', primaryId: '', phase: 'pending' };
   let snapshot;
   try {
     snapshot = source.getSnapshot();
   } catch {
-    return { items: [], defaultId: '', primaryId: '', phase: 'error', ready: false };
+    return { items: [], defaultId: '', primaryId: '', phase: 'error' };
   }
   const raw = snapshot && Array.isArray(snapshot.items) ? snapshot.items : [];
   const defaultId = defaultWorkspaceIdOf(raw);
@@ -41,7 +41,6 @@ function readWorkspaces() {
     defaultId,
     primaryId: defaultId || (items[0] && items[0].workspaceId) || '',
     phase: snapshot && typeof snapshot.phase === 'string' ? snapshot.phase : 'ready',
-    ready: !snapshot || snapshot.phase !== 'pending',
   };
 }
 
@@ -95,7 +94,12 @@ async function openWorkspaceWithAttachment(workspaceId, prompt, file) {
     const input = conversation.input.for(binding.ctx);
     const previous = input.state.getSnapshot().attachmentIds || [];
     for (const id of previous) {
-      if (!input.removeAttachment(id)) throw new Error('无法清空新对话的旧附件');
+      // DSH 0.2.2 的公开 input.removeAttachment 返回 void；以快照确认移除，
+      // 不可把返回值当成功标志，否则复用含旧附件的空白会话时总会误报失败。
+      input.removeAttachment(id);
+      if ((input.state.getSnapshot().attachmentIds || []).includes(id)) {
+        throw new Error('无法清空新对话的旧附件');
+      }
       if (typeof conversation.releaseDraftAttachment === 'function') conversation.releaseDraftAttachment(id);
     }
     const drafts = conversation.createDrafts(sessionId, [file], false);

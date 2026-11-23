@@ -1,6 +1,6 @@
 /** 发送到 DeepSeek：共享菜单状态、工作区列表、直发设置与新对话草稿。 */
 import {
-  buildSendMessage, normalizeSendSettings, resolveSendTarget, sendFormatOf,
+  buildSendMessage, normalizeSendSettings, resolveSendTarget, sendFormatOf, stripCommentCallouts,
 } from '../../shared/send.js';
 import { deriveTitle, normalizeTitleMode, stripTitleLine } from '../reader/title-line.js';
 import { React } from '../react.js';
@@ -90,7 +90,7 @@ function useDeepSeekSend(options) {
         if (!raw || typeof raw.text !== 'string') throw new Error(tRef.current('send.attachmentUnavailable'));
         if (typeof File !== 'function') throw new Error(tRef.current('send.attachmentUnavailable'));
         const name = typeof raw.name === 'string' && raw.name !== '' ? raw.name : `${full.title || full.name || 'note'}.md`;
-        const file = new File([raw.text], name, { type: 'text/markdown' });
+        const file = new File([stripCommentCallouts(raw.text, titleModeRef.current)], name, { type: 'text/markdown' });
         if (!await openWorkspaceWithAttachment(workspace.workspaceId, prompt, file)) {
           throw new Error(tRef.current('send.attachmentUnavailable'));
         }

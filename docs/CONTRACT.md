@@ -32,7 +32,7 @@ Obsidian 的「进行时」文件夹 → DSH 左侧栏一个便签图标 → 中
 - **入口**：阅读抽屉操作条第 5 个图标（复制之后）、卡片悬停菜单（DeepSeek 在复制左侧）、底部拖拽操作栏「到DeepSeek」格（到项目右侧）。所有便签入口共用同一个 `SendMenu`，不各自实现。便签卡片没有右键菜单。
 - **拖拽蒙版**：拖到操作浮岛时，到项目使用紫色蒙版与紫色激活格；到DeepSeek 使用原项目的蓝色蒙版（`#5477bb`），操作格文字为「到DeepSeek」。
 - **菜单**：先选发送形式（原文 + 标题 / MD 附件），再选工作区。工作区来自 `ctx.workspaces.list` 快照：默认工作区固定第一，其余是用户已注册的工作区。原文模式调用 `ctx.uiWorkspace.startSession(workspaceId, { prompt, whenDraftExists: 'replace' })`；附件模式调用 `ctx.uiWorkspace.openWorkspace(workspaceId, beforeOpen)`，在 `beforeOpen(sessionId)` 里用 `ctx.sessions.binding`、`ctx.conversation.input.requestDraftInitialization`、`ctx.conversation.createDrafts` 和 `input.addAttachments` 把 `.md` 文件放进新对话草稿。两种方式都只打开草稿，页面同时跳转，按 Enter 才真正发送。没有工作区快照时给「当前工作区」回退项；附件模式必须有一个真实工作区。
-- **两种形式**：`text` 把标题作为第一段、空一行后接正文（正文模式去掉重复标题行），不带 `.md` 文件名；`document` 先通过新增的 `noteFile` RPC 读取原始 `.md` 文本，再用浏览器 `File` 上传为草稿附件，消息文字只带标题。两种形式都不附现有 AI 评论，也不修改便签。
+- **两种形式**：`text` 把标题作为第一段、空一行后接正文（正文模式去掉重复标题行），不带 `.md` 文件名；`document` 先通过新增的 `noteFile` RPC 读取原始 `.md` 文本，在 Client 仅对上传副本移除便签解析器识别的评论 callout（保留 frontmatter、标题、代码围栏和其它正文），再用浏览器 `File` 上传为草稿附件，消息文字只带标题。两种形式都不附现有 AI 评论，也不修改便签。
 - **设置**：`Settings.deepseekSend` 存 config.json，默认 `skipMenu:false`（每次弹出共享菜单）。勾选「不弹出选择菜单」后，按保存的 `workspaceId`（缺失时按 `workspacePath`）和 `format` 直发；目标工作区找不到时回退默认工作区，仍找不到则回退当前工作区。旧配置没有该字段时由 Host 补齐默认值，Client 打开设置时也补齐草稿。
 - **降级**：`workspaces` / `uiWorkspace` / `sessions` / `conversation` 客户端服务缺失（旧 DSH）时入口仍显示，点击只给可读错误 toast；工作区服务晚于面板挂载就绪时，面板自动补订阅，不需要刷新。附件模式还要求 `conversation.createDrafts` 可用。
 
@@ -253,7 +253,7 @@ Host 保留运行中或待验收的任务，以及最近 2 分钟内结束的其
 |---|---|---|---|
 | `state` | `{ knownRevision?: string \| null, workspaces?: string[] }` | 见下 | 主轮询入口；`workspaces` 是已挂载工作空间的仓库相对路径（Host 只接受仓库内可见目录，非法项忽略） |
 | `note` | `{ path: string }` | `NoteFull` | 打开右侧抽屉只读视图 / 编辑前取全文 |
-| `noteFile` | `{ path: string }` | `{ path, name, text }` | **0.18.6**：读取原始 `.md` 文件供附件模式上传；只读，不解析、不改写 |
+| `noteFile` | `{ path: string }` | `{ path, name, text }` | **0.18.6**：读取原始 `.md` 文件供附件模式上传；只读，不解析、不改写；0.18.7 起 Client 仅在上传副本中移除评论 callout |
 | `createNote` | `{ title: string, body: string, images?: { dataUrl: string }[], targetDir?: string, folder?: string }` | `{ note: NoteSummary \| null, path: string }` | 0.14：在 notesDir 顶层新建，独占发布拒绝覆盖；0.16.8：正文模式把 `title` 写成正文首行/一级标题，文件名由设置里的模板生成并自动避让重名；0.18：优先用绝对 `targetDir`（仓库内可见、已存在目录）落进当前工作空间；旧 `folder` 相对默认工作空间兼容；越界/隐藏拒绝，缺省仍在默认工作空间；图片由 Client 按设置处理后上传 |
 | `saveNote` | `{ path: string, body: string, name?: string, expectedRevision: string }` | `{ note: NoteSummary }` | 同时保存正文与文件名；0.16.8：正文模式省略 `name`，只写正文、不重命名；拒绝同名覆盖；缺少或不匹配编辑版本返回 conflict |
 | `toggleTask` | `{ path: string, sourceLine: number, checked: boolean, expectedBody: string }` | `{ note: NoteSummary }` | 只修改任务标记；内容已变化返回 conflict；不允许修改代码块 |
@@ -413,7 +413,7 @@ function apply(ctx) {
 - 整面板：纵向 flex，`height: 100%`，`min-height: 0`；便签墙占满剩余高度，0.14 起底部浮岛 `CaptureComposer` 绝对定位在墙下方（不占 flex 高度），由 `.SN_wallWrap[data-capture='true']` 给墙/空态补底部 padding，`--sn-capture-height` 由 `ResizeObserver` 按实际高度更新。
 - 顶栏（0.18 起约 78px、两行；0.18.6 展开侧栏时顶部净空收窄约一半）：
   - **侧栏折叠自适应（0.18.6）**：侧栏展开（`data-sidebar-wide='true'`）时，macOS 顶栏内边距从 `48px + 10px` 收窄为约 `34px`；折叠或状态未知时保留原距离。Windows/Web 同理做小幅收窄，避免标题与操作按钮上方出现多余留白。
-- 顶栏第一行：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.18.6`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；同一行右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。**第二行**是工作空间标签栏，取代 0.17 及以前的当前目录路径行（见 §7.9）。
+- 顶栏第一行：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.18.7`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；同一行右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。**第二行**是工作空间标签栏，取代 0.17 及以前的当前目录路径行（见 §7.9）。
 - **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
@@ -514,7 +514,7 @@ function apply(ctx) {
 - 所有入口共用一个 `SendMenu`：header 是 DeepSeek 蓝鲸 mark（使用与 UI 文字一致的灰色，不带品牌蓝）+ 当前发送标题 + 关闭按钮；便签入口下面是「发送形式」两枚单选卡（原文 + 标题 / MD 附件），选中文字入口只显示选区预览和工作区列表，不显示附件形式；再下面是工作区列表（默认工作区第一并带「默认」徽标，其后是 `ctx.workspaces` 的其它工作区；没有列表时给「当前工作区」回退项）；底部淡字说明「将打开新对话，内容会填入输入框，按 Enter 发送」。
 - 打开时以入口按钮为锚点：空间不足时翻到锚点上方，左右夹在视口内；窗口缩放重新定位。点外部或 Esc 关闭；发送中禁用所有行并显示「正在打开新对话…」。选择工作区才触发发送，选择形式不会关闭菜单。
 - 选中插件内文字后右键，会用自定义菜单取代原生右键菜单，提供「复制选中的文字」和「发送到 DeepSeek」；选中的文字交给共享 `SendMenu`，只显示工作区选择，不显示 MD 附件形式。菜单只在选区位于插件面板内且右键目标与选区相交时出现；无选区时保留原生菜单。
-- 选择「MD 附件」后，Client 通过 `noteFile` 读取原始 `.md`，在 `openWorkspace` 的 `beforeOpen` 里用 `conversation.createDrafts` 上传为草稿附件；消息文字只保留标题，读取或上传失败时给错误 toast，不静默降级为原文。
+- 选择「MD 附件」后，Client 通过 `noteFile` 读取原始 `.md`，只在上传副本中移除评论 callout（frontmatter 与其它正文保留），再在 `openWorkspace` 的 `beforeOpen` 里用 `conversation.createDrafts` 上传为草稿附件；消息文字只保留标题，读取或上传失败时给错误 toast，不静默降级为原文。
 
 ### 7.4 设置抽屉
 

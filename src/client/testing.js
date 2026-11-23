@@ -25,7 +25,7 @@ import { cardDragLayout, createCardDragMotion } from './drag/motion.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { en, zh } from './i18n/index.js';
 import {
-  DEFAULT_SEND_SETTINGS, SEND_FORMATS, buildSendMessage, defaultWorkspaceIdOf,
+  DEFAULT_SEND_SETTINGS, SEND_FORMATS, buildSendMessage, defaultWorkspaceIdOf, stripCommentCallouts,
   isDefaultWorkspace, normalizeSendSettings, resolveSendTarget, sortWorkspaces, workspaceDisplayName,
 } from '../shared/send.js';
 import { clearImageCache, imageCacheBytes, imageCacheKey, imageCacheSize, readImageCache, writeImageCache } from './images/cache.js';
@@ -193,6 +193,7 @@ const __test = {
   SEND_FORMATS: SEND_FORMATS,
   normalizeSendSettings: normalizeSendSettings,
   buildSendMessage: buildSendMessage,
+  stripCommentCallouts: stripCommentCallouts,
   isDefaultWorkspace: isDefaultWorkspace,
   workspaceDisplayName: workspaceDisplayName,
   sortWorkspaces: sortWorkspaces,

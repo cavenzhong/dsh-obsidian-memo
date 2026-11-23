@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.18.6）
+# 代码结构与修改入口（0.18.7）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
@@ -61,7 +61,7 @@ Harness Web  → lib/client.js（生成）
 | 拖拽浮层、动作栏、动画与会话（含拖到工作空间标签迁移） | `src/client/drag/` | drag-motion、drag-sessions、workspaces |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
 | 评论确认、到项目、任务通知 | `src/client/ai/` | ai、notifications |
-| 发送到 DeepSeek：DSH 工作区读取、共享发送菜单、右键菜单、直发设置、标题/文档内容 | `src/client/deepseek/`（`api.js`、`use-deepseek-send.js`、`send-menu.js`、`note-context-menu.js`）；共享规则在 `src/shared/send.js` | send、settings-ui、registration |
+| 发送到 DeepSeek：DSH 工作区读取、共享发送菜单、选中文字右键菜单、直发设置、标题/文档内容 | `src/client/deepseek/`（`api.js`、`use-deepseek-send.js`、`send-menu.js`、`selection-menu.js`）；面板选区接线在 `src/client/panel/use-selection-menu.js`；共享规则在 `src/shared/send.js` | send、settings-ui、registration |
 | 宿主侧栏折叠上报与顶栏留白 | `src/client/sidebar-state.js`、`src/client/styles/base.js` | registration、styles |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/`（含 `deepseek-send.js`） | settings-ui、settings-draft、settings-config |
 | 便签标题三卡、正文模式文件名模板与预览 | `src/client/settings/note-title.js`、`note-title-pattern.js` | settings-ui、note-title-pattern、filename |
@@ -77,7 +77,7 @@ Harness Web  → lib/client.js（生成）
 
 ## 基础能力
 
-`src/shared/markdown.js` 管换行/block id/行内 Markdown 清洗；`send.js` 管发送设置、两种发送形式、MD 附件消息与 DSH 工作区选择；`title.js` 管三种标题模式与标题行草稿；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`note-rules.js` 管两端共用的标题与文件名限额；`note-colors.js` 是 Host 的 tag 纸色与 Client 工作空间纸色共用的色板。`lib/` 中的对应入口导出共享实现。
+`src/shared/markdown.js` 管 callout/引用行识别、围栏、换行/block id/行内 Markdown 清洗；`send.js` 管发送设置、两种发送形式、MD 附件消息/评论 callout 清理与 DSH 工作区选择；`title.js` 管三种标题模式与标题行草稿；`datetime.js` 管模板日期 token；`filename.js` 管文件名规则与正文模式的文件名模板；`note-rules.js` 管两端共用的标题与文件名限额；`note-colors.js` 是 Host 的 tag 纸色与 Client 工作空间纸色共用的色板。`lib/` 中的对应入口导出共享实现。
 
 `lib/files.js` 管路径、内容版本和原子/独占文件操作；`notes.js` 管 Markdown 展示解析与用户操作后的写回；`comments.js` 管评论汇总与删除纯函数；`scan.js` 管摘要和全文缓存（缓存 key 含标题模式）；`capture.js` 管新建笔记、标题行、模板和附件；`settings.js` 管配置格式与持久化；`ai.js` 管模型请求/输出；`trash.js` 管回收组；`obsidian.js`、`config-picker.js` 管系统交互。业务服务调用这些能力，基础模块不依赖 Host 或浏览器组合层。显示模式变化只派生视图，不调用文件写入。
 

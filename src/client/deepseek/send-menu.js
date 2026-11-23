@@ -112,7 +112,7 @@ function SendMenu(props) {
     ref: menuRef,
     className: 'SN_sendMenu',
     role: 'dialog',
-    'aria-label': t('send.title'),
+    'aria-label': heading,
     'data-sending': sending ? 'true' : undefined,
     style: style,
   },

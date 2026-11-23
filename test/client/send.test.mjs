@@ -120,6 +120,7 @@ test('DeepSeekSendSettings：勾选直发后工作区与形式可选；未勾选
 function mountPanel(t, settings, extra = {}) {
   const runner = hookRunner(t)
   const sessionCalls = [], openCalls = [], draftCalls = [], initCalls = [], attachmentIds = []
+  attachmentIds.push(...(extra.initialAttachmentIds || []))
   const note = {
     path: '/Users/me/notes/一条 带空格 的便签.md',
     name: '一条 带空格 的便签',
@@ -135,7 +136,8 @@ function mountPanel(t, settings, extra = {}) {
       requestDraftInitialization: (binding, options) => { initCalls.push({ binding, options }); return 'applied' },
       for: () => ({
         state: { getSnapshot: () => ({ attachmentIds: [...attachmentIds] }) },
-        removeAttachment: (id) => { const index = attachmentIds.indexOf(id); if (index >= 0) attachmentIds.splice(index, 1); return index >= 0 },
+        // DSH 的公开适配器 removeAttachment 返回 void；状态通过 snapshot 更新。
+        removeAttachment: (id) => { const index = attachmentIds.indexOf(id); if (index >= 0) attachmentIds.splice(index, 1) },
         addAttachments: (ids) => { attachmentIds.push(...ids); return true },
       }),
     },
@@ -192,10 +194,13 @@ test('面板：设置里勾选直发后，点击卡片直接发送到指定工�
   assert.deepEqual(sessionCalls[0][1], { prompt: '第一行标题\n\n正文第一段', whenDraftExists: 'replace' })
 })
 
-test('面板：MD 附件模式把原始 .md 上传为草稿附件，消息文字用标题', async (t) => {
+test('面板：MD 附件上传前移除评论 callout，保留 frontmatter、代码示例与普通引用', async (t) => {
   const { render, note, sessionCalls, openCalls, draftCalls, initCalls, attachmentIds, api } = mountPanel(t, {
     deepseekSend: { skipMenu: true, workspaceId: 'ws-other', format: 'document' },
-  }, { noteFile: { name: '一条便签.md', text: '原始 Markdown 内容' } })
+  }, { noteFile: {
+    name: '一条便签.md',
+    text: '\uFEFF---\r\ntitle: sample\r\n---\r\n# 第一行标题\r\n\r\n正文内容\r\n\r\n> [!note] 🧭 落地\r\n> 私有评论\r\n\r\n~~~md\r\n> [!warning] 代码示例\r\n~~~\r\n\r\n> 普通引用',
+  }, initialAttachmentIds: ['stale-draft'] })
   await flush()
   const nodes = render()
   nodes.find((node) => node.type === api.components.NoteCard).props.actions.current.onDeepSeek(note, {})
@@ -210,11 +215,17 @@ test('面板：MD 附件模式把原始 .md 上传为草稿附件，消息文字
   assert.equal(draftCalls[0].files.length, 1)
   assert.equal(draftCalls[0].files[0].name, '一条便签.md')
   assert.equal(draftCalls[0].files[0].type, 'text/markdown')
-  assert.equal(await draftCalls[0].files[0].text(), '原始 Markdown 内容')
+  assert.equal(await draftCalls[0].files[0].text(), '---\r\ntitle: sample\r\n---\r\n# 第一行标题\r\n\r\n正文内容\r\n\r\n~~~md\r\n> [!warning] 代码示例\r\n~~~\r\n\r\n> 普通引用')
   assert.deepEqual(attachmentIds, ['draft-1'])
   assert.equal(render().some((node) => node.type === api.components.SendMenu), false)
 })
 
+
+test('stripCommentCallouts：首行标题 callout 保持原样，其后的评论 callout 被移除', (t) => {
+  const strip = loadClient(t).mod.__test.stripCommentCallouts
+  assert.equal(strip('> [!note] 标题\n\n正文\n\n> [!tip] 评论\n> 评论内容', 'firstLine'),
+    '> [!note] 标题\n\n正文\n')
+})
 
 test('0.18.6 侧栏折叠：主面板上报 wide，展开时顶部留白缩短；拖拽栏为四格', () => {
   assert.match(CLIENT_SOURCE, /'data-sidebar-wide': sidebarWide === null/)
@@ -266,6 +277,7 @@ test('SendMenu：选中文字模式隐藏附件形式，只保留工作区选择
   const nodes = captureNodes(tree)
   assert.equal(nodes.some((node) => node.props.className === 'SN_sendFormatBtn'), false)
   assert.ok(nodes.some((node) => node.props.className === 'SN_sendSelectionOnly'))
+  assert.equal(nodes.find((node) => node.props.className === 'SN_sendMenu').props['aria-label'], 'send.titleText')
   assert.equal(nodes.filter((node) => node.props.className === 'SN_sendWorkspace').length, 2)
   nodes.find((node) => node.props.className === 'SN_sendWorkspace').props.onClick()
   assert.deepEqual(calls, [['choose', 'ws-default']])

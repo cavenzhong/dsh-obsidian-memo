@@ -4,6 +4,8 @@
  * 这里不依赖浏览器、Node 或 DSH 运行时；Client 用它构造发送内容，
  * Host 用它规范化 config.json 里的 deepseekSend 字段。
  */
+import { CALLOUT_HEAD, QUOTE_LINE, closesFence, openingFence } from './markdown.js'
+import { findTitleLine, normalizeTitleMode } from './title.js'
 
 /** 两种发送形式：原文 + 标题，或原始 .md 文件作为附件。 */
 export const SEND_FORMATS = Object.freeze(['text', 'document']);
@@ -43,6 +45,84 @@ export function normalizeSendSettings(raw) {
 /** 发送形式；非法值回退原文。 */
 export function sendFormatOf(value) {
   return SEND_FORMATS.includes(value) ? value : DEFAULT_SEND_FORMAT;
+}
+
+/**
+ * 生成仅供上传的 Markdown 副本：移除应用识别为评论的 callout，保留原文件及其它格式。
+ * Callout 识别遵循便签解析规则：正文里的 callout 是评论，但标题行、frontmatter 和代码围栏不处理。
+ * @param {string} source - noteFile 返回的原始 Markdown。
+ * @param {string} titleMode - 当前便签标题模式。
+ * @returns {string}
+ */
+export function stripCommentCallouts(source, titleMode) {
+  if (typeof source !== 'string' || source === '') return typeof source === 'string' ? source : ''
+
+  const lines = []
+  for (let start = 0; start < source.length;) {
+    let end = start
+    while (end < source.length && source[end] !== '\n' && source[end] !== '\r') end += 1
+    let eolEnd = end
+    if (source[end] === '\r' && source[end + 1] === '\n') eolEnd += 2
+    else if (end < source.length) eolEnd += 1
+    lines.push({ text: source.slice(start, end), eol: source.slice(end, eolEnd) })
+    start = eolEnd
+  }
+
+  // Keep frontmatter byte-for-byte, while excluding it from title/callout scanning.
+  let bodyStart = 0
+  const first = (lines[0]?.text || '').replace(/^\uFEFF/, '')
+  if (first.trim() === '---') {
+    for (let i = 1; i < lines.length; i += 1) {
+      const value = lines[i].text.trim()
+      if (value === '---' || value === '...') {
+        bodyStart = i + 1
+        break
+      }
+    }
+  }
+
+  let titleSearchStart = bodyStart
+  while (titleSearchStart < lines.length && lines[titleSearchStart].text === '') titleSearchStart += 1
+  const titleLines = lines.slice(titleSearchStart).map((line, index) =>
+    titleSearchStart + index === 0 ? line.text.replace(/^\uFEFF/, '') : line.text)
+  const title = findTitleLine(titleLines, normalizeTitleMode(titleMode))
+  const titleLine = title.index < 0 ? -1 : titleSearchStart + title.index
+
+  const removals = []
+  let fence = null
+  for (let i = bodyStart; i < lines.length;) {
+    const line = i === 0 ? lines[i].text.replace(/^\uFEFF/, '') : lines[i].text
+    if (fence) {
+      if (closesFence(line, fence)) fence = null
+      i += 1
+      continue
+    }
+    fence = openingFence(line)
+    if (fence) {
+      i += 1
+      continue
+    }
+    if (i === titleLine || !CALLOUT_HEAD.test(line)) {
+      i += 1
+      continue
+    }
+
+    const start = i
+    i += 1
+    while (i < lines.length && QUOTE_LINE.test(lines[i].text)) i += 1
+    removals.push([start, i - 1])
+  }
+
+  for (let index = removals.length - 1; index >= 0; index -= 1) {
+    let [start, end] = removals[index]
+    const previousBlank = start > bodyStart && lines[start - 1].text.trim() === ''
+    const nextBlank = end + 1 < lines.length && lines[end + 1].text.trim() === ''
+    if (previousBlank && (nextBlank || end === lines.length - 1)) start -= 1
+    else if (start === bodyStart && nextBlank) end += 1
+    lines.splice(start, end - start + 1)
+  }
+
+  return lines.map((line) => line.text + line.eol).join('')
 }
 
 /**
