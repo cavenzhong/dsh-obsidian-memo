@@ -65,7 +65,9 @@ function StickyNotesPanel(props) {
     resizingDrawer, setResizingDrawer, resizingRef, resizeCleanupRef, pinned, pinnedUserClosedRef,
     effectiveDrawerWidth, startDrawerResize, resetDrawerWidth, togglePinned,
   } = useDrawerLayout({ panelRef });
-  const { toasts, dismissToast, pushToast, pushErrorToast } = useToasts();
+  const { toasts, dismissToast, pushToast, pushErrorToast } = useToasts({
+    openEngineSettings: () => openSettings('folders'), engineSettingsLabel: t('settings.engineOpenSettings'),
+  });
   const commentsLayout = useCommentsLayout();
   const {
     sortId, sortMenu, setSortMenu, sortWrapRef, dateFilter, dateEnabled, dateRealtime, dateMenu,
@@ -443,6 +445,7 @@ function StickyNotesPanel(props) {
       ? h(SettingsDrawer, {
         t, language, onLanguageChange: changeLanguage,
         draft: settingsDraft, request, initialTab: settingsTab, onConfigSettings: acceptConfigSettings,
+        firstSetup: !currentSettings.vaultPath || !currentSettings.notesDir,
         deepseekWorkspaces: deepseek.workspaces,
         deepseekDefaultId: deepseek.workspaces.defaultId,
         deepseekPrimaryId: deepseek.workspaces.primaryId,

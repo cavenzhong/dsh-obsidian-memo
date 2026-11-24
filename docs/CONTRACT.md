@@ -264,8 +264,8 @@ Host 保留运行中或待验收的任务，以及最近 2 分钟内结束的其
 | `undoDeleteComment` | `{ undoToken: string }` | `{ restoredTo: string, note: NoteSummary }` | **0.16.7**：仅在删除后文件未被再次修改时整份写回原文；token 过期 `not-found`，内容已变 `conflict` |
 | `archive` | `{ path: string }` | `{ undoToken: string, to: string }` | 按当前归档设置移动便签 |
 | `undoArchive` | `{ undoToken: string }` | `{ restoredTo: string }` | 撤销归档；归档后的文件被编辑、替换或删除时返回 `conflict` |
-| `moveNote` | `{ path: string, targetDir: string }` | `{ to: string, undoToken: string, note: NoteSummary \| null }` | **0.18**：把便签移动到仓库内的工作空间目录；目标必须已存在、可见且不是当前目录或归档目录及其子树，走独占移动，同名自动加 ` (2)`；运行中的 AI 任务阻止移动；返回撤销 token |
-| `undoMove` | `{ undoToken: string }` | `{ restoredTo: string }` | **0.18**：撤销工作空间迁移；与 `undoArchive` 共用独占移动与 token、路径边界、文件版本校验 |
+| `moveNote` | `{ path: string, targetDir: string }` | `{ to: string, undoToken: string, note: NoteSummary \| null }` | **0.18**：把便签移动到仓库内的工作空间目录；目标必须已存在、可见且不是当前目录或归档目录及其子树，按操作引擎移动，同名自动加 ` (2)`；运行中的 AI 任务阻止移动；返回撤销 token |
+| `undoMove` | `{ undoToken: string }` | `{ restoredTo: string }` | **0.18**：撤销工作空间迁移；与 `undoArchive` 共用原引擎与 token、路径边界、文件版本校验 |
 | `projectCheck` | `{ path: string, expectedProjectDir?: string }` | `{ jobId: string }` | 扫描 `projectDir` 的 `*-项目.md` 并由 AI 判断等级/推荐名/匹配项；不写盘。 |
 | `openProject` | `{ path: string, name: string, sourceRevision?: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 生成 `projectDir/名称-项目.md`，源便签只写入一个项目双链；异步且可验收。 |
 | `addProject` | `{ path: string, filename: string, expectedProjectDir?: string }` | `{ jobId: string, projectPath: string }` | 结合新证据修订整个项目索引；旧历史只追加，快照等待验收。 |
@@ -322,7 +322,7 @@ interface StateValue {
 - **卡片图片**：Host 从正文块里抽出前 `LIMITS.cardImages`（3）张图片的来源给 `NoteSummary.images`，并给总数量 `imageCount`；只读正文，不读评论 callout 内的图片。
 - **归档**：`archiveMode=local` 时移动到便签所在目录下的 `archiveFolderName` 文件夹（任何工作空间的便签都适用）；`archiveMode=mapped` 时默认工作空间内的便签沿用原有 notesDir 相对结构，其它工作空间的便签按仓库相对结构映射到 `archiveDir`。mapped 根目录必须在仓库内、不能与默认工作空间重叠且不能位于隐藏目录。目标路径经真实路径边界校验；同名冲突自动加 ` (2)`；返回可撤销 token（Client 展示 6 秒撤销条；token 服务端保留 10 分钟）。活动扫描在 local 模式排除仓库内所有同名归档子树，在 mapped 模式排除 `archiveDir` 子树；检查路径及其真实位置，直接挂载这些目录或别名也不会显示归档便签。
 - **便签路径边界（0.18）**：`assertNotePath` 从默认工作空间扩大到整个仓库，但拒绝隐藏目录（`.` 开头，含 `.trash`/`.obsidian`）、非 md 与越界符号链接；这样挂载在仓库任意可见目录里的便签都能阅读、编辑、评论、归档和删除。默认工作空间仍必须配置，主空间才有明确来源。
-- **工作空间迁移（0.18）**：`moveNote` 允许移动到仓库内可见、已存在的非归档工作空间，源与目标真实路径相同返回 `bad-request`。移动与保存对源文件使用同一写锁；移动走 `moveFileExclusive`，目标同名自动加 ` (2)`。返回的 `undoToken` 由实例 session 持有 10 分钟。迁移和归档的撤销对两个路径加锁，校验仓库边界；目标文件已被编辑、替换或删除返回 `conflict`，原位置已被占用返回 `exists`。迁移不移动图片附件：新建图片使用仓库相对 wikilink，移动便签后仍可解析。
+- **工作空间迁移（0.18）**：`moveNote` 允许移动到仓库内可见、已存在的非归档工作空间，源与目标真实路径相同返回 `bad-request`。移动与保存对源文件使用同一写锁；目标同名自动加 ` (2)`。返回的 `undoToken` 由实例 session 持有 10 分钟。迁移和归档的撤销对两个路径加锁，校验仓库边界；目标文件已被编辑、替换或删除返回 `conflict`，原位置已被占用返回 `exists`。迁移不移动图片附件：新建图片使用仓库相对 wikilink，移动便签后仍可解析。
 - **工作空间新建（0.18）**：优先 `createNote.targetDir`（绝对路径，仓库内可见、已存在目录）；旧客户端的 `folder` 仍相对默认工作空间解析。Default Template 的文件夹映射按目标文件夹匹配。目标目录不存在时 `not-found`；越界、隐藏或归档目标时 `bad-request`。
 - **在 Obsidian 打开（0.13.8）**：校验 `path` 在仓库内且是已存在的文件后，构造 `obsidian://open?path=<encodeURIComponent(绝对路径)>`，用 argv 形式调系统打开器（darwin `open` / win32 `cmd /c start "" <url>` / 其他 `xdg-open`；5s 超时）；成功返回 `{ url }`，失败 `open-failed`。不写任何文件。
 - **Project（0.17）**：项目就是 `<projectDir>/<项目名>-项目.md`，不移动源便签。拖入先选择新建或已有项目，默认等待 3 秒，可取消且不调用 AI。新建才执行 `projectCheck`；分析中只有可终止的小提示，成功后才弹出命名和评估确认框，确认后才建档。补充直接执行 `addProject`，不弹新建框。源便签的可配置 frontmatter 字段（默认 `PROJECT`）只允许一个项目双链；旧 `PROJECTS` 仍可读。补充时 AI 阅读完整旧稿与新便签；Host 组装并写入新版项目后在现有验收提示显示 `job.summary`；任务保留旧文本和新文本，用户可验收或撤销；外部文件在此期间变化则返回 conflict，不覆盖。
@@ -333,7 +333,9 @@ interface StateValue {
 - 项目归属兼容自定义字段、`PROJECT` 和 `PROJECTS` 的标量与 YAML 列表；空值可写，已有值不可覆盖，保留 BOM 与原始换行。待验收的备份仅属于本次 Host 实例，不跨重启；验收不回写文件，撤销前核对两份文件。新建、补充和撤销完成后更新菜单，下次进入菜单也重新读目录。
 
 - **标题来源（0.16.8）**：`filename`（默认）= md 文件名；`firstLine` = 正文第一个非空行（ATX 标题取标题文字）；`heading` = 正文第一个一级标题（跳过代码围栏；空 H1 继续找）。正文模式取不到标题时回退文件名；标题行在阅读视图里不重复渲染，但保留在正文与编辑草稿中。
-- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名（0.16.8 起正文模式不传 `name`，因此不重命名）；目标同名拒绝。新建、改名、归档、归档撤回与删除恢复共用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
+- **操作引擎**：`settings.operationEngine` 为 `obsidian-cli`（旧配置缺省或非法值的默认）或 `direct`。作用于工作空间移动、归档、文件名更改及它们对应的移动撤销；只改正文、新建、删除至 `.trash` 及删除撤回不切换引擎。撤销 token 绑定原引擎，不能把一次 CLI 移动用直接模式移回而留下错误引用。
+- **Obsidian CLI**：Host 不注册新库或写入 Obsidian 配置，不维护全库反链索引。按真实路径识别已注册的所属库（包括配置目录是该库子目录），拒绝重叠库与源、目标路径上的默认嵌套库标记；命令显式指定库 ID 和库相对的完整文件路径。只读预检核对 CLI 返回的库根与运行中的「自动更新内部链接」开关。`obsidian-cli-unavailable` 不移动，提示去设置手动选择直接模式；CLI 撤销遇到同类问题返回 `obsidian-undo-unavailable`。命令发出后必须确认 CLI 返回成功且磁盘状态相符；否则返回 `obsidian-move-uncertain` 并报告观察到的位置，不重试，不静默降级。Host 的其它 Markdown 写入在迁移窗口内等待；不保证外部程序或跨库链接的写入与更新。
+- **保存时改名**：`saveNote` 带 `name` 时先写正文再改名（0.16.8 起正文模式不传 `name`，因此不重命名）；目标同名拒绝。新建、删除恢复以及直接模式下的改名、归档与归档撤回复用 `moveFileExclusive`，硬链接发布或独占复制后才移走源文件，避免重名检查后的并发覆盖；大小写不敏感文件系统上指向自身的大小写改名保留 rename 特例。若正文已保存但发布时出现重名，返回 exists 并说明正文保留在原文件。CLI 模式先完成只读预检；预检不通过不会写正文。新建与改名共用 `lib/filename.js` 的规范化：清理路径/Markdown 特殊字符、C0 控制符、零宽/双向控制字符，NFC 归一、去首尾点与空格，拒绝空名、Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）与超过 240 UTF-8 字节。
 - **不渲染 meta**：frontmatter 不进卡片内容。
 - **Obsidian block id（0.13.9）**：`^qa-daily-preview-1e5t8lm` 这类 block id 只出现在**行尾**，由 `lib/notes.js` 的 `stripBlockIds()` / `stripInline()` 去掉：先在原始行上按「行尾锚点」删除，再把段落拼成一行，因此**只删锚点本身、保留锚点后面的文字**（下一行内容不受影响）；同时不会误删行中/行内代码里的 `^`（行中的上标 `x ^2`、行内代码 `` `^abc` `` 原样保留）。0.13.8 之前只匹配字符串末尾，段落拼接后中间的 block id 会漏出来。
 - **文件监听**：Client 轮询 `state`（默认 4 秒，页面隐藏时暂停）；Obsidian 编辑会在数秒内反映。
@@ -414,7 +416,7 @@ function apply(ctx) {
 - 顶栏（0.18 起约 78px、两行；0.18.6 展开侧栏时顶部净空收窄约一半）：
   - **侧栏折叠自适应（0.18.6）**：侧栏展开（`data-sidebar-wide='true'`）时，macOS 顶栏内边距从 `48px + 10px` 收窄为约 `34px`；折叠或状态未知时保留原距离。Windows/Web 同理做小幅收窄，避免标题与操作按钮上方出现多余留白。
 - 顶栏第一行：左侧「Obsidian MEMO」宋体 18px / 600 + 紧跟在后面的小字 `v0.18.7`（**0.13.4 起显示完整版本（含补丁号，0.13.9.2 起支持四段版本号），由 Host 的 `state.version` 自动派生**；约 11px、透明度 .45）+ 计数（`123 张便签`，**按当前日期筛选后的数量**）；同一行右侧从左到右：**日期筛选控件（0.14，操作区第一个；点击切换、悬停弹档位菜单）**、子文件夹开关（0.13）、排序按钮（点击弹排序菜单）、设置齿轮。**第二行**是工作空间标签栏，取代 0.17 及以前的当前目录路径行（见 §7.9）。
-- **子文件夹开关（0.13）**：自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
+- **子文件夹开关（0.13）**：只在主界面顶栏提供，设置页保留默认工作空间目录选择、不重复显示此开关。自绘 folder-tree icon 的 30×30 icon 按钮，`aria-pressed` 反映 `settings.includeSubfolders`，开启时用**统一紫色选中样式**标识（见 7.8）。点击 → 乐观更新本地 settings → `saveSettings`（整份 settings 回传）→ 成功后 `refreshNow(true)`；失败回滚并 toast。tooltip：`显示子文件夹` / `仅显示顶层`。
 - 中间：可滚动便签墙。`display:grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; padding: 18px 22px 28px`。卡片统一高度 208px，内容超出裁切。**0.13 明确：卡片有图片时也不加高。**
 - **动态加载（0.13.8）**：便签墙首屏只渲染前 `WALL_PAGE_SIZE`（50）张；墙底放一个哨兵元素，用 `IntersectionObserver`（root = `.SN_wall`，`rootMargin: 0 0 320px 0`）在接近底部时补下一批 50 张。补批时哨兵变成一行 `.SN_loadMore`：**三点脉冲动画 + 「加载中…」11px 淡字**，高度 44px；空闲时 1px 不可见、`pointer-events:none`。排序 / 日期筛选（含开关）变化时 `visibleLimit` 重置回 50；观察器在每次补批后重建，所以首屏 50 张填不满高面板时会继续补到填满或没有更多。补批前先渲染一帧「加载中」再切下一批（data 已在内存，渲染很快时几乎不可见）。**不做虚拟列表**（不卸载已渲染卡片）。
 - 默认排序 = 文件创建时间降序（新 → 旧）；排序依据 host 下发的 `note.created`，前端可切换。
@@ -526,6 +528,9 @@ function apply(ctx) {
 - **发送到 DeepSeek（0.18.6）**：便签页「便签标题」之后新增独立设置块，勾选「不弹出选择菜单，按下面的设置直接发送」后，下面才启用「默认工作区」下拉（默认工作区固定第一，其它来自 `ctx.workspaces`）和「发送形式」（原文 + 标题 / MD 附件）。未勾选时两项禁用，并提示每次点击会弹出共享菜单。工作区列表未就绪时显示加载/不可用说明；保存写入 `deepseekSend`。
 - 底部保存 / 取消；Esc 或遮罩关闭抽屉。
 - 仓库根目录保留文本框和系统目录选择；其他文件夹统一显示仓库相对路径，使用共享下拉组件：顶部加号在当前仓库新建文件夹，其下为系统选择、搜索、最近使用和仓库文件夹列表。所有字段共享选择历史；系统取消不修改草稿。
+- 「文件夹」分类在仓库选择上方展示两个操作引擎按钮；「文件夹管理」（配置仍为 `direct`）被选中时显示加框的双链警告，保存设置后才生效。移动预检失败的通知可直达操作引擎设置，但不会替用户更改选择。
+- 仓库状态随设置打开和系统选目录立即检查，手输地址短暂防抖后自动检查；空路径不请求。切换操作引擎时重新检查，过期结果不会覆盖新地址或新引擎。「重新检查」位于「浏览」右侧。`checkVault` 只读检查草稿目录；CLI 模式传 `verifyCli: true, onlyRunning: true`，仅在识别到所属库且检测到 Obsidian 进程时运行只读 CLI 预检，未检测到进程时提示先打开目标库。「文件夹管理」仅显示普通的仓库目录文本框与浏览按钮，不调用 `checkVault`，不显示检测标签、重新检查或 Obsidian 设库入口。只有 CLI 实际确认库根与自动更新链接设置后才标绿，检查不保存草稿、不移动笔记、不切换引擎。
+- 首次没有配置仓库或主空间时展示配置引导。普通目录仍可管理 Markdown；可用 `openVaultManager` 将选中目录的设库或新建操作交给 Obsidian 的仓库管理器，设库和新建按钮旁都列出开启「设置 → 文件与链接 → 自动更新内部链接」的步骤；登记原目录后手动重查，选中新目录时自动检查。已登记但未开启链接更新时显示开启和重查指引，不标绿。插件不修改 `.obsidian` 或本机 Obsidian 库登记。
 - 默认工作空间、项目文件夹、图片文件夹和「指定目录并保留结构」模式的归档根目录均使用该组件。归档方式在「便签」分类的归档专栏中选择：当前目录模式允许定义单级归档文件夹名，默认「归档」；指定目录模式要求仓库内、非隐藏且与默认工作空间不重叠的归档根目录。所有目录禁止仓库外路径或通过符号链接越界；图片文件夹为空仍使用默认工作空间下的 _attachments。
 - Emoji 为横向标签，末尾固定加号（最多 12 个）；一次编辑当前角色的 emoji、名称、callout、提示词及 AI 预算，至少保留一个。callout 仍为 13 项单选菜单，AI 预算保持原映射与范围。项目提示词在「项目」页，项目模型、预算与拖放等待开关在「AI」页。
 - 图片分类包含压缩开关、质量和最大边长，沿用既有范围。

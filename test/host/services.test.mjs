@@ -70,3 +70,28 @@ test('Host 写队列：moveNote 与 saveNote 共用源便签的写锁', async (t
   assert.equal((await move).ok, true)
   assert.deepEqual(order, ['save', 'move'])
 })
+
+test('跨便签写入：受保护的迁移等待现有写操作；后续其他文件的编辑等待迁移', async () => {
+  const { withNoteWrite, withNoteWrites, withVaultWrite } = createWriteCoordinator()
+  let pauseWrite, pauseMove, startWrite, startMove
+  const writePaused = new Promise(resolve => { pauseWrite = resolve })
+  const movePaused = new Promise(resolve => { pauseMove = resolve })
+  const writeStarted = new Promise(resolve => { startWrite = resolve })
+  const moveStarted = new Promise(resolve => { startMove = resolve })
+  const order = []
+  const first = withNoteWrite('/reference.md', async () => { order.push('write'); startWrite(); await writePaused })
+  await writeStarted
+  const moving = withNoteWrites(['/old.md', '/new.md'], async () => {
+    order.push('move'); startMove(); await movePaused; throw new Error('CLI failed')
+  }, { exclusive: true })
+  const rejected = assert.rejects(moving, /CLI failed/)
+  const second = withNoteWrite('/other-reference.md', () => order.push('other'))
+  const creating = withVaultWrite(() => order.push('create'))
+  assert.deepEqual(order, ['write'])
+  pauseWrite()
+  await moveStarted
+  assert.deepEqual(order, ['write', 'move'])
+  pauseMove()
+  await Promise.all([first, rejected, second, creating])
+  assert.deepEqual(order.slice(2).sort(), ['create', 'other'])
+})

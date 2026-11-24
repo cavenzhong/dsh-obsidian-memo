@@ -130,7 +130,7 @@ test('comment：撞上 token 上限但有正文 → done + truncated，评论仍
 
 const TWO_COMMENTS = '# 删除\n\n正文\n\n> [!quote] 😈 毒舌 · 2026-11-13 10:00\n> 第一条\n\n> [!tip] 🌱 落地 · 2026-11-13 10:05\n> 第二条\n'
 
-test('deleteComment：按序号删除 callout，返回汇总并整份撤回', async () => {
+test('deleteComment：按序号删除 callout，返回汇总并整份撤回', { timeout: 5000 }, async () => {
   const c = await makeCase({ notes: { '删除.md': TWO_COMMENTS } })
   const notePath = c.seeded['删除.md']
   const note = await c.call('note', { path: notePath })
@@ -155,7 +155,8 @@ test('deleteComment：按序号删除 callout，返回汇总并整份撤回', as
   assert.doesNotMatch(after, /第一条/)
   assert.match(after, /第二条/)
 
-  const undo = await c.call('undoDeleteComment', { undoToken: deleted.value.undoToken })
+  // 撤回按 token 中的路径加锁；附带 path 的客户端不能再触发调度器加同一把锁。
+  const undo = await c.call('undoDeleteComment', { undoToken: deleted.value.undoToken, path: notePath })
   assert.equal(undo.ok, true)
   assert.equal(await readFile(notePath, 'utf8'), TWO_COMMENTS)
   assert.equal((await c.call('state')).value.notes.find((item) => item.path === notePath).commentCount, 2)

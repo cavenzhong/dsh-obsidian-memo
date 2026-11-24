@@ -235,6 +235,7 @@ async function makeCase(options = {}) {
     vaultPath: vault,
     notesDir,
     projectDir,
+    operationEngine: 'direct', // Existing fixtures cover the local filesystem engine, never the real desktop vault.
     archiveMode: 'local',
     archiveFolderName: '归档',
     ...options.settings,

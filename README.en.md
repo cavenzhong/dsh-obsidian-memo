@@ -28,14 +28,14 @@
 
 ![Obsidian MEMO 0.19.0: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
 
-**New in 0.19.0:** Switch between single and split workspace views, smoothly scroll the clicked note to the top when its reader opens, and use `Cmd/Ctrl+L` to convert multiple selected bullet items to tasks. [See what changed (中文)](docs/CHANGELOG.md).
+**Fixed in 0.19.1:** Moves, archives, and renames now use the Obsidian CLI by default to keep links within the vault working. Settings checks the CLI and link-update setting. For a plain Markdown folder, choose Folder management instead. [See what changed (中文)](docs/CHANGELOG.md).
 
 ## Install
 
-You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault that Harness can access. No companion plugin in Obsidian is needed.
+You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault or Markdown folder that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.19.0** or later on the Plugins page.
-2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.19.1** or later on the Plugins page.
+2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **vault folder** and **default workspace** (Main space). If you do not use Obsidian, choose Folder management.
 3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
 You can also ask an agent to install it:
@@ -60,6 +60,12 @@ In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ 
 Each note uses the color of its deepest mounted workspace. Changing a parent workspace does not override a child workspace listed in the workspace bar; changing the child also updates its cards, tag backgrounds, and reader capsules when shown in the parent view. Subfolders without their own workspace inherit the nearest mounted parent color. Workspace tabs themselves keep a clean neutral background. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit, and select multiple list items, then press `Cmd/Ctrl+L` to cycle their bullet or task markers in bulk. Opening a card smoothly brings it to the first row of its wall and briefly outlines it for reference. Select **Open in Obsidian** to keep writing there.
 
 ![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/en/reader.png)
+
+### Preserve internal links when moving notes
+
+The **File operation engine** is above the vault picker in **Settings → Folders**. The default, **Obsidian CLI**, lets Obsidian update internal links when DSH moves a note between workspaces, archives it, or renames it. This includes references in vault folders you have not mounted in DSH. Enable the Obsidian **Command line interface** under **Settings → General** and **Automatically update internal links** under **Settings → Files and links**.
+
+If the CLI is unavailable, DSH explains why and does not move the note automatically. You can choose **Folder management** and save the setting if you manage a plain Markdown folder or prefer not to use the CLI. Direct moves do not update references: links can break or start pointing to another note with the same name. Reading, editing note content, and creating notes do not require the CLI. To register an existing or empty folder, select **Open as a vault in Obsidian…**, complete setup in Obsidian, enable link updates, then return and select Recheck.
 
 ### Archive notes without deleting them
 

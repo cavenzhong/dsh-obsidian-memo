@@ -118,11 +118,12 @@ function VaultFolderPicker({ t, label, value, vaultPath, history, disabled, onCh
 
 function SettingsPathField(props) {
   const {
-    t, label, hint, value, field, disabled, picking,
+    t, label, hint, value, field, disabled, picking, badge, browseAction,
     onPatch, onPick, vaultPath, history, request,
   } = props;
   return h('div', { className: 'SN_field' },
-    h('span', { className: 'SN_fieldLabel' }, label),
+    badge ? h('div', { className: 'SN_pathHeading' }, h('span', { className: 'SN_fieldLabel' }, label), badge)
+      : h('span', { className: 'SN_fieldLabel' }, label),
     field !== 'vaultPath' && vaultPath ? h(VaultFolderPicker, { t, label, value, vaultPath, history, disabled: disabled || picking !== null, request,
       onChange: (path) => onPatch({ [field]: path }), onPick: () => onPick(field) }) : h(Fragment, null,
     h('input', {
@@ -141,6 +142,7 @@ function SettingsPathField(props) {
         disabled: disabled || picking !== null,
         onClick: () => onPick(field),
       }, picking === field ? t('settings.picking') : t('settings.pick')),
+      browseAction,
     ),
     ),
     hint ? h('p', { className: 'SN_fieldHint' }, hint) : null,

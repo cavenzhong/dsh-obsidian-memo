@@ -91,3 +91,18 @@ test('v0.16.8 设置草稿：旧 Host 缺标题模式时补默认值，非法值
   assert.equal(controls.settingsDraft.titleMode, 'heading')
   assert.equal(controls.settingsDraft.fileNamePattern, 'MEMO-{date}')
 })
+
+test('首次设置：选择仓库自动用根目录作为主空间，可再改成子目录并切换引擎', (t) => {
+  const runner = hookRunner(t)
+  const viewRef = { current: { settings: { vaultPath: '', notesDir: '', operationEngine: 'obsidian-cli', emojis: [] } } }
+  const options = {
+    t: (key) => key, viewRef, aliveRef: { current: true }, onOpen() {},
+  }
+  const render = () => runner.render(runner.api.hooks.useSettingsDraft, options)
+  render().openSettings()
+  render().patchDraft({ vaultPath: '/notes' })
+  assert.equal(render().settingsDraft.notesDir, '.')
+  render().patchDraft({ notesDir: 'Inbox', operationEngine: 'direct' })
+  assert.equal(render().settingsDraft.notesDir, 'Inbox')
+  assert.equal(render().settingsDraft.operationEngine, 'direct')
+})

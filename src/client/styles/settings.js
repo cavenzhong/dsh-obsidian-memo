@@ -33,6 +33,27 @@ const settingsStyles = `
 .SN_archiveMode[data-active='true']{border-color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 7%,var(--dsw-alias-bg-base,#fff));color:var(--dsw-alias-label-primary)}
 .SN_archiveMode input{flex:none;margin:0;accent-color:var(--sn-accent)}
 .SN_archiveMode span{min-width:0;overflow-wrap:anywhere}
+.SN_operationEngine{display:grid;gap:8px;padding-bottom:12px;margin-bottom:3px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
+.SN_engineChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.SN_engineChoice{display:grid;gap:3px;min-width:0;min-height:50px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l3);border-radius:8px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font:600 12px/1.35 system-ui,sans-serif;text-align:left;cursor:pointer}
+.SN_engineChoice small{font-size:10px;font-weight:400;color:var(--dsw-alias-label-secondary)}
+.SN_engineChoice[aria-pressed='true']{border-color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 10%,var(--dsw-alias-bg-base,#fff))}
+.SN_engineChoice:hover:not(:disabled){border-color:var(--sn-accent)}
+.SN_engineChoice:focus-visible{outline:2px solid var(--sn-accent);outline-offset:2px}
+.SN_engineChoice:disabled{opacity:.55;cursor:default}
+.SN_engineWarning{display:grid;gap:3px;padding:8px 10px;border:1px solid color-mix(in srgb,#c38b3f 68%,transparent);border-inline-start-width:3px;border-radius:8px;background:color-mix(in srgb,#c38b3f 13%,transparent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:1.5}
+.SN_engineWarning p{margin:0;color:var(--dsw-alias-label-secondary)}
+.SN_vaultSetupIntro{display:grid;gap:4px;padding:9px 11px;border-inline-start:2px solid var(--sn-accent);border-radius:7px;background:color-mix(in srgb,var(--sn-accent) 7%,transparent)}
+.SN_vaultSettings,.SN_vaultDiagnostics{display:grid;gap:7px;min-width:0}
+.SN_pathHeading,.SN_vaultActions{display:flex;align-items:center;flex-wrap:wrap;gap:6px 9px}
+.SN_vaultBadge{display:inline-flex;align-items:center;padding:2px 7px;border:1px solid var(--dsw-alias-border-l3);border-radius:999px;color:var(--dsw-alias-label-secondary);font:600 10px/1.35 system-ui,sans-serif}
+.SN_vaultBadge[data-tone='ready']{border-color:color-mix(in srgb,#4a996f 64%,transparent);background:color-mix(in srgb,#4a996f 19%,transparent);color:var(--dsw-alias-label-primary)}
+.SN_vaultBadge[data-tone='warning']{border-color:color-mix(in srgb,#c38b3f 70%,transparent);background:color-mix(in srgb,#c38b3f 18%,transparent);color:var(--dsw-alias-label-primary)}
+.SN_vaultLink{font-size:11px;color:var(--sn-accent);text-underline-offset:2px}
+.SN_vaultLocation{display:flex;flex-wrap:wrap;gap:4px}
+.SN_vaultConflictPath,.SN_vaultLocation code{color:var(--dsw-alias-label-secondary);font-size:10.5px;overflow-wrap:anywhere}
+.SN_vaultHelp{margin:0;padding:7px 9px;border-radius:7px;background:color-mix(in srgb,var(--sn-accent) 9%,transparent);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:1.5}
+.SN_vaultSteps{display:grid;gap:3px;list-style:decimal;padding-inline-start:25px}
 .SN_folderPicker{position:relative;min-width:0;width:100%}
 .SN_folderTrigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;padding:0 10px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;text-align:left;cursor:pointer}
 .SN_folderTrigger>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

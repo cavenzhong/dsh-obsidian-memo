@@ -8,8 +8,10 @@ import { ImageProcessingSettings } from './image-processing.js';
 import { LanguageSettings } from './language.js';
 import { TitleModeSettings } from './note-title.js';
 import { SettingsPathField, VaultFolderPicker } from './paths.js';
+import { OperationEngineSettings } from './operation-engine.js';
 import { StyleSelect } from './style-select.js';
 import { TrashSettings } from './trash.js';
+import { VaultSettingsField } from './vault-settings.js';
 
 function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
   const changed = typeof defaultValue === 'string' && value !== defaultValue;
@@ -20,7 +22,7 @@ function PromptEditor({ t, label, value, defaultValue, disabled, onChange }) {
 
 function SettingsDrawer(props) {
   const {
-    t, draft, picking, saving, onPatch, onPick, onPatchEmoji, onRemoveEmoji, onAddEmoji,
+    t, draft, picking, saving, firstSetup, onPatch, onPick, onPatchEmoji, onRemoveEmoji, onAddEmoji,
     onSave, onCancel, request, onConfigSettings, language, onLanguageChange,
     deepseekWorkspaces, deepseekDefaultId, deepseekPrimaryId,
   } = props;
@@ -42,6 +44,7 @@ function SettingsDrawer(props) {
   const emojiIndex = Math.max(0, emojis.findIndex((item) => item.id === activeEmoji));
   const folderProps = { vaultPath: draft.vaultPath, history: draft.folderHistory, request };
   const disabled = Boolean(saving);
+  const folderManagement = draft.operationEngine === 'direct';
   const projectModelValue = draft.projectModel ? `${draft.projectModel.provider}\u0000${draft.projectModel.model}` : '';
   // 已保存的模型可能已被 DSH 移除：保留一个占位选项，别让下拉静默变成空白。
   const projectModelFallback = projectModelValue !== '' && !modelOptions.some((item) => `${item.provider}\u0000${item.model}` === projectModelValue);
@@ -74,10 +77,14 @@ function SettingsDrawer(props) {
           id === 'project' ? h('span', { className: 'SN_settingsBeta' }, 'Beta') : null))),
       h('div', { className: 'SN_drawerBody' },
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
-          h(SettingsPathField, { ...folderProps,
-            t: t,
+          firstSetup ? h('div', { className: 'SN_vaultSetupIntro' },
+            h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.vaultSetupTitle')),
+            h('p', { className: 'SN_fieldHint' }, t(folderManagement ? 'settings.vaultSetupDirect' : 'settings.vaultSetupText'))) : null,
+          h(OperationEngineSettings, { t, engine: draft.operationEngine, disabled, onPatch }),
+          h(folderManagement ? SettingsPathField : VaultSettingsField, { ...folderProps,
+            t: t, firstSetup,
             label: t('settings.vault'),
-            hint: t('settings.vaultHint'),
+            hint: t(folderManagement ? 'settings.vaultFolderHint' : 'settings.vaultHint'),
             value: draft.vaultPath,
             field: 'vaultPath',
             disabled: disabled,
@@ -97,9 +104,6 @@ function SettingsDrawer(props) {
             onPick: onPick,
           }),
         ),
-        h('label', { className: 'SN_imageSettingToggle', hidden: tab !== 'folders' },
-          h('input', { type: 'checkbox', disabled, checked: draft.includeSubfolders !== false,
-            onChange: (event) => onPatch({ includeSubfolders: event.target.checked }) }), t('settings.includeSubfolders')),
         h('div', { className: 'SN_settingsPage', hidden: tab !== 'notes', 'data-settings-tab': 'notes' },
           h('section', { className: 'SN_drawerSection SN_archiveSettings' },
             h('div', { className: 'SN_drawerSectionHead' },

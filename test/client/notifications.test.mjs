@@ -34,3 +34,18 @@ test('Toast hook：保留最多四条通知，支持主动关闭，卸载清理�
   controls = runner.render(runner.api.hooks.useToasts)
   assert.deepEqual(controls.toasts.map((toast) => toast.text), ['2', '3', '4'])
 })
+
+test('CLI 预检失败的 toast 跳到引擎设置，不为结果不明的移动提供降级操作', (t) => {
+  const runner = hookRunner(t)
+  let opened = 0
+  const props = { openEngineSettings: () => { opened += 1 }, engineSettingsLabel: '操作引擎' }
+  const render = () => runner.render(runner.api.hooks.useToasts, props)
+  render().pushErrorToast({ code: 'obsidian-cli-unavailable', message: '请先开启 CLI' })
+  const notice = render().toasts[0]
+  assert.equal(notice.text, '请先开启 CLI')
+  assert.equal(notice.action.label, '操作引擎')
+  notice.action.run()
+  assert.equal(opened, 1)
+  render().pushErrorToast({ code: 'obsidian-move-uncertain', message: '请检查实际文件' })
+  assert.equal(render().toasts.at(-1).action, null)
+})

@@ -2,7 +2,7 @@
 import { MAX_TOASTS, TOAST_MS } from '../constants.js';
 import { React } from '../react.js';
 
-function useToasts() {
+function useToasts({ openEngineSettings, engineSettingsLabel } = {}) {
   const [toasts, setToasts] = React.useState([]);
   const toastSeqRef = React.useRef(0);
   const toastTimersRef = React.useRef(new Map());
@@ -46,6 +46,8 @@ function useToasts() {
       text: error && error.message ? error.message : String(error),
       kind: 'error',
       timeout: 7000,
+      action: error?.code === 'obsidian-cli-unavailable' && openEngineSettings
+        ? { label: engineSettingsLabel, run: openEngineSettings } : null,
     });
   }
   React.useEffect(() => () => {

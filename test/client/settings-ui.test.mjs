@@ -264,3 +264,43 @@ test('v0.18.6 设置：发送到 DeepSeek 在便签页、便签标题之后，�
   assert.ok(titleIndex >= 0 && deepseekIndex > titleIndex, '发送设置应排在便签标题之后')
   assert.equal(captureNodes(ai).some((node) => node.type === runner.api.components.DeepSeekSendSettings), false, 'AI 页不应再出现发送设置')
 })
+
+test('文件夹设置保留默认工作空间目录，不重复提供顶栏子文件夹开关', (t) => {
+  const runner = hookRunner(t)
+  const nodes = captureNodes(runner.render(runner.api.components.SettingsDrawer, {
+    t: key => key, initialTab: 'folders', draft: { emojis: [], notesDir: '/vault/notes', includeSubfolders: false },
+  }))
+  const workspace = nodes.find(node => node.props.field === 'notesDir')
+  assert.equal(workspace.props.value, '/vault/notes')
+  assert.equal(nodes.some(node => node.children.includes('settings.includeSubfolders')), false)
+})
+
+test('操作引擎在仓库上方；默认 CLI，明确选择直接移动才显示双链风险', (t) => {
+  const runner = hookRunner(t)
+  const render = (engine, language, saving = false) => {
+    const api = runner.api
+    const messages = api.dictionaries[language]
+    const patches = []
+    const drawer = runner.render(api.components.SettingsDrawer, {
+      t: key => messages[key] ?? key, draft: { operationEngine: engine, emojis: [] }, initialTab: 'folders',
+      saving, onPatch: patch => patches.push(patch),
+    })
+    const folders = captureNodes(drawer).find(node => node.props['data-settings-tab'] === 'folders')
+    const engineIndex = folders.children.findIndex(node => node?.props?.onPatch && Object.hasOwn(node.props, 'engine'))
+    const engineNode = folders.children[engineIndex]
+    assert.equal(folders.children[engineIndex + 1].props.field, 'vaultPath')
+    const nodes = captureNodes(engineNode.type(engineNode.props))
+    return { buttons: nodes.filter(node => node.type === 'button'), warning: nodes.find(node => node.props.role === 'status'), patches }
+  }
+  const cli = render(undefined, 'zh')
+  assert.deepEqual(cli.buttons.map(button => button.props['aria-pressed']), [true, false])
+  assert.equal(cli.warning, undefined)
+  cli.buttons[1].props.onClick()
+  assert.deepEqual(cli.patches, [{ operationEngine: 'direct' }])
+  const direct = render('direct', 'en')
+  assert.deepEqual(direct.buttons.map(button => button.props['aria-pressed']), [false, true])
+  assert.deepEqual(direct.warning.children[0].children, ['Internal links may break'])
+  direct.buttons[0].props.onClick()
+  assert.deepEqual(direct.patches, [{ operationEngine: 'obsidian-cli' }])
+  assert.ok(render('direct', 'zh', true).buttons.every(button => button.props.disabled))
+})

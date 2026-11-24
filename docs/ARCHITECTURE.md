@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.19.0）
+# 代码结构与修改入口（0.19.1）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
@@ -26,7 +26,7 @@ Harness Web  → lib/client.js（生成）
 | 修改内容 | 入口 | 状态与边界 |
 | --- | --- | --- |
 | 认证、请求大小、信封协议 | `lib/host/rpc.js` | 只处理传输；不读写笔记 |
-| endpoint 调度、操作串行化 | `lib/host/dispatch.js`、`writes.js` | 配置/删除队列与逐文件写锁保持原有顺序 |
+| endpoint 调度、操作串行化 | `lib/host/dispatch.js`、`writes.js` | 配置/删除队列、逐文件写锁；迁移时等待并暂缓其它 Host 写入 |
 | 用户配置、外部变更、切换 JSON | `lib/host/configuration.js` | 持有当前设置、位置、签名和配置队列；通过 `getSettings()` 提供最新值 |
 | 多根扫描单飞与写后失效 | `lib/host/scanning.js`、`lib/scan.js` | 默认工作空间 + Client 上报的挂载目录；跳过当前目录归档文件夹或 mapped 归档根，持有 scanner、epoch、roots 与扫描队列，旧扫描不会回写新状态 |
 | state/settings 响应、复合 revision | `lib/host/state.js` | 组合扫描、配置与任务快照 |
@@ -38,7 +38,9 @@ Harness Web  → lib/client.js（生成）
 | 项目文档 / 归属字段 | `lib/project.js`、`lib/project-revision.js`、`lib/project-meta.js` | 评估协议、AI 概况与新增记录、Host 原文合并、便签归属字段；不执行文件操作 |
 | 评论删除与撤回 | `lib/host/comments.js`、`lib/comments.js` | 按序号定位 callout；撤回 token 与删除前原文由实例 session 持有 |
 | 任务、撤回 token、过期回收 | `lib/host/session.js` | 持有当前实例的 jobs、归档与删除 token |
-| 归档、工作空间迁移、删除、撤回、系统回收站 | `lib/host/mutations.js` | 复用现有独占移动、同名避让与整组回滚 |
+| 归档、工作空间迁移、删除、撤回、系统回收站 | `lib/host/mutations.js` | 负责同名避让、撤销与回收站；物理路径改变交给迁移服务 |
+| 操作引擎、Obsidian CLI 预检和移动 | `lib/host/relocation.js`、`lib/obsidian-cli.js` | 只读发现实际库并按 ID 核对；CLI 更新链接；直接模式保留独占移动；不自动降级 |
+| 设置页仓库诊断与设库引导 | `lib/host/vault-setup.js`、`src/client/settings/vault-settings.js` | 只读检查草稿仓库，复用 CLI 预检；新建或登记由 Obsidian 管理器处理 |
 | 目录浏览、新建、系统选择 | `lib/host/folders.js` | 保持仓库和符号链接边界 |
 | 版本、安装位置、调试日志 | `lib/host/environment.js` | 版本只读 `package.json`，旧配置仍从包根目录迁移 |
 

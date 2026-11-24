@@ -33,6 +33,7 @@ function useSettingsDraft(options) {
     // 已经打开：不要重建 draft（会丢掉未保存的编辑）；只按需滚到 AI 预算。
     if (settingsOpen) {
       if (focus === 'ai') { setSettingsTab('ai'); scrollSettingsToBudget(); }
+      if (focus === 'folders') setSettingsTab('folders');
       return;
     }
     const settings = viewRef.current.settings;
@@ -84,6 +85,7 @@ function useSettingsDraft(options) {
       const root = next.vaultPath || '';
       if (patch.vaultPath !== undefined && patch.vaultPath !== current.vaultPath) {
         ['notesDir', 'projectDir', 'attachmentDir', 'archiveDir'].forEach((key) => { next[key] = vaultRelative(current.vaultPath, current[key]); });
+        if (!current.vaultPath && !next.notesDir && root.trim()) next.notesDir = '.';
         next.folderHistory = [];
       }
       next.folderHistory = [...new Set([next.notesDir, next.projectDir, next.attachmentDir,
