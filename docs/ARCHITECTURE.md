@@ -1,4 +1,4 @@
-# 代码结构与修改入口（0.18.7）
+# 代码结构与修改入口（0.19.0）
 
 先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
 
@@ -50,8 +50,10 @@ Harness Web  → lib/client.js（生成）
 | --- | --- | --- |
 | 插件注册、样式/字典生命周期 | `src/client/index.js`、`runtime.js` | `test/client/registration.test.mjs` |
 | 主面板组合 | `src/client/panel.js` | reader-layout、drag-sessions |
-| 顶栏与全局快捷键 | `src/client/panel/` | preferences、reader-layout、workspaces |
-| 工作空间标签：主空间/默认工作空间、多根上报、路径/筛选规则、纸色、localStorage、添加删除排序、长按排序、便签迁移 | `src/client/panel/workspaces.js`、`use-workspaces.js`、`use-workspace-reorder.js`、`workspace-bar.js` | workspaces |
+| 顶栏与全局快捷键 | `src/client/panel/`；工作空间切换与分屏快捷键在 `use-workspace-shortcuts.js` | preferences、reader-layout、workspace-shortcuts |
+| 工作空间标签：主空间/默认工作空间、多根上报、路径/筛选规则、纸色、localStorage、添加删除、拖动排序、便签迁移 | `src/client/panel/workspaces.js`、`use-workspaces.js`、`use-workspace-reorder.js`、`workspace-bar.js` | workspaces |
+| 工作空间固定、并排显示和可调分隔线 | `src/client/panel/workspace-display.js`、`workspace-panes.js`、`src/client/wall/workspace-wall.js` | workspace-split |
+| 阅读抽屉重排后的卡片缓动定位和高亮 | `src/client/wall/use-card-reveal.js` | reader-avoidance |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
 | Project 便签底纹 | `src/client/wall/project-textures.js`、`src/client/styles/wall.js` | wall-rendering、project-textures |

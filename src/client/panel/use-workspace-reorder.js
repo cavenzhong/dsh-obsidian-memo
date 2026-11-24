@@ -1,136 +1,141 @@
-/** 工作空间标签的长按拖动排序：指针捕获、插入线与最终下标。 */
+/** 工作空间标签拖动排序，兼容触屏短滑与长按拖动。 */
 import { WORKSPACE_ALL_ID, WORKSPACE_HOLD_MS } from '../constants.js';
 import { React } from '../react.js';
 
+function workspaceInsertion(slots, id, clientX, stripLeft, scrollLeft) {
+  const rest = slots.filter((slot) => slot.id !== WORKSPACE_ALL_ID && slot.id !== id);
+  const index = rest.findIndex((slot) => clientX < (slot.left + slot.right) / 2);
+  const edge = index < 0 ? rest.at(-1)?.right : rest[index].left;
+  return { index: index < 0 ? rest.length : index, caretX: edge === undefined ? 0 : edge - stripLeft + scrollLeft };
+}
+
 function useWorkspaceReorder({ entries, onReorder, stripRef }) {
   const [drag, setDrag] = React.useState(null);
-  const dragRef = React.useRef(null);
-  dragRef.current = drag;
   const pressRef = React.useRef(null);
   const suppressClickRef = React.useRef(false);
-
+  const clickTimerRef = React.useRef(null);
   React.useEffect(() => () => {
-    if (pressRef.current) {
-      if (pressRef.current.timer) clearTimeout(pressRef.current.timer);
-      detachPress(pressRef.current);
-    }
+    detach(pressRef.current);
     pressRef.current = null;
+    clearTimeout(clickTimerRef.current);
   }, []);
 
-  function detachPress(press) {
-    if (!press || !press.listeners) return;
-    document.removeEventListener('pointermove', press.listeners.move, true);
-    document.removeEventListener('pointerup', press.listeners.up, true);
-    document.removeEventListener('pointercancel', press.listeners.cancel, true);
-    window.removeEventListener('blur', press.listeners.cancel);
-    press.listeners = null;
+  function detach(press) {
+    if (!press) return;
+    clearTimeout(press.timer);
+    if (press.frame != null) cancelAnimationFrame(press.frame);
+    document.removeEventListener('pointermove', press.move, true);
+    document.removeEventListener('pointerup', press.up, true);
+    document.removeEventListener('pointercancel', press.cancel, true);
+    window.removeEventListener('blur', press.cancel);
   }
 
-  function cancelDrag() {
+  function stop(press) {
+    detach(press);
+    pressRef.current = null;
+    setDrag(null);
+  }
+
+  function cancelDrag(event) {
     const press = pressRef.current;
-    if (press) {
-      if (press.timer) clearTimeout(press.timer);
-      detachPress(press);
-    }
-    pressRef.current = null;
-    dragRef.current = null;
-    setDrag(null);
+    if (!press || (typeof event?.pointerId === 'number' && event.pointerId !== press.pointerId)) return;
+    stop(press);
   }
 
-  function insertionFor(clientX) {
-    const strip = stripRef.current;
-    if (!strip) return { index: 0, caretX: 0 };
-    const stripRect = strip.getBoundingClientRect();
-    // 拖动中的标签跟随指针，不参与插入点计算；位置按其余标签的中线算。
-    const tabs = Array.from(strip.querySelectorAll('.SN_wsTab'))
-      .filter((element) => element.getAttribute('data-all') !== 'true' && element.getAttribute('data-dragging') !== 'true');
-    let index = tabs.length;
-    let caretX = 0;
-    for (let i = 0; i < tabs.length; i += 1) {
-      const rect = tabs[i].getBoundingClientRect();
-      if (clientX < rect.left + rect.width / 2) {
-        index = i;
-        caretX = rect.left - stripRect.left + strip.scrollLeft;
-        break;
+  function insertionFor(strip, id, clientX) {
+    const slots = Array.from(strip.querySelectorAll('.SN_wsSlot'), (slot) => {
+      const { left, right } = slot.getBoundingClientRect();
+      return { id: slot.getAttribute('data-workspace-slot'), left, right };
+    });
+    return workspaceInsertion(slots, id, clientX, strip.getBoundingClientRect().left, strip.scrollLeft);
+  }
+
+  function updateDrag(press, strip) {
+    const insertion = insertionFor(strip, press.id, press.x);
+    setDrag({ id: press.id, dx: press.x - press.startX + strip.scrollLeft - press.scrollStart,
+      insertAt: insertion.index, caretX: insertion.caretX });
+  }
+
+  function autoScroll(press, strip) {
+    if (press.frame != null) return;
+    const tick = () => {
+      press.frame = null;
+      if (pressRef.current !== press) return;
+      const rect = strip.getBoundingClientRect();
+      const edge = Math.min(28, rect.width / 3);
+      const step = press.x < rect.left + edge ? -12 : press.x > rect.right - edge ? 12 : 0;
+      const before = strip.scrollLeft;
+      strip.scrollLeft += step;
+      if (strip.scrollLeft !== before) {
+        updateDrag(press, strip);
+        press.frame = requestAnimationFrame(tick);
       }
-    }
-    if (index === tabs.length && tabs.length > 0) {
-      const last = tabs[tabs.length - 1].getBoundingClientRect();
-      caretX = last.right - stripRect.left + strip.scrollLeft;
-    }
-    return { index: index, caretX: Math.max(0, caretX) };
-  }
-
-  function movePress(press, event) {
-    if (!press || pressRef.current !== press) return;
-    const dx = event.clientX - press.startX;
-    const dy = event.clientY - press.startY;
-    if (!press.active) {
-      // 长按前先移动：当成滚动/点击，不再进入排序拖拽。
-      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
-        if (press.timer) clearTimeout(press.timer);
-        detachPress(press);
-        pressRef.current = null;
-      }
-      return;
-    }
-    event.preventDefault?.();
-    const insertion = insertionFor(event.clientX);
-    const next = { id: press.entry.id, dx: dx, insertAt: insertion.index, caretX: insertion.caretX };
-    dragRef.current = next;
-    setDrag(next);
-  }
-
-  function endPress(press, event) {
-    if (!press || pressRef.current !== press) return;
-    if (press.timer) clearTimeout(press.timer);
-    detachPress(press);
-    pressRef.current = null;
-    if (!press.active) return;
-    suppressClickRef.current = true;
-    // 长按在标签外松手时不会产生 click；0ms 后自动复位，避免吞掉下一次正常点击。
-    setTimeout(() => { suppressClickRef.current = false; }, 0);
-    try { press.target.releasePointerCapture?.(press.pointerId); } catch (error) { /* ignore */ }
-    const insertion = insertionFor(event.clientX);
-    const custom = entries.filter((entry) => entry.id !== WORKSPACE_ALL_ID);
-    const from = custom.findIndex((entry) => entry.id === press.entry.id);
-    // 插入点按「移除自己之后」的其余标签算，正好就是最终下标。
-    const to = insertion.index;
-    if (from >= 0 && to !== from && to >= 0 && to < custom.length) onReorder(press.entry.id, to);
-    dragRef.current = null;
-    setDrag(null);
+    };
+    if (typeof requestAnimationFrame === 'function') press.frame = requestAnimationFrame(tick);
   }
 
   function startPress(event, entry) {
     if (entry.id === WORKSPACE_ALL_ID || event.button !== 0 || event.isPrimary === false) return;
-    if (pressRef.current || dragRef.current) cancelDrag();
+    const strip = stripRef.current;
+    if (!strip) return;
+    cancelDrag();
+    const touch = event.pointerType === 'touch';
     const target = event.currentTarget;
-    const press = {
-      entry: entry, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId,
-      target: target, active: false, timer: null, listeners: null,
+    const press = { id: entry.id, startX: event.clientX, startY: event.clientY, x: event.clientX,
+      scrollStart: strip.scrollLeft, pointerId: event.pointerId, mode: 'waiting', frame: null };
+
+    function beginDrag() {
+      clearTimeout(press.timer);
+      press.mode = 'dragging';
+      try { target.setPointerCapture?.(press.pointerId); } catch (error) { /* 文档仍监听指针 */ }
+    }
+
+    press.move = (e) => {
+      if (e.pointerId !== press.pointerId) return;
+      press.x = e.clientX;
+      const dx = e.clientX - press.startX, dy = e.clientY - press.startY;
+      if (press.mode === 'waiting' && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        if (Math.abs(dx) <= Math.abs(dy)) { stop(press); return; }
+        if (touch) {
+          clearTimeout(press.timer);
+          press.mode = 'swiping';
+        } else {
+          beginDrag();
+        }
+      }
+      if (press.mode === 'swiping') strip.scrollLeft = press.scrollStart - dx;
+      if (press.mode !== 'dragging') return;
+      e.preventDefault?.();
+      updateDrag(press, strip);
+      autoScroll(press, strip);
     };
-    // 指针移出标签后仍要能收到移动/松手，否则长按会在别处误触发排序。
-    press.listeners = {
-      move: (e) => movePress(press, e),
-      up: (e) => endPress(press, e),
-      cancel: () => cancelDrag(),
+    press.up = (e) => {
+      if (e.pointerId !== press.pointerId) return;
+      stop(press);
+      if (press.mode === 'waiting') return;
+      // 拖动或滑动结束后仅吞掉紧随的 click。
+      suppressClickRef.current = true;
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = setTimeout(() => { suppressClickRef.current = false; }, 0);
+      if (press.mode !== 'dragging') return;
+      const custom = entries.filter((item) => item.id !== WORKSPACE_ALL_ID);
+      const from = custom.findIndex((item) => item.id === press.id);
+      const { index } = insertionFor(strip, press.id, e.clientX);
+      if (from >= 0 && index !== from && index < custom.length) onReorder(press.id, index);
     };
-    document.addEventListener('pointermove', press.listeners.move, true);
-    document.addEventListener('pointerup', press.listeners.up, true);
-    document.addEventListener('pointercancel', press.listeners.cancel, true);
-    window.addEventListener('blur', press.listeners.cancel);
-    press.timer = setTimeout(() => {
-      if (pressRef.current !== press) return;
-      press.active = true;
-      try { target.setPointerCapture?.(press.pointerId); } catch (error) { /* 捕获失败时仍可用 hover 视觉 */ }
-      const next = { id: entry.id, dx: 0, insertAt: null, caretX: 0 };
-      dragRef.current = next;
-      setDrag(next);
-    }, WORKSPACE_HOLD_MS);
+    press.cancel = cancelDrag;
     pressRef.current = press;
+    document.addEventListener('pointermove', press.move, true);
+    document.addEventListener('pointerup', press.up, true);
+    document.addEventListener('pointercancel', press.cancel, true);
+    window.addEventListener('blur', press.cancel);
+    press.timer = setTimeout(() => {
+      if (pressRef.current !== press || press.mode !== 'waiting') return;
+      beginDrag();
+      setDrag({ id: press.id, dx: 0, insertAt: null, caretX: 0 });
+    }, WORKSPACE_HOLD_MS);
   }
 
-  /** 长按结束后吞掉紧随的 click；返回 true 表示这次点击已被消费。 */
   function consumeClick() {
     const suppressed = suppressClickRef.current;
     suppressClickRef.current = false;
@@ -140,4 +145,4 @@ function useWorkspaceReorder({ entries, onReorder, stripRef }) {
   return { drag, startPress, cancelDrag, consumeClick };
 }
 
-export { useWorkspaceReorder };
+export { useWorkspaceReorder, workspaceInsertion };

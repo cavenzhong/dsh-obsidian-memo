@@ -3,9 +3,10 @@ import { UNDO_MS, WORKSPACE_ALL_ID, WORKSPACES_MAX } from '../constants.js';
 import { React } from '../react.js';
 import { isAbortError, isAbsolutePath, joinPath, vaultRelative } from '../utils.js';
 import {
-  addWorkspace, moveWorkspace, normalizeFolder, noteInsideWorkspace, noteWorkspacePaper,
+  addWorkspace, moveWorkspace, normalizeFolder, noteWorkspacePaper,
   readStoredWorkspaces, removeWorkspace, setWorkspaceColor, workspaceColor, workspaceLabels, writeStoredWorkspaces,
 } from './workspaces.js';
+import { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, workspacePaneIds } from './workspace-display.js';
 
 function useWorkspaces({
   tRef, aliveRef, request, viewRef, updateView, refreshNow, pushToast, pushErrorToast,
@@ -21,29 +22,22 @@ function useWorkspaces({
   const vaultRef = React.useRef(vaultPath);
   vaultRef.current = vaultPath;
 
-  const [primaryColor, setPrimaryColor] = React.useState('paper');
-  const [items, setItems] = React.useState([]);
-  const [activeId, setActiveId] = React.useState(WORKSPACE_ALL_ID);
-  const itemsRef = React.useRef(items);
-  const activeIdRef = React.useRef(activeId);
-  itemsRef.current = items;
-  activeIdRef.current = activeId;
+  const [record, setRecord] = React.useState(() => ({ vaultPath, state: readStoredWorkspaces(vaultPath) }));
+  const state = React.useMemo(() => record.vaultPath === vaultPath ? record.state : readStoredWorkspaces(vaultPath), [record, vaultPath]);
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  const { items, activeId, primaryColor, split } = state;
+
+  function commit(next) {
+    stateRef.current = next;
+    setRecord({ vaultPath, state: next });
+    writeStoredWorkspaces(vaultPath, next.items, next.activeId, next.primaryColor, next);
+  }
 
   React.useEffect(() => {
-    if (vaultPath === '') {
-      setPrimaryColor('paper');
-      setItems([]);
-      setActiveId(WORKSPACE_ALL_ID);
-      return;
-    }
-    const stored = readStoredWorkspaces(vaultPath);
-    setPrimaryColor(stored.primaryColor);
-    setItems(stored.items);
-    setActiveId(stored.activeId);
-    // 旧记录缺少纸色时 normalize 会随机分配；写回一次让颜色稳定。
-    writeStoredWorkspaces(vaultPath, stored.items, stored.activeId, stored.primaryColor);
-    // 首次拿到仓库后把已挂载工作空间告诉 Host，补扫主空间之外的目录。
-    if (stored.items.length > 0) refreshRoots();
+    // 旧记录缺少纸色时写回一次；首次取得仓库也要补扫已挂载目录。
+    commit(state);
+    if (state.items.length > 0) refreshRoots();
   }, [vaultPath]);
 
   function refreshRoots() {
@@ -84,24 +78,36 @@ function useWorkspaces({
   // 关闭「显示子文件夹」时，只有主空间（默认工作空间）需要提示打开子文件夹。
   const showSubfolderHint = includeSubfolders === false && activeEntry.primary && notesFolder !== '.';
 
+  const paneIds = workspacePaneIds(state);
+  const paneIdKey = JSON.stringify(paneIds);
+  const paneEntries = React.useMemo(() => paneIds.map((id) => entries.find((entry) => entry.id === id)), [entries, paneIdKey]);
+
   function select(id) {
-    if (id !== WORKSPACE_ALL_ID && !entries.some((entry) => entry.id === id)) return;
-    if (id === resolvedActiveId) return;
-    activeIdRef.current = id;
-    setActiveId(id);
-    writeStoredWorkspaces(vaultRef.current, itemsRef.current, id, primaryColor);
+    const current = stateRef.current;
+    const next = selectWorkspace(current, id);
+    if (next !== current) commit(next);
+  }
+
+  function togglePin() {
+    const current = stateRef.current;
+    const next = toggleWorkspacePin(current);
+    if (next !== current) commit(next);
+  }
+
+  function setSplit(value) {
+    const next = normalizeSplit(value);
+    if (next !== stateRef.current.split) commit({ ...stateRef.current, split: next });
   }
 
   function restore(removed) {
-    const current = itemsRef.current;
+    if (vaultRef.current !== vaultPath) return;
+    const current = stateRef.current.items;
     if (!removed || !removed.item) return;
     if (current.some((item) => item.id === removed.item.id || item.path === removed.item.path)) return;
     if (current.length >= WORKSPACES_MAX) return;
     const next = current.slice();
     next.splice(Math.min(Math.max(0, removed.index), next.length), 0, removed.item);
-    itemsRef.current = next;
-    setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
+    commit({ ...stateRef.current, items: next });
     refreshRoots();
     pushToast({ text: tRef.current('toast.restored'), kind: 'success' });
   }
@@ -111,15 +117,12 @@ function useWorkspaces({
     if (normalized !== null && normalized !== '.' && normalized === notesFolder) {
       return { ok: false, error: tRef.current('workspace.error.notesRoot') };
     }
-    const result = addWorkspace(itemsRef.current, folder);
+    const result = addWorkspace(stateRef.current.items, folder);
     if (result.error) {
       return { ok: false, error: tRef.current('workspace.error.' + result.error, { count: WORKSPACES_MAX }) };
     }
-    itemsRef.current = result.items;
-    activeIdRef.current = result.item.id;
-    setItems(result.items);
-    setActiveId(result.item.id);
-    writeStoredWorkspaces(vaultRef.current, result.items, result.item.id, primaryColor);
+    const next = { ...stateRef.current, items: result.items };
+    commit(selectWorkspace(next, result.item.id));
     const label = workspaceLabels(result.items).get(result.item.id) || result.item.path;
     pushToast({ text: tRef.current('workspace.added', { label: label }), kind: 'success' });
     refreshRoots();
@@ -127,17 +130,12 @@ function useWorkspaces({
   }
 
   function remove(id) {
-    const before = itemsRef.current;
+    const current = stateRef.current;
+    const before = current.items;
     const result = removeWorkspace(before, id);
     if (!result) return;
-    itemsRef.current = result.items;
-    setItems(result.items);
-    const nextActive = activeIdRef.current === id ? WORKSPACE_ALL_ID : activeIdRef.current;
-    if (nextActive !== activeIdRef.current) {
-      activeIdRef.current = nextActive;
-      setActiveId(nextActive);
-    }
-    writeStoredWorkspaces(vaultRef.current, result.items, nextActive, primaryColor);
+    const activeId = current.activeId === id ? (current.pinnedIds.find((pin) => pin !== id) || WORKSPACE_ALL_ID) : current.activeId;
+    commit({ ...current, items: result.items, ...normalizeWorkspaceDisplay(result.items, { ...current, activeId }) });
     refreshRoots();
     const label = workspaceLabels(before).get(id) || result.removed.item.path;
     pushToast({
@@ -150,23 +148,18 @@ function useWorkspaces({
   function setColor(id, colorId) {
     if (!workspaceColor(colorId)) return;
     if (id === WORKSPACE_ALL_ID) {
-      setPrimaryColor(colorId);
-      writeStoredWorkspaces(vaultRef.current, itemsRef.current, activeIdRef.current, colorId);
+      commit({ ...stateRef.current, primaryColor: colorId });
       return;
     }
-    const next = setWorkspaceColor(itemsRef.current, id, colorId);
-    if (next === itemsRef.current) return;
-    itemsRef.current = next;
-    setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
+    const next = setWorkspaceColor(stateRef.current.items, id, colorId);
+    if (next === stateRef.current.items) return;
+    commit({ ...stateRef.current, items: next });
   }
 
   function reorder(id, toIndex) {
-    const next = moveWorkspace(itemsRef.current, id, toIndex);
-    if (next === itemsRef.current) return;
-    itemsRef.current = next;
-    setItems(next);
-    writeStoredWorkspaces(vaultRef.current, next, activeIdRef.current, primaryColor);
+    const next = moveWorkspace(stateRef.current.items, id, toIndex);
+    if (next === stateRef.current.items) return;
+    commit({ ...stateRef.current, items: next });
     refreshRoots();
   }
 
@@ -203,18 +196,16 @@ function useWorkspaces({
     const targetDir = entry.id === WORKSPACE_ALL_ID || entry.path === '.'
       ? now.notesDir
       : joinPath(now.vaultPath, entry.path);
-    const currentActive = itemsRef.current.find((item) => item.id === activeIdRef.current);
-    const currentFolder = currentActive ? currentActive.path : notesFolder;
     return request('moveNote', { path: note.path, targetDir: targetDir })
       .then((value) => {
         if (!aliveRef.current) return;
         const moved = value && value.note && typeof value.note.path === 'string' ? value.note : null;
-        const stays = moved ? noteInsideWorkspace(moved, currentFolder, now.vaultPath) : false;
+        if (vaultRef.current !== now.vaultPath) return;
         const previous = viewRef.current;
         const notes = [];
         for (const item of previous.notes) {
           if (item.path === note.path) {
-            if (stays && moved) notes.push(moved);
+            if (moved) notes.push(moved);
             continue;
           }
           notes.push(item);
@@ -242,7 +233,7 @@ function useWorkspaces({
   }
 
   return {
-    entries: entries,
+    entries, paneEntries, pinActive: paneEntries.length === 2, split, togglePin, setSplit,
     activeId: resolvedActiveId,
     activeEntry: activeEntry,
     activeFolder: activeFolder,

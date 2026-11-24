@@ -66,15 +66,15 @@ test('工作空间增删排序：根目录/重复/无效拒绝，删除后可撤
   const first = api.addWorkspace([], '进行时/日记')
   assert.equal(first.error, undefined)
   assert.equal(first.item.path, '进行时/日记')
-  assert.equal(api.WORKSPACE_COLORS.length, 8, '8 个预设纸色')
+  assert.equal(api.WORKSPACE_COLORS.length, 9, '9 个预设纸色')
   assert.ok(api.WORKSPACE_COLORS.some((color) => color.id === first.item.color), '新增空间默认随机分配纸色')
   assert.deepEqual(
     [api.workspaceColor('paper').light, api.workspaceColor('paper').dark],
     ['#FDFAF4', '#2C2721'],
     '纸色与 Host 卡片配色一致',
   )
-  const usedSeven = new Set(api.WORKSPACE_COLORS.slice(0, 7).map((color) => color.id))
-  assert.equal(api.nextWorkspaceColorId(usedSeven), api.WORKSPACE_COLORS[7].id, '优先使用未被占用的纸色')
+  const used = new Set(api.WORKSPACE_COLORS.filter((color) => color.id !== 'light-gray').map((color) => color.id))
+  assert.equal(api.nextWorkspaceColorId(used), 'light-gray', '优先使用未被占用的纸色')
   const recolored = api.setWorkspaceColor(first.items, first.item.id, 'mist')
   assert.equal(recolored[0].color, 'mist')
   assert.equal(api.setWorkspaceColor(first.items, first.item.id, 'nope'), first.items, '非法颜色不写入')
@@ -102,9 +102,9 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   const api = mod.__test
   api.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时/日记', color: 'mist' }], 'a')
   api.writeStoredWorkspaces('/vault-b', [{ id: 'b', path: '项目', color: 'moss' }], ALL)
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a', primaryColor: 'paper' })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL, primaryColor: 'paper' })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL, primaryColor: 'paper' })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a', primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
 
   storage.setItem(api.WORKSPACES_KEY, JSON.stringify({ version: 1, vaults: {
     '/vault-a': { items: [{ id: 'x', path: '进行时/日记' }, { id: 'y', path: '进行时/日记' }, { id: 'z', path: '.' }, { id: 'w', path: '../外面' }], activeId: 'missing' },
@@ -116,10 +116,10 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   assert.ok(api.WORKSPACE_COLORS.some((color) => color.id === migrated.items[0].color), '旧记录自动补一个预设纸色')
 
   storage.setItem(api.WORKSPACES_KEY, '{broken')
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper' })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
   const { mod: noStorage } = loadClient(t, { storage: null })
   assert.doesNotThrow(() => noStorage.__test.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时' }], 'a'))
-  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper' })
+  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
 })
 
 test('添加弹层定位：贴着「＋」，靠右时改为右对齐，窄栏不越出标签栏', (t) => {
@@ -163,10 +163,17 @@ test('工作空间标签栏：所有/自定义标签、点击切换、右键菜�
   tabs[0].props.onContextMenu({ preventDefault() { prevented++ }, stopPropagation() {}, clientX: 10, clientY: 10 })
   assert.equal(prevented, 1)
   nodes = render()
-  assert.equal(nodes.filter((node) => node.props.className === 'SN_wsSwatch').length, api.WORKSPACE_COLORS.length)
+  const swatches = nodes.filter((node) => node.props.className === 'SN_wsSwatch')
+  assert.equal(swatches.length, api.WORKSPACE_COLORS.length)
+  assert.equal(swatches[0].props['aria-label'], 'workspace.color.paper')
+  assert.equal(swatches[1].props['aria-label'], 'workspace.color.light-gray')
+  assert.equal(swatches[1].props.style['--sn-ws-paper'], '#F2F2F2')
+  assert.equal(swatches[1].props.style['--sn-ws-paper-dark'], '#282828')
+  assert.equal(api.dictionaries.zh['workspace.color.light-gray'], '浅灰')
+  assert.equal(api.dictionaries.en['workspace.color.light-gray'], 'Light gray')
   assert.equal(nodes.some((node) => node.props.className === 'SN_wsMenuItem SN_wsMenuDelete'), false)
-  nodes.find((node) => node.props.className === 'SN_wsSwatch' && node.props['aria-label'] === 'workspace.color.lilac').props.onClick()
-  assert.deepEqual(colors, [[ALL, 'lilac']])
+  swatches[1].props.onClick()
+  assert.deepEqual(colors, [[ALL, 'light-gray']])
   assert.equal(render().some((node) => node.props.className === 'SN_wsMenu'), false)
 
   tabs = render().filter((node) => node.props.className === 'SN_wsTab')

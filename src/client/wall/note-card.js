@@ -106,7 +106,7 @@ const NoteCard = React.memo(function NoteCard(props) {
     onClick: (event) => {
       if (event.detail !== 1 || props.preview || props.dragging) return;
       playCardPress(event.currentTarget);
-      actions.current.onOpen(note);
+      actions.current.onOpen(note, event.currentTarget);
     },
     onKeyDown: (event) => {
       if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return;

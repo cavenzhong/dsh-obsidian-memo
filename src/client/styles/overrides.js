@@ -93,7 +93,7 @@ body[data-ds-dark-theme] .SN_drawerDeleteBtn:hover:not(:disabled){color:#e3b3b3}
 body[data-ds-dark-theme] .SN_panel,body[data-ds-dark-theme] .SN_dragLayer{--sn-ink-title:${INK_TITLE_DARK};--sn-ink-body:${INK_BODY_DARK};--sn-ink-comment:${INK_COMMENT_DARK};--sn-ink-muted:${INK_MUTED_DARK};--sn-accent:#A78BFA}
 body[data-ds-dark-theme] .SN_cardClip{background:var(--sn-card-bg-dark,var(--sn-card-bg))}
 body[data-ds-dark-theme] .SN_card{box-shadow:0 1px 2px rgba(0,0,0,.45),0 0 0 .5px rgba(0,0,0,.55)}
-body[data-ds-dark-theme] .SN_card:hover{box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 .5px rgba(0,0,0,.6)}
+body[data-ds-dark-theme] .SN_card:hover{box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 .5px #fff}
 body[data-ds-dark-theme] .SN_card:focus-visible{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 22px rgba(0,0,0,.55)}
 body[data-ds-dark-theme] .SN_card[data-dragging='true']{box-shadow:none}
 body[data-ds-dark-theme] .SN_card,body[data-ds-dark-theme] .SN_noteDrawer{--sn-note-bg:var(--sn-card-bg-dark,var(--sn-card-bg));--sn-tag-ink:var(--sn-card-bg);--sn-ink-title:${INK_TITLE_DARK}}

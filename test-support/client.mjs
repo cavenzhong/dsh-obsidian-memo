@@ -124,12 +124,13 @@ function loadClient(t, { storage = makeStorage(), react = createReactStub() } = 
 }
 
 function hookRunner(t) {
-  const react = createReactStub(), cells = []
-  let cursor = 0, effects = []
+  const react = createReactStub(), root = [], children = new Map()
+  let cursor = 0, effects = [], cells = root
   react.useState = (initial) => {
     const index = cursor++
     if (!(index in cells)) cells[index] = { value: typeof initial === 'function' ? initial() : initial }
-    return [cells[index].value, (value) => { cells[index].value = typeof value === 'function' ? value(cells[index].value) : value }]
+    const cell = cells[index]
+    return [cell.value, (value) => { cell.value = typeof value === 'function' ? value(cell.value) : value }]
   }
   react.useRef = (initial) => {
     const index = cursor++
@@ -139,18 +140,40 @@ function hookRunner(t) {
   react.useEffect = (effect, deps) => {
     const index = cursor++, old = cells[index]
     if (!old || !deps || deps.some((value, i) => value !== old.deps?.[i])) {
+      const owner = cells
       effects.push(() => {
         old?.cleanup?.()
-        cells[index] = { deps, cleanup: effect() }
+        owner[index] = { deps, cleanup: effect() }
       })
     }
   }
   react.useLayoutEffect = react.useEffect
   const { mod, storage } = loadClient(t, { react })
   const api = mod.__test
+  function dispose(frame) {
+    for (const cell of frame) cell?.cleanup?.()
+    frame.length = 0
+  }
   function unmount() {
-    for (const cell of cells) cell?.cleanup?.()
-    cells.length = 0
+    for (const frame of children.values()) dispose(frame)
+    children.clear()
+    dispose(root)
+  }
+  // Expand only the nested wall boundaries needed by panel integration tests; other components stay inspectable.
+  function renderWalls(node, visited, path = '') {
+    if (Array.isArray(node)) {
+      node.forEach((child, index) => renderWalls(child, visited, `${path}/${child?.props?.key ?? index}`))
+    } else if (node && typeof node === 'object') {
+      if ([api.components.WorkspacePanes, api.components.WorkspaceWall].includes(node.type)) {
+        const key = `${path}/${node.type.name}/${node.props.key ?? ''}`
+        visited.add(key)
+        if (!children.has(key)) children.set(key, [])
+        cells = children.get(key)
+        cursor = 0
+        node.children = [node.type(node.props)]
+      }
+      renderWalls(node.children, visited, path)
+    }
   }
   t.after(unmount)
   return {
@@ -164,9 +187,17 @@ function hookRunner(t) {
       }, services))
     },
     render(fn, options, beforeEffects) {
+      cells = root
       cursor = 0
       effects = []
       const result = fn(options)
+      const visited = new Set()
+      if (fn === api.components.StickyNotesPanel) renderWalls(result, visited)
+      for (const [key, frame] of children) {
+        if (visited.has(key)) continue
+        dispose(frame)
+        children.delete(key)
+      }
       beforeEffects?.(result)
       for (const effect of effects) effect()
       return result

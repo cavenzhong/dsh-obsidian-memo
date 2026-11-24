@@ -35,9 +35,19 @@ const baseStyles = `
 .SN_wsBar{position:relative;display:flex;align-items:center;gap:8px;min-width:0;min-height:34px;margin-top:-2px}
 /* 标签/按钮/弹层保持可点击；标签栏空白处仍可拖动窗口（Windows 的 app-region）。 */
 .SN_wsBar button,.SN_wsBar input,.SN_wsBar textarea,.SN_wsBar [role='dialog'],.SN_wsBar [role='dialog'] *,.SN_wsBar [role='menu']{-webkit-app-region:no-drag;app-region:no-drag}
-.SN_wsTabs{position:relative;display:flex;align-items:flex-end;gap:1px;flex:0 1 auto;min-width:0;max-width:calc(100% - 72px);height:34px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 2px}
+.SN_wsTabs{position:relative;display:flex;align-items:flex-end;gap:1px;flex:0 1 auto;min-width:0;height:34px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 2px}
 .SN_wsTabs::-webkit-scrollbar{display:none}
+.SN_wsSlot{position:relative;flex:none;display:flex;align-items:center;isolation:isolate}
+.SN_wsSlot[data-dragging='true']{z-index:2;transform:translate3d(var(--sn-ws-drag-x,0),0,0)}
+.SN_wsSplitControl{display:flex;flex:none;align-items:center;gap:6px;margin-left:auto;padding-bottom:2px}
+.SN_shortcutKey{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:1px 5px;border:1px solid color-mix(in srgb,var(--sn-accent) 25%,transparent);border-radius:5px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--sn-accent);font:600 11px/16px var(--sn-sans);white-space:nowrap;pointer-events:none}
+.SN_wsTabHint,.SN_wsSplitHint{display:none;flex:none}
+.SN_panel[data-workspace-shortcuts] :is(.SN_wsTabHint,.SN_wsSplitHint){display:inline-flex}
+.SN_wsSplitHint{gap:6px}
+.SN_wsMoreMenu .SN_wsTabHint{margin-inline-start:auto}
+.SN_wsSplitHint kbd{font:inherit}
 .SN_wsTab{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;height:32px;max-width:240px;padding:0 11px;border:0;border-radius:8px 8px 0 0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;font-weight:500;line-height:1;white-space:nowrap;cursor:pointer;transition:color .12s ease,background .12s ease,opacity .12s ease;touch-action:pan-x}
+.SN_wsTab[data-all='false']{touch-action:pan-y;user-select:none;-webkit-touch-callout:none}
 .SN_wsTabLabel{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .SN_wsTab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05))}
 .SN_wsTab::after{content:'';position:absolute;left:11px;right:11px;bottom:0;height:2px;border-radius:2px 2px 0 0;background:transparent;transition:background .16s ease,left .16s ease,right .16s ease}
@@ -47,17 +57,19 @@ const baseStyles = `
 .SN_wsTab[data-active='true']:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));color:var(--sn-accent)}
 .SN_wsTab[data-drop='true']{color:var(--sn-accent);background:rgba(139,92,246,.13);background:color-mix(in srgb,var(--sn-accent) 13%,transparent);border-radius:8px 8px 0 0;box-shadow:inset 0 0 0 1px rgba(139,92,246,.26);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 26%,transparent)}
 .SN_wsTab[data-drop='true']::after{left:6px;right:6px;background:var(--sn-accent)}
-.SN_wsTab[data-dragging='true']{z-index:5;color:var(--sn-accent);background:var(--dsw-alias-bg-layer-2,#fff);border-radius:8px;box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px rgba(139,92,246,.28);box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 28%,transparent);transform:translate3d(var(--sn-ws-drag-x,0),0,0);cursor:grabbing;opacity:.97}
+.SN_wsTab[data-dragging='true']{z-index:5;color:var(--sn-accent);background:var(--dsw-alias-bg-layer-2,#fff);border-radius:8px;box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px rgba(139,92,246,.28);box-shadow:0 8px 20px rgba(30,20,10,.18),inset 0 0 0 1px color-mix(in srgb,var(--sn-accent) 28%,transparent);cursor:grabbing;opacity:.97}
 .SN_wsTab[data-dragging='true']::after{background:transparent}
 .SN_wsTabMove{display:inline-flex;align-items:center;flex:none;opacity:.55;color:currentColor}
 .SN_wsTab[data-drop='true'] .SN_wsTabMove{opacity:1}
 /* 拖卡片时：可接收的空间保留紫色下划线提示。 */
 .SN_panel[data-card-dragging='true'] .SN_wsTab::after{background:rgba(139,92,246,.3);background:color-mix(in srgb,var(--sn-accent) 30%,transparent)}
-.SN_wsCaret{position:absolute;top:6px;bottom:0;width:2px;margin-left:-1px;border-radius:2px;background:var(--sn-accent);box-shadow:0 0 0 3px rgba(139,92,246,.14);box-shadow:0 0 0 3px color-mix(in srgb,var(--sn-accent) 14%,transparent);pointer-events:none}
+.SN_wsCaret{position:absolute;z-index:3;top:6px;bottom:0;width:2px;margin-left:-1px;border-radius:2px;background:var(--sn-accent);box-shadow:0 0 0 3px rgba(139,92,246,.14);box-shadow:0 0 0 3px color-mix(in srgb,var(--sn-accent) 14%,transparent);pointer-events:none}
 .SN_wsTools{position:relative;flex:none;display:flex;align-items:center;gap:2px;padding-bottom:2px}
 .SN_wsTool{width:26px;height:26px;flex:none;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-tertiary);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:background .12s ease,color .12s ease}
 .SN_wsTool:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));color:var(--dsw-alias-label-primary)}
+.SN_wsSplit:disabled{opacity:.5;cursor:default;background:transparent;color:var(--dsw-alias-label-tertiary)}
 .SN_wsTool[data-active='true']{color:var(--sn-accent);background:rgba(139,92,246,.10);background:color-mix(in srgb,var(--sn-accent) 10%,transparent)}
+.SN_wsSplit[data-active='true']{color:var(--sn-accent);background:transparent}
 .SN_wsPop{position:absolute;top:calc(100% + 8px);z-index:48;-webkit-user-select:text;user-select:text;width:min(${WORKSPACE_POPOVER_WIDTH}px,calc(100% - 8px));max-height:min(560px,calc(100vh - 140px));overflow:auto;padding:12px;border-radius:12px;background:var(--dsw-alias-bg-layer-2,#fff);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 18px 44px rgba(30,20,10,.18);animation:SN_toastIn .16s ease}
 .SN_wsPopHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .SN_wsPopTitle{font-size:12.5px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
@@ -118,7 +130,15 @@ body[data-ds-dark-theme] .SN_wsSwatch{background:var(--sn-ws-paper-dark)}
 
 .SN_body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
 .SN_wallWrap{position:relative;flex:1;min-height:0;min-width:0;margin-right:var(--sn-dock-right,0px);display:flex;flex-direction:column;container-type:inline-size;container-name:sn-wall}
-.SN_wall{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(248px,100%),1fr));gap:14px;padding:18px 22px 28px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
+.SN_workspacePanes{isolation:isolate;flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.SN_workspacePane{min-width:0;min-height:0;display:flex;flex-direction:column}
+.SN_workspacePaneLabel{flex:none;padding:7px clamp(8px,1.5vw,22px) 0;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.SN_workspacePane[data-current='true'] .SN_workspacePaneLabel{color:var(--sn-accent)}
+.SN_workspaceDivider{position:relative;z-index:1;cursor:col-resize;touch-action:none;outline-offset:-1px}
+.SN_workspaceDivider::before{content:'';position:absolute;inset:0 4px 0 3px;background:var(--dsw-alias-border-l2,rgba(0,0,0,.12));opacity:.5;pointer-events:none}
+.SN_workspaceDivider:is(:hover,:focus-visible,:active)::before{background:var(--sn-accent);opacity:1}
+.SN_wall{position:relative;flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(248px,100%),1fr));gap:14px;padding:18px 22px calc(28px + var(--sn-reveal-extra,0px));align-content:start;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent}
+.SN_workspacePanes[data-split='true'] .SN_wall{padding-inline:clamp(4px,5%,22px)}
 .SN_wall::-webkit-scrollbar{width:8px;height:8px}
 .SN_wall::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.16));border-radius:4px}
 .SN_wall::-webkit-scrollbar-track{background:transparent}

@@ -117,8 +117,9 @@ test('面板集成：父空间里的卡片、tag、阅读抽屉和拖拽预览�
   await flush();
   const drawer = () => render().find((node) => node.type === api.components.NoteDrawer);
   assert.equal(drawer().props.paper.id, 'mist');
-  bar().props.onSetColor('b', 'lilac');
-  const color = api.workspaceColor('lilac');
+  bar().props.onSetColor('b', 'light-gray');
+  const color = api.workspaceColor('light-gray');
+  assert.equal(api.readStoredWorkspaces('/vault').items.find((item) => item.id === 'b').color, 'light-gray');
   assert.equal(cardFor(aNote).props.paper.id, 'sand');
   assert.equal(cardFor(bNote).props.paper, color);
   assert.equal(drawer().props.paper, color, '已打开的阅读抽屉同步更新');

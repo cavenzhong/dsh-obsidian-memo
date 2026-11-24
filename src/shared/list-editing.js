@@ -95,15 +95,24 @@ function listDragModel(text) {
   };
 }
 
-function selectionLine(text, start, end) {
-  if (typeof text !== 'string' || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > text.length) return null;
-  const doc = listDocument(text);
-  let offset = 0, line = 0;
-  while (line < doc.lines.length - 1 && start > offset + doc.lines[line].length) {
-    offset += doc.lines[line].length + (doc.raw[line * 2 + 1]?.length || 0);
-    line += 1;
+function validSelection(text, start, end) {
+  return typeof text === 'string' && Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end >= start && end <= text.length;
+}
+
+function* selectedLines(doc, start, end) {
+  let offset = 0;
+  for (let line = 0; line < doc.lines.length && (offset < end || (start === end && offset <= end)); line += 1) {
+    const lineEnd = offset + doc.lines[line].length;
+    if (lineEnd >= start) yield { line, offset, lineEnd, singleLine: offset <= start && end <= lineEnd };
+    offset = lineEnd + (doc.raw[line * 2 + 1]?.length || 0);
   }
-  return start >= offset && end <= offset + doc.lines[line].length ? { doc, line, offset } : null;
+}
+
+function selectionLine(text, start, end) {
+  if (!validSelection(text, start, end)) return null;
+  const doc = listDocument(text);
+  const selection = selectedLines(doc, start, end).next().value;
+  return selection?.singleLine ? { doc, line: selection.line, offset: selection.offset } : null;
 }
 
 function adjacentItem(doc, line, up) {
@@ -113,32 +122,64 @@ function adjacentItem(doc, line, up) {
   return target;
 }
 
-function canMoveListAtSelection(text, start, end) {
-  const selection = selectionLine(text, start, end);
-  if (!selection || !selection.doc.items[selection.line]) return false;
-  const { doc, line } = selection;
+function canMoveListLine(doc, line) {
   return Boolean(planListMove(doc, line, adjacentItem(doc, line, true), false)
     || planListMove(doc, line, adjacentItem(doc, line, false), true));
 }
 
+function listShortcutHintAtSelection(text, start, end) {
+  if (!validSelection(text, start, end)) return null;
+  const doc = listDocument(text);
+  for (const { line, singleLine } of selectedLines(doc, start, end)) {
+    if (!doc.items[line]) continue;
+    return singleLine && canMoveListLine(doc, line) ? 'move' : 'cycle';
+  }
+  return null;
+}
+
+function cycleLine(doc, line) {
+  const item = doc.items[line];
+  if (!item) return doc.paragraphLines.has(line) ? doc.lines[line].replace(/^([ \t]*)/, '$1- ') : null;
+  const [, indent, marker, space, checked, taskSpace, content] = item.match;
+  if (checked === undefined) return indent + marker + (space || ' ') + '[ ] ' + content;
+  if (checked === ' ') return indent + marker + space + '[x]' + taskSpace + content;
+  // 保留已有编号；四态循环适用于无序项。
+  return indent + (/^\d/.test(marker) ? marker + space : '') + content;
+}
+
+function cycleSelection(text, start, end) {
+  if (!validSelection(text, start, end)) return null;
+  const doc = listDocument(text);
+  const next = doc.lines.slice();
+  let startDelta = 0, endDelta = 0, changed = false;
+  for (const { line, offset, lineEnd, singleLine } of selectedLines(doc, start, end)) {
+    const original = doc.lines[line];
+    if (!original.trim() && !singleLine) continue;
+    const replacement = cycleLine(doc, line);
+    if (replacement === null || replacement === original) continue;
+    changed = true;
+    next[line] = replacement;
+    const delta = replacement.length - original.length;
+    const adjust = (column) => Math.max(0, Math.min(replacement.length, column + delta)) - column;
+    // 从行首起选多行时保留首个完整行；起点落在行内则跟随原内容。
+    if (start > offset || singleLine) startDelta = adjust(start - offset);
+    endDelta += lineEnd < end ? delta : adjust(end - offset);
+  }
+  return changed ? { text: doc.compose(next), start: start + startDelta, end: end + endDelta } : null;
+}
+
 function editListAtSelection(text, start, end, action) {
+  if (typeof text !== 'string') return null;
+  if (action === 'cycle') return cycleSelection(text, start, end);
   const selection = selectionLine(text, start, end);
   if (!selection) return null;
   const { doc, line, offset } = selection;
   const item = doc.items[line];
-  if (!item && (action !== 'cycle' || !doc.paragraphLines.has(line))) return null;
-  const original = doc.lines[line];
-  const [, indent, marker, space, checked, taskSpace, content] = item?.match || [];
+  if (!item) return null;
+  const [, indent] = item.match;
   const next = doc.lines.slice();
   let delta = 0;
-  if (action === 'cycle') {
-    if (!item) next[line] = original.replace(/^([ \t]*)/, '$1- ');
-    else if (checked === undefined) next[line] = indent + marker + (space || ' ') + '[ ] ' + content;
-    else if (checked === ' ') next[line] = indent + marker + space + '[x]' + taskSpace + content;
-    // 保留已有编号；四态循环适用于无序项。
-    else next[line] = indent + (/^\d/.test(marker) ? marker + space : '') + content;
-    delta = next[line].length - original.length;
-  } else if (action === 'indent' || action === 'outdent') {
+  if (action === 'indent' || action === 'outdent') {
     const remove = indent.startsWith('\t') ? 1 : Math.min(2, indent.length);
     const itemLimit = itemEnd(doc, line);
     if (itemLimit === null || (action === 'outdent' && remove === 0)) return null;
@@ -157,4 +198,4 @@ function editListAtSelection(text, start, end, action) {
   return { text: doc.compose(next), start: adjust(start), end: adjust(end) };
 }
 
-export { canMoveListAtSelection, editListAtSelection, listDragModel, moveListItem };
+export { editListAtSelection, listDragModel, listShortcutHintAtSelection, moveListItem };

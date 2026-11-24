@@ -1,4 +1,4 @@
-import { canMoveListAtSelection, editListAtSelection } from '../../shared/list-editing.js';
+import { editListAtSelection, listShortcutHintAtSelection } from '../../shared/list-editing.js';
 import { React } from '../react.js';
 
 const isComposing = (event) => event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229;
@@ -23,11 +23,11 @@ function handleListShortcut(event, applyChange) {
 function useListShortcuts({ editing, path, saving }) {
   const held = React.useRef(false);
   const composing = React.useRef(false);
-  const [showHint, setShowHint] = React.useState(false);
+  const [hint, setHint] = React.useState(null);
   function reset() {
     held.current = false;
     composing.current = false;
-    setShowHint(false);
+    setHint(null);
   }
   React.useEffect(() => {
     reset();
@@ -37,15 +37,15 @@ function useListShortcuts({ editing, path, saving }) {
   }, [editing, path, saving]);
 
   function refresh(input) {
-    setShowHint(Boolean(held.current && !composing.current && !input.disabled && !input.readOnly
-      && canMoveListAtSelection(input.value, input.selectionStart, input.selectionEnd)));
+    setHint(held.current && !composing.current && !input.disabled && !input.readOnly
+      ? listShortcutHintAtSelection(input.value, input.selectionStart, input.selectionEnd) : null);
   }
   function updateModifier(event) {
     held.current = Boolean(listModifier(event));
     refresh(event.currentTarget);
   }
   return {
-    showHint: editing && !saving && showHint,
+    hintKey: editing && !saving && hint ? (hint === 'move' ? 'drawer.listShortcutHint' : 'drawer.listCycleShortcutHint') : 'drawer.shortcutHint',
     refresh,
     fieldProps(applyChange) {
       return {
@@ -55,7 +55,7 @@ function useListShortcuts({ editing, path, saving }) {
         },
         onKeyUp: updateModifier,
         onClick: updateModifier,
-        onCompositionStart() { composing.current = true; setShowHint(false); },
+        onCompositionStart() { composing.current = true; setHint(null); },
         onCompositionEnd(event) { composing.current = false; refresh(event.currentTarget); },
       };
     },

@@ -13,4 +13,11 @@ const NOTE_PAPER_COLORS = Object.freeze([
   { id: 'celadon', name: '青瓷', color: '#F5F9F7', dark: '#222C29', dot: '#8FBAB0' },
 ]);
 
-export { NOTE_PAPER_COLORS };
+// 工作空间的可选色比 Host 多一个浅灰；不改动现有 tag 的自动配色。
+const WORKSPACE_PAPER_COLORS = Object.freeze([
+  NOTE_PAPER_COLORS[0],
+  { id: 'light-gray', name: '浅灰', color: '#F2F2F2', dark: '#282828', dot: '#A5A5A5' },
+  ...NOTE_PAPER_COLORS.slice(1),
+]);
+
+export { NOTE_PAPER_COLORS, WORKSPACE_PAPER_COLORS };

@@ -1,10 +1,11 @@
 /** 工作空间标签的纯规则：仓库相对路径、标签、筛选、排序与 localStorage 读写。 */
 import { WORKSPACES_KEY, WORKSPACES_MAX, WORKSPACE_ALL_ID } from '../constants.js';
-import { NOTE_PAPER_COLORS } from '../../shared/note-colors.js';
+import { WORKSPACE_PAPER_COLORS } from '../../shared/note-colors.js';
 import { baseName, isAbsolutePath } from '../utils.js';
+import { normalizeWorkspaceDisplay } from './workspace-display.js';
 
-// 工作空间纸色与 Host 共用同一份色板；只把字段名换成卡片使用的 light/dark。
-const WORKSPACE_COLORS = Object.freeze(NOTE_PAPER_COLORS.map((color) => ({
+// 纸色定义来自共享色板；把字段名换成卡片使用的 light/dark。
+const WORKSPACE_COLORS = Object.freeze(WORKSPACE_PAPER_COLORS.map((color) => ({
   id: color.id,
   light: color.color,
   dark: color.dark,
@@ -191,7 +192,7 @@ function normalizeStoredWorkspaces(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const items = [];
   const seenPaths = new Set();
-  const seenIds = new Set();
+  const seenIds = new Set([WORKSPACE_ALL_ID]);
   const usedColors = new Set();
   for (const entry of Array.isArray(source.items) ? source.items.slice(0, WORKSPACES_MAX) : []) {
     const path = normalizeFolder(entry && entry.path);
@@ -205,10 +206,7 @@ function normalizeStoredWorkspaces(raw) {
     usedColors.add(color);
     items.push({ id: id, path: path, color: color });
   }
-  const activeId = typeof source.activeId === 'string' && items.some((item) => item.id === source.activeId)
-    ? source.activeId
-    : WORKSPACE_ALL_ID;
-  return { items: items, activeId: activeId, primaryColor: workspaceColor(source.primaryColor)?.id || 'paper' };
+  return { items, primaryColor: workspaceColor(source.primaryColor)?.id || 'paper', ...normalizeWorkspaceDisplay(items, source) };
 }
 
 function readWorkspaceStore() {
@@ -227,20 +225,20 @@ function readWorkspaceStore() {
 }
 
 function readStoredWorkspaces(vaultPath) {
-  if (typeof vaultPath !== 'string' || vaultPath === '') return { items: [], activeId: WORKSPACE_ALL_ID, primaryColor: 'paper' };
+  if (typeof vaultPath !== 'string' || vaultPath === '') return normalizeStoredWorkspaces(null);
   const store = readWorkspaceStore();
   const record = Object.prototype.hasOwnProperty.call(store.vaults, vaultPath) ? store.vaults[vaultPath] : null;
   return normalizeStoredWorkspaces(record);
 }
 
-function writeStoredWorkspaces(vaultPath, items, activeId, primaryColor) {
+function writeStoredWorkspaces(vaultPath, items, activeId, primaryColor, display) {
   if (typeof vaultPath !== 'string' || vaultPath === '') return;
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
     const store = readWorkspaceStore();
     store.vaults[vaultPath] = {
       items: (Array.isArray(items) ? items : []).map((item) => ({ id: item.id, path: item.path, color: item.color })),
-      activeId: activeId,
+      ...normalizeWorkspaceDisplay(items, { ...(display || store.vaults[vaultPath]), activeId }),
       primaryColor: workspaceColor(primaryColor)?.id || workspaceColor(store.vaults[vaultPath]?.primaryColor)?.id || 'paper',
     };
     window.localStorage.setItem(WORKSPACES_KEY, JSON.stringify(store));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canMoveListAtSelection, editListAtSelection, moveListItem } from '../../src/shared/list-editing.js';
+import { editListAtSelection, listShortcutHintAtSelection, moveListItem } from '../../src/shared/list-editing.js';
 
 const LF = String.fromCharCode(10), CRLF = String.fromCharCode(13, 10), TAB = String.fromCharCode(9);
 const edit = (text, action, needle = '工作') => { const position = text.indexOf(needle); return editListAtSelection(text, position, position + needle.length, action); };
@@ -33,24 +33,28 @@ test('列表快捷操作：无标记 → 圆点 → 未完成 → 已完成 → 
   assert.equal(editListAtSelection('- [x]', 5, 5, 'cycle').text, '');
 });
 
-test('列表快捷操作：正文仅可切换标记，引用、标题、代码、分隔线和跨行选区不触发', () => {
+test('列表快捷操作：正文仅可切换标记，引用、标题、代码和分隔线不触发', () => {
   for (const action of ['up', 'down', 'indent', 'outdent']) assert.equal(edit('工作段落', action), null);
   for (const text of ['> - 工作', '# 工作', '    工作', ['```md', '- 工作', '```'].join(LF), ['~~~', '- 工作', '~~~'].join(LF)]) {
     for (const action of ['cycle', 'up', 'down', 'indent', 'outdent']) assert.equal(edit(text, action), null);
   }
   for (const rule of ['---', '* * *', '_ _ _']) assert.equal(editListAtSelection(rule, 0, 0, 'cycle'), null);
-  assert.equal(editListAtSelection('- 工作' + LF + '- 二', 2, 8, 'cycle'), null);
+  for (const action of ['up', 'down', 'indent', 'outdent']) assert.equal(editListAtSelection('- 工作' + LF + '- 二', 2, 8, action), null);
   assert.equal(editListAtSelection('- 工作', -1, 0, 'cycle'), null);
 });
 
-test('列表换行提示：只有能实际与同层级相邻项换位的选区才符合条件', () => {
+test('列表快捷键提示：只有同级可换位的单行展示完整提示，其他列表选区只提示切换', () => {
   for (const text of ['- 工作', ['- 工作', '  - 子项'].join(LF), ['- 工作', '', '- 另一项'].join(LF)]) {
-    assert.equal(canMoveListAtSelection(text, 2, 4), false);
+    assert.equal(listShortcutHintAtSelection(text, 2, 4), 'cycle');
   }
   const siblings = ['- 工作', '  续行', '  - 子项', '- 另一项'].join(CRLF);
-  assert.equal(canMoveListAtSelection(siblings, 2, 4), true);
-  assert.equal(canMoveListAtSelection(siblings, siblings.length, siblings.length), true);
-  assert.equal(canMoveListAtSelection(siblings, 2, siblings.length), false);
+  assert.equal(listShortcutHintAtSelection(siblings, 2, 4), 'move');
+  assert.equal(listShortcutHintAtSelection(siblings, siblings.length, siblings.length), 'move');
+  assert.equal(listShortcutHintAtSelection(siblings, 2, siblings.length), 'cycle');
+  const heading = '# 标题\r\n- 未选中';
+  assert.equal(listShortcutHintAtSelection(heading, 0, heading.indexOf('-')), null, '终点在项目行首，不能算成选中项目');
+  const fence = '```md\n- 示例\n- [x] 示例\n```';
+  assert.equal(listShortcutHintAtSelection(fence, 0, fence.length), null, '围栏里的列表文本不提示切换');
 });
 
 test('列表上下移动：整项包含子项与续行，保留末尾换行和光标选区', () => {
@@ -106,8 +110,26 @@ test('列表边界：拖动、换位和缩进不可切开包含空行或未闭�
     assert.equal(moveListItem(body, 0, 1, true), null);
     assert.equal(edit(body, 'up'), null);
     assert.equal(edit(body, 'indent'), null);
-    assert.equal(canMoveListAtSelection(body, 6, 8), false);
+    assert.equal(listShortcutHintAtSelection(body, 6, 8), 'cycle', '仍可切换标记，但不可换位');
   }
   const intact = ['- 工作', '  ```js', '  const a = 1', '  ```', '- 末项'];
   assert.equal(moveListItem(intact.join(LF), 0, 4, true).text, [intact[4], ...intact.slice(0, 4)].join(LF));
+});
+
+test('多选不同项目符号的列表：批量循环，保持缩进、混合换行和原选区', () => {
+  const text = '前文\r\n- 一项\r\n  * 二项\n+ 三项\r\n末行';
+  let result = { text, start: text.indexOf('一项'), end: text.indexOf('末行') };
+  for (const markers of [['- [ ] ', '  * [ ] ', '+ [ ] '], ['- [x] ', '  * [x] ', '+ [x] '], ['', '  ', '']]) {
+    result = editListAtSelection(result.text, result.start, result.end, 'cycle');
+    assert.equal(result.text, `前文\r\n${markers[0]}一项\r\n${markers[1]}二项\n${markers[2]}三项\r\n末行`);
+    assert.equal(result.text.slice(result.start, result.start + 2), '一项');
+    assert.equal(result.end, result.text.indexOf('末行'), '选区末端在下一行行首时不修改下一行');
+  }
+});
+
+test('混合选区：可转换行独立循环，空行、标题、引用和代码围栏不改', () => {
+  const text = '# 标题\n\n> 引用\n- 圆点\n```md\n- 代码\n```\n- [ ] 待办\n正文\n';
+  const result = editListAtSelection(text, 0, text.length, 'cycle');
+  const expected = '# 标题\n\n> 引用\n- [ ] 圆点\n```md\n- 代码\n```\n- [x] 待办\n- 正文\n';
+  assert.deepEqual(result, { text: expected, start: 0, end: expected.length });
 });

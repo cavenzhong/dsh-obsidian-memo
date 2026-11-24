@@ -7,7 +7,7 @@ import { NoteCard } from './note-card.js';
 function useWallContent({
   actionsRef, dateRangeLabel, dragNote, emojis, filteredNotes, handleRefresh, handleWallClick,
   handleWallMouseDown, hoverPath, loadError, loadMoreRef, loadingMore, localPending, noteDrawer,
-  openSettings, setDateMenu, setShowBackTop, sortedNotes, t, view, visibleLimit,
+  openSettings, setDateMenu, setShowBackTop, sortedNotes, t, view, visibleLimit, wallRef,
   workspaceActive, workspaceLabel, workspaceEmpty, workspaceNeedsSubfolders, workspacePrimary, onExitWorkspace, onShowSubfolders, workspacePaperForNote,
 }) {
   const cardLocaleRef = React.useRef({ t: t, tick: 0 });
@@ -28,7 +28,7 @@ function useWallContent({
     // 0.13.8 动态加载：只渲染前 visibleLimit 张（默认 50）；哨兵滚进视口再补下一批。
     const hasMore = sortedNotes.length > visibleLimit;
     return h('div', {
-      className: 'SN_wall',
+      className: 'SN_wall', ref: wallRef,
       onScroll: (event) => {
         const wall = event.currentTarget;
         setShowBackTop(wall.scrollTop >= wall.clientHeight && wall.scrollTop > 0);

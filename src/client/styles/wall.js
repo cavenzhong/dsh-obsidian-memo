@@ -23,7 +23,11 @@ const wallStyles = `
   body[data-ds-dark-theme] .SN_card[data-texture] .SN_cardClip::before{background:#e6e6e6;opacity:.52}
 }
 ${textureRules}
-.SN_card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(40,30,10,.12),0 0 0 .5px rgba(70,55,30,.12)}
+.SN_card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(40,30,10,.12),0 0 0 .5px #fff}
+/* 卡片内层背景是不透明的，负偏移的 outline 会被盖住；在卡片内容上方单独绘制描边。 */
+.SN_card[data-revealed]::before{content:'';position:absolute;inset:0;z-index:9;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--sn-accent);pointer-events:none;animation:SN_cardReveal .25s ease-out .5s both}
+@keyframes SN_cardReveal{from{opacity:1}to{opacity:0}}
+@media (prefers-reduced-motion:reduce){.SN_card[data-revealed]::before{animation:none}}
 .SN_card:focus-visible{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px rgba(40,30,10,.16)}
 .SN_panel .SN_card[data-dragging='true']{outline:2px dashed var(--sn-ink-muted,#9a9085);outline-offset:-2px;box-shadow:none;transform:none;background:transparent}
 .SN_card[data-dragging='true']>*{visibility:hidden}

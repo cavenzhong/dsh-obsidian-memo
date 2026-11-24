@@ -18,6 +18,7 @@
   <a href="#install"><ins>Install</ins></a> ·
   <a href="#everyday-use"><ins>Everyday use</ins></a> ·
   <a href="#workspaces"><ins>Workspaces</ins></a> ·
+  <a href="#dual-view"><ins>Dual view</ins></a> ·
   <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
   <a href="#send-to-deepseek"><ins>Send to DeepSeek</ins></a> ·
   <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
@@ -25,15 +26,15 @@
   <a href="README.md"><ins>简体中文</ins></a>
 </p>
 
-![Obsidian MEMO 0.18.7: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
+![Obsidian MEMO 0.19.0: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
 
-**New in 0.18.7:** MD attachments now omit comment callouts while preserving frontmatter, the title, code blocks, and all other content. Reusing a blank conversation with stale attachments no longer reports a false cleanup failure. [See what changed (中文)](docs/CHANGELOG.md).
+**New in 0.19.0:** Switch between single and split workspace views, smoothly scroll the clicked note to the top when its reader opens, and use `Cmd/Ctrl+L` to convert multiple selected bullet items to tasks. [See what changed (中文)](docs/CHANGELOG.md).
 
 ## Install
 
 You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.18.7** or later on the Plugins page.
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.19.0** or later on the Plugins page.
 2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **Obsidian vault** and **default workspace** (Main space).
 3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
 
@@ -56,7 +57,7 @@ In the capture bar, press `Enter` to save a title, `Tab` to add a body, or `⌘ 
 
 ### Browse on the left, work on a note on the right
 
-Each note uses the color of its deepest mounted workspace. Changing a parent workspace does not override a child workspace listed in the workspace bar; changing the child also updates its cards, tag backgrounds, and reader capsules when shown in the parent view. Subfolders without their own workspace inherit the nearest mounted parent color. Workspace tabs themselves keep a clean neutral background. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit. Select **Open in Obsidian** to keep writing there.
+Each note uses the color of its deepest mounted workspace. Changing a parent workspace does not override a child workspace listed in the workspace bar; changing the child also updates its cards, tag backgrounds, and reader capsules when shown in the parent view. Subfolders without their own workspace inherit the nearest mounted parent color. Workspace tabs themselves keep a clean neutral background. Use the calendar in the header to filter by date. Open a card and pin the reader to browse and check off tasks side by side. Double-click the title or body to edit, and select multiple list items, then press `Cmd/Ctrl+L` to cycle their bullet or task markers in bulk. Opening a card smoothly brings it to the first row of its wall and briefly outlines it for reference. Select **Open in Obsidian** to keep writing there.
 
 ![The pinned reader beside the note wall, showing a checklist and an AI comment](docs/assets/en/reader.png)
 
@@ -74,11 +75,22 @@ A custom tab shows notes in its folder and subfolders. The **Include subfolders*
 
 - **Capture:** New notes are saved directly in the selected tab’s folder.
 - **Move:** Drag a card onto the destination tab to move its Markdown file. Duplicate filenames get a numeric suffix. You have 6 seconds to undo the move from the notification.
-- **Organize tabs:** Long-press a custom tab and drag to reorder it. Use **…** to see all tabs when they don’t fit. Right-click a custom tab to choose one of eight paper colors or remove the tab; you have 5 seconds to undo the removal.
+- **Organize tabs:** Drag a custom tab sideways to reorder it. On a touchscreen, press and hold first. Use **…** to see all tabs when they don’t fit. Right-click any tab to choose one of nine paper colors. You can also remove custom tabs and undo the removal within 5 seconds.
+- **View side by side:** Use the split-view icon at the far right of the tab bar or press `Cmd+;` to toggle split view. When split view is on, two workspaces appear side by side. Selecting a third workspace replaces only the focused pane. Turning split view off keeps only the current workspace. Hold Cmd to see `⌘1–⌘9` next to the first nine workspace tabs and the `⌘;` lock/unlock hint next to the split-view icon. Drag the divider to resize and click either pane to make it the quick-capture destination.
 
 ![Dragging the riverside listening route card onto the Field Archive workspace highlights the destination and shows the release-to-move hint](docs/assets/en/workspace-move.png)
 
 *In this example, the card is headed to **Field Archive**, a folder outside Main space. The same file move is visible in Obsidian.*
+
+## Dual view
+
+Keep two workspaces side by side: collect ideas on the left and review tasks or reference notes on the right, without repeatedly switching tabs. Add at least one custom workspace, then click the split-view icon at the far right of the tab bar, or press `Cmd+;`, to turn dual view on or off.
+
+![Dual view: Main space and Field Archive side by side, with two highlighted tabs and a shared capture bar](docs/assets/en/workspace-split.png)
+
+- **Switch the focused side:** Click either wall to focus it; choosing a third workspace replaces only that side. The other workspace stays in place, and new notes go to the focused workspace.
+- **Browse independently:** Each wall scrolls and loads more notes independently. Drag the divider to resize them, or double-click it to restore equal widths; the view state and width ratio are saved locally for this vault.
+- **Use the keyboard:** Hold `Cmd` to see the first nine tabs’ `⌘1–⌘9` shortcuts and the split-view `⌘;` hint. These shortcuts do not interrupt text entry. Turning dual view off keeps the focused workspace.
 
 ## AI comments: Four perspectives
 
@@ -141,7 +153,7 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 
 **What if I delete a note by accident?** It goes to the vault’s `.trash`, not straight to permanent deletion. Undo from the notification while it’s visible, or recover the note from the vault’s trash later.
 
-**Do workspaces sync across devices?** No. Tabs are a local view preference for this Harness profile (keyed by vault path); they are not written to the vault or the settings JSON. Re-add them on another device or after clearing app data; your notes are unaffected.
+**Do workspaces sync across devices?** No. Tabs, single/dual-view state, and pane widths are local view preferences for this Harness profile (keyed by vault path); they are not written to the vault or the settings JSON. Re-add them on another device or after clearing app data; your notes are unaffected.
 
 ---
 

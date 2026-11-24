@@ -104,6 +104,17 @@ function PinIcon(props) {
   );
 }
 
+function SplitViewIcon() {
+  return h('svg', {
+    width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round',
+    'aria-hidden': 'true', focusable: 'false', style: { display: 'block' },
+  },
+    h('rect', { x: 3.5, y: 5, width: 17, height: 14, rx: 2.4 }),
+    h('path', { d: 'M12 5v14' }),
+  );
+}
+
 function SortIcon() {
   return h('svg', {
     width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none',
@@ -203,4 +214,4 @@ function ActionIcon({ kind, size = 20 }) {
     h('path', { d: paths[kind], stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }));
 }
 
-export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SortIcon, ObsidianIcon, DeepSeekIcon, CalendarIcon, ChevronIcon, ActionIcon, PlusIcon, MoreIcon };
+export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SplitViewIcon, SortIcon, ObsidianIcon, DeepSeekIcon, CalendarIcon, ChevronIcon, ActionIcon, PlusIcon, MoreIcon };

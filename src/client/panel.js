@@ -7,7 +7,7 @@ import { focusPanelForCapture } from './capture/keyboard.js';
 import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
 import { ToastStack } from './components/feedback.js';
 import { useToasts } from './components/use-toasts.js';
-import { EMPTY_SETTINGS, WORKSPACE_ALL_ID } from './constants.js';
+import { EMPTY_SETTINGS } from './constants.js';
 import { useNotesData } from './data/use-notes-data.js';
 import { SelectionMenu } from './deepseek/selection-menu.js';
 import { SendMenu } from './deepseek/send-menu.js';
@@ -24,9 +24,10 @@ import { useSelectionMenu } from './panel/use-selection-menu.js';
 import { replaceRenamedSummary, replaceSummary } from './panel/note-replacement.js';
 import { useHeaderDrag } from './panel/use-header-drag.js';
 import { usePanelShortcuts } from './panel/use-shortcuts.js';
+import { useWorkspaceShortcuts } from './panel/use-workspace-shortcuts.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
 import { WorkspaceBar } from './panel/workspace-bar.js';
-import { filterNotesByWorkspace } from './panel/workspaces.js';
+import { WorkspacePanes } from './panel/workspace-panes.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
 import { useSidebarWide } from './sidebar-state.js';
@@ -41,12 +42,12 @@ import { runtime } from './runtime.js';
 import { SettingsDrawer } from './settings/settings-drawer.js';
 import { useSettingsDraft } from './settings/use-settings-draft.js';
 import { isAbortError } from './utils.js';
-import { dateFilterOption, filterNotesByDate, sortNotes } from './wall/model.js';
+import { dateFilterOption } from './wall/model.js';
 import { useNoteActions } from './wall/use-note-actions.js';
 import { useSubfolders } from './wall/use-subfolders.js';
-import { useWallContent } from './wall/use-wall-content.js';
+import { useCardReveal } from './wall/use-card-reveal.js';
+import { useWorkspaceWallModels } from './wall/workspace-wall.js';
 import { useWallFilters } from './wall/use-wall-filters.js';
-import { useWallPaging } from './wall/use-wall-paging.js';
 
 function StickyNotesPanel(props) {
   const { t, language, changeLanguage, htmlLang } = useUiLanguage(props?.t || runtime?.t, runtime?.locale);
@@ -74,7 +75,11 @@ function StickyNotesPanel(props) {
   const refreshingRef = React.useRef(false);
   const actionsRef = React.useRef({});
   const [hoverPath, setHoverPath] = React.useState(null);
-  const [showBackTop, setShowBackTop] = React.useState(false);
+  const [backTopByWorkspace, setBackTopByWorkspace] = React.useState({});
+  const onBackTopChange = React.useCallback((id, show) => {
+    setBackTopByWorkspace((current) => Boolean(current[id]) === show ? current : { ...current, [id]: show });
+  }, []);
+  const [reveal, setReveal] = React.useState(null);
   const suppressCardOpenRef = React.useRef(false);
   const { view, viewRef, loadError, aliveRef, controllersRef, updateView, request, refreshNow } = useNotesData({
     panelRef,
@@ -102,6 +107,7 @@ function StickyNotesPanel(props) {
       setDateMenu(false);
     },
     onClose() {
+      setReveal(null);
       if (resizeCleanupRef.current) resizeCleanupRef.current();
       resizeCleanupRef.current = null;
       resizingRef.current = false;
@@ -160,29 +166,16 @@ function StickyNotesPanel(props) {
     panelRef, runArchive, runDelete, moveWorkspaceNote: workspaces.move, setDateMenu, setHoverPath, setSortMenu,
   });
   React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
-  const workspaceNotes = React.useMemo(
-    () => filterNotesByWorkspace(view.notes, workspaces.activeFolder, currentSettings.vaultPath, {
-      // 主空间关闭「显示子文件夹」时只取顶层；其它工作空间始终包含子树。
-      topOnly: workspaces.activeEntry.primary === true && currentSettings.includeSubfolders === false,
-    }),
-    [view.notes, workspaces.activeFolder, currentSettings.vaultPath, workspaces.activeEntry.primary, currentSettings.includeSubfolders],
-  );
-  const filteredNotes = React.useMemo(
-    () => filterNotesByDate(workspaceNotes, dateFilter, dateRealtime, nowTick, undefined, dateEnabled),
-    [workspaceNotes, dateFilter, dateRealtime, nowTick, dateEnabled],
-  );
-  const sortedNotes = React.useMemo(() => sortNotes(filteredNotes, sortId), [filteredNotes, sortId]);
-
-  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view });
-  const { visibleLimit, loadingMore, loadMoreRef } = useWallPaging({ aliveRef, dateEnabled, dateFilter, dateRealtime, panelRef, pinned, sortId, sortedNotes, view, workspaceId: workspaces.activeId });
-  // 切换工作空间后回到墙顶，避免停在上一个空间滚到的位置。
-  React.useEffect(() => {
-    const wall = panelRef.current?.querySelector('.SN_wall');
-    if (wall) wall.scrollTop = 0;
-  }, [workspaces.activeId]);
+  const wallModels = useWorkspaceWallModels({ paneEntries: workspaces.paneEntries, view, dateFilter, dateRealtime, nowTick, dateEnabled, sortId });
+  const activeWall = wallModels.find(({ entry }) => entry.id === workspaces.activeId);
+  const visibleNotes = React.useMemo(() => activeWall.sortedNotes.concat(
+    wallModels.filter((model) => model !== activeWall).flatMap((model) => model.sortedNotes),
+  ), [activeWall, wallModels]);
+  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes: visibleNotes, view });
   const dateRangeLabel = t(dateFilterOption(dateFilter).labelKey);
   const includeSubfolders = currentSettings.includeSubfolders !== false;
   const { dockRight } = useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned });
+  useCardReveal(reveal, noteDrawer?.path);
   const anyOverlay = Boolean(sortMenu || dateMenu || commentConfirm || projectTarget || settingsOpen || noteDrawer);
 
   function replaceNote(summary) {
@@ -237,7 +230,7 @@ function StickyNotesPanel(props) {
     closeNoteDrawer();
   }
 
-  function handleCardOpen(note) {
+  function handleCardOpen(note, node) {
     if (!note) return;
     if (suppressCardOpenRef.current) {
       suppressCardOpenRef.current = false;
@@ -246,8 +239,10 @@ function StickyNotesPanel(props) {
     const current = noteDrawerRef.current;
     if (current && current.path === note.path) {
       if (!pinned) closeNoteDrawer();
+      else if (node) setReveal({ path: note.path, node });
       return;
     }
+    setReveal(node ? { path: note.path, node } : null);
     openNoteDrawer(note);
   }
 
@@ -284,6 +279,13 @@ function StickyNotesPanel(props) {
     setSortMenu, settingsOpen, sortMenu,
   });
 
+  useWorkspaceShortcuts({ panelRef, enabled: Boolean(view.configured && currentSettings.vaultPath && currentSettings.notesDir) && !editing && !settingsOpen && !commentConfirm && !projectTarget
+      && !sortMenu && !dateMenu && !dragNote && !deepseek.menu && !selection.selectionMenu,
+    entries: workspaces.entries,
+    onSelect: workspaces.select,
+    onToggle: workspaces.entries.length > 1 ? workspaces.togglePin : undefined,
+  });
+
   actionsRef.current = {
     t: t,
     onOpen: handleCardOpen,
@@ -300,19 +302,6 @@ function StickyNotesPanel(props) {
   const errorBanner = view.loaded
     ? formatDiagnostic(t, loadError || (view.notes.length > 0 ? view.error : null))
     : null;
-  const { renderContent } = useWallContent({
-    actionsRef, dateRangeLabel, dragNote, emojis, filteredNotes, handleRefresh, handleWallClick,
-    handleWallMouseDown, hoverPath, loadError, loadMoreRef, loadingMore, localPending, noteDrawer,
-    openSettings, setDateMenu, setShowBackTop, sortedNotes, t, view, visibleLimit,
-    workspaceActive: workspaces.activeFolder !== '.',
-    workspaceLabel: workspaces.activeEntry.label,
-    workspaceEmpty: workspaceNotes.length === 0,
-    workspacePaperForNote: workspaces.paperForNote,
-    workspaceNeedsSubfolders: workspaces.showSubfolderHint,
-    workspacePrimary: workspaces.activeEntry.primary === true,
-    onExitWorkspace: () => workspaces.select(WORKSPACE_ALL_ID),
-    onShowSubfolders: toggleSubfolders,
-  });
   const drawerNote = noteDrawer ? (view.notes.find((item) => item.path === noteDrawer.path) || noteDrawer.full || noteDrawer.summary || null) : null;
   const drawerPending = noteDrawer ? (localPending[noteDrawer.path] || (drawerNote && drawerNote.pending) || null) : null;
   const noteDrawerProps = noteDrawer
@@ -339,7 +328,8 @@ function StickyNotesPanel(props) {
     ? h(WorkspaceBar, {
       t: t,
       entries: workspaces.entries,
-      activeId: workspaces.activeId,
+      activeId: workspaces.activeId, pinActive: workspaces.pinActive,
+      visibleIds: workspaces.paneEntries.map(({ id }) => id), onTogglePin: workspaces.togglePin,
       vaultPath: currentSettings.vaultPath,
       notesDir: currentSettings.notesDir,
       request: request,
@@ -375,7 +365,7 @@ function StickyNotesPanel(props) {
   },
     renderPanelHeader({
       chooseDateFilter, chooseSort, dateEnabled, dateFilter, dateMenu, dateRangeLabel, dateRealtime,
-      dateWrapRef, filteredNotes, includeSubfolders, openDateMenu, openSettings, scheduleDateMenuClose, setDateMenu,
+      dateWrapRef, filteredNotes: activeWall.filteredNotes, includeSubfolders, openDateMenu, openSettings, scheduleDateMenuClose, setDateMenu,
       settingsOpen, sortId, sortMenu, sortWrapRef, subfoldersBusy, t, toggleDateEnabled,
       toggleDateRealtime, toggleSortMenu, toggleSubfolders, view, workspaceBar: workspaceBar,
       onHeaderPointerDown: headerGesture.onHeaderPointerDown,
@@ -391,13 +381,21 @@ function StickyNotesPanel(props) {
     // 0.13 面板锁（§7.3）：锁定 = SN_body flex row，抽屉作为普通 flex 子项与墙并排。
     h('div', { className: 'SN_body', 'data-pinned': pinned ? 'true' : 'false' },
       h('div', { className: 'SN_wallWrap', 'data-capture': view.configured ? 'true' : 'false', style: { '--sn-dock-right': dockRight + 'px' } },
-        renderContent(),
+        h(WorkspacePanes, {
+          key: currentSettings.vaultPath || '', models: wallModels, activeId: workspaces.activeId,
+          onSelect: workspaces.select, split: workspaces.split, onSplit: workspaces.setSplit,
+          wallProps: { actionsRef, aliveRef, dateEnabled, dateFilter, dateRangeLabel, dateRealtime, dragNote, emojis,
+            handleRefresh, handleWallClick, handleWallMouseDown, hoverPath, loadError, localPending, noteDrawer,
+            onBackTopChange, onShowSubfolders: toggleSubfolders, openSettings, setDateMenu, sortId, t, view,
+            workspacePaperForNote: workspaces.paperForNote },
+        }),
         h(CaptureComposer, {
           t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
           dragNote, dropAction, dropTargetId, projectParked: Boolean(dragSession?.parked), projectTargets,
           onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop, onDeepSeekDrop: deepSeekDrop,
-          showBackTop,
-          onBackTop: () => panelRef.current?.querySelector('.SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
+          captureWorkspace: wallModels.length === 2 ? workspaces.activeEntry.label : '',
+          showBackTop: Boolean(backTopByWorkspace[workspaces.activeId]),
+          onBackTop: () => panelRef.current?.querySelector('.SN_workspacePane[data-current="true"] .SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
           onCreate: (payload) => request('createNote', Object.assign({}, payload, { targetDir: workspaces.captureTarget })),
           onCreated: (result) => {
             if (result && result.note) {
@@ -411,14 +409,10 @@ function StickyNotesPanel(props) {
           onError: pushErrorToast,
         }),
       ),
-      pinned && noteDrawerProps
-        ? h(NoteDrawer, Object.assign({ key: 'inline', inline: true }, noteDrawerProps))
-        : null,
+      pinned && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'inline', inline: true }) : null,
     ),
-    // 未锁定仍以 overlay 推出；便签墙按实测宽度避让，空白处点击关闭规则不变。
-    !pinned && noteDrawerProps
-      ? h(NoteDrawer, Object.assign({ key: 'overlay', inline: false }, noteDrawerProps))
-      : null,
+    // 浮动抽屉以整个面板为定位边界，单屏和双屏都从顶栏右侧开始。
+    !pinned && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'overlay', inline: false }) : null,
     deepseek.menu
       ? h(SendMenu, {
         t: t,

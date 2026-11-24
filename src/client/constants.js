@@ -120,7 +120,7 @@ const WORKSPACE_ALL_ID = '__all__';
 
 const WORKSPACES_MAX = 24;
 
-// 长按多久进入「拖动标签排序」；短按仍是切换。
+// 静止按住标签达到这个时间也进入拖动排序；鼠标无需等候，可直接横拖。
 const WORKSPACE_HOLD_MS = 380;
 
 // 添加工作空间弹层的期望宽度；标签栏更窄时由样式压缩。

@@ -17,7 +17,7 @@ function CaptureComposer(props) {
   const {
     t, onCreate, onCreated, onError, enabled, imageCompression, titleMode, dragNote, dropAction,
     dropTargetId, projectTargets, projectParked, onDragHover, onArchiveDrop, onProjectDrop, onProjectChoose, onDeleteDrop, onDeepSeekDrop,
-    showBackTop, onBackTop,
+    showBackTop, onBackTop, captureWorkspace,
   } = props;
   const [draft, setDraft] = React.useState(readCaptureDraft);
   const { title, body } = draft;
@@ -257,7 +257,8 @@ function CaptureComposer(props) {
           h('span', { ref: titleMeasureRef, className: 'SN_captureTitleMeasure', 'aria-hidden': 'true' }, title || t('capture.placeholder')),
           h('textarea', { className: 'SN_captureTitle', ref: titleRef, rows: 1, value: title, disabled: busy, autoComplete: 'off',
             'aria-label': t(titleMode && titleMode !== 'filename' ? 'capture.titleBody' : 'capture.title'), placeholder: t('capture.placeholder'), onChange: (event) => changeDraft('title', event.target.value.replace(/[\r\n]+/g, ' ')), onKeyDown: titleKeyDown }),
-          !bodyOpen ? h('span', { className: 'SN_captureHint', 'aria-hidden': 'true' }, h('kbd', null, 'Tab'), t('capture.tab')) : null,
+          captureWorkspace ? h('span', { className: 'SN_captureWorkspace', title: captureWorkspace }, t('workspace.captureTarget', { label: captureWorkspace })) : null,
+          !bodyOpen && !captureWorkspace ? h('span', { className: 'SN_captureHint', 'aria-hidden': 'true' }, h('kbd', null, 'Tab'), t('capture.tab')) : null,
         ),
         bodyOpen ? h('textarea', { className: 'SN_captureBody', ref: bodyRef, value: body, disabled: busy, 'aria-label': t('capture.body'), placeholder: t('capture.bodyPlaceholder'),
           onChange: (event) => {

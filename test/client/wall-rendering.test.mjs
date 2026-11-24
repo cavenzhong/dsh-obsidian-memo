@@ -3,6 +3,16 @@ import test from 'node:test'
 import { getTestApi, loadClient, CLIENT_SOURCE, captureNodes } from '../../test-support/client.mjs'
 import assert from 'node:assert/strict'
 
+test('浅色和深色便签悬停时细边变白，保留投影', () => {
+  for (const selector of ['.SN_card', 'body[data-ds-dark-theme] .SN_card']) {
+    const rule = (suffix) => CLIENT_SOURCE.split('\n').find((line) => line.startsWith(`${selector}${suffix}{`)) || ''
+    assert.match(rule(''), /box-shadow:[^}]*,0 0 0 \.5px rgba\(/, '未悬停时维持原有细边')
+    assert.match(rule(':hover'), /box-shadow:0 [1-9][^}]*rgba\(/, '悬停沿用外投影')
+    assert.match(rule(':hover'), /,0 0 0 \.5px #fff\}/, '悬停时换成白色细边')
+    assert.match(rule(':focus-visible'), /box-shadow:0 0 0 2px /, '键盘焦点环不变')
+  }
+})
+
 test('Project 卡片按链接目标选底纹，别名与纸色不影响选择，普通卡片无底纹', (t) => {
   const { components } = loadClient(t).mod.__test
   const actions = { current: { t: (key) => key } }

@@ -46,7 +46,7 @@ function NoteDrawer(props) {
   const projects = source.projects;
   const canEdit = Boolean(full);
 
-  const taskDragProps = useTaskReorder({ path: drawer.path, body: full?.body, bodyLineOffset: full?.bodyLineOffset || 0, editing, busy: taskBusy || saving || drawer.loading, onReorderTask, t });
+  const taskDrag = useTaskReorder({ path: drawer.path, body: full?.body, bodyLineOffset: full?.bodyLineOffset || 0, editing, busy: taskBusy || saving || drawer.loading, onReorderTask, t });
 
   function handleBodyDoubleClick(event) {
     if (!canEdit) return;
@@ -63,6 +63,7 @@ function NoteDrawer(props) {
   const bodyNode = h('div', {
     className: 'SN_noteDrawerBody',
     onDoubleClick: handleBodyDoubleClick,
+    ...taskDrag.scrollProps,
   },
     drawer.loading && !full ? h('div', { className: 'SN_noteViewHint' }, t('drawer.loading')) : null,
     drawer.error
@@ -74,7 +75,7 @@ function NoteDrawer(props) {
     !drawer.loading && !drawer.error && blocks.length === 0
       ? h('p', { className: 'SN_noteViewEmpty' }, t('drawer.editHint'))
       : null,
-    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, taskDrag: taskDragProps(block), t })),
+    blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, taskDrag: taskDrag.blockProps(block), t })),
     projects ? h('div', { className: 'SN_projects' },
       h('span', { className: 'SN_projectsLabel' }, t('drawer.projects')),
       h('span', { className: 'SN_projectsValue' }, String(projects)),
@@ -311,7 +312,7 @@ function NoteDrawer(props) {
         ),
         h('div', { className: 'SN_noteEditBar' },
           h('div', { className: 'SN_noteEditHints' },
-            h('span', { className: 'SN_noteEditHint' }, t(saving ? 'drawer.saving' : listShortcuts.showHint ? 'drawer.listShortcutHint' : 'drawer.shortcutHint'))),
+            h('span', { className: 'SN_noteEditHint' }, t(saving ? 'drawer.saving' : listShortcuts.hintKey))),
           h('div', { className: 'SN_noteEditActions' },
             h('button', {
               type: 'button',

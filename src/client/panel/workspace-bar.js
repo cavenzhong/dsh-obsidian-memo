@@ -1,15 +1,16 @@
-/** 工作空间标签栏：切换、添加文件夹、右键删除、长按排序和便签拖放迁移。 */
+/** 工作空间标签栏：切换、添加文件夹、右键删除、拖动排序和便签拖放迁移。 */
 import { WORKSPACE_ALL_ID, WORKSPACE_POPOVER_WIDTH } from '../constants.js';
-import { ActionIcon, CloseIcon, MoreIcon, PlusIcon } from '../components/icons.js';
+import { ActionIcon, CloseIcon, MoreIcon, PlusIcon, SplitViewIcon } from '../components/icons.js';
 import { React, h } from '../react.js';
 import { VaultFolderPicker } from '../settings/paths.js';
 import { isAbsolutePath, vaultRelative } from '../utils.js';
 import { useWorkspaceReorder } from './use-workspace-reorder.js';
+import { workspaceShortcutDigit } from './use-workspace-shortcuts.js';
 import { WORKSPACE_COLORS, popoverLeftFor } from './workspaces.js';
 
 
 function WorkspaceBar({
-  t, entries, activeId, vaultPath, notesDir, request, history, dragActive, dropId,
+  t, entries, activeId, pinActive, visibleIds = [activeId], onTogglePin, vaultPath, notesDir, request, history, dragActive, dropId,
   onSelect, onAdd, onRemove, onSetColor, onReorder, onHoverWorkspace, onClearWorkspaceHover, onDropWorkspace,
 }) {
   const barRef = React.useRef(null);
@@ -53,6 +54,11 @@ function WorkspaceBar({
       observer?.disconnect();
     };
   }, [entries, activeId]);
+
+  // 通过数字快捷键选中隐藏标签时，也收起「…」菜单。
+  React.useEffect(() => {
+    if (overlayRef.current?.kind === 'more') closeOverlay();
+  }, [activeId]);
 
   // 添加弹层跟着「＋」走：优先左对齐，靠右时改为右对齐，并始终夹在标签栏内。
   React.useLayoutEffect(() => {
@@ -140,6 +146,10 @@ function WorkspaceBar({
     return () => document.removeEventListener('keydown', key, true);
   }, [overlay, dragging]);
 
+  const visible = (entry) => visibleIds.includes(entry.id);
+  const canSplit = entries.length > 1;
+  const splitLabel = t(!canSplit ? 'workspace.splitUnavailable' : pinActive ? 'workspace.splitClose' : 'workspace.splitOpen');
+
   function activate(entry) {
     if (consumeClick() || drag) return;
     onSelect(entry.id);
@@ -202,7 +212,8 @@ function WorkspaceBar({
     onSelect(next.id);
     const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (callback) => callback();
     schedule(() => {
-      const element = barRef.current?.querySelector('[data-workspace-id="' + next.id + '"]');
+      const tabs = stripRef.current?.querySelectorAll('.SN_wsTab');
+      const element = tabs && Array.from(tabs).find((tab) => tab.getAttribute('data-workspace-id') === next.id);
       element?.focus?.();
     });
   }
@@ -225,7 +236,7 @@ function WorkspaceBar({
   // 标签之间的空隙/标签栏空白处：立即清掉上一条高亮，避免“高亮停在旧标签”。
   function barDragOver(event) {
     if (!dragActive) return;
-    if (event.target && typeof event.target.closest === 'function' && event.target.closest('.SN_wsTab')) return;
+    if (event.target && typeof event.target.closest === 'function' && event.target.closest('.SN_wsSlot')) return;
     onClearWorkspaceHover();
   }
 
@@ -239,7 +250,7 @@ function WorkspaceBar({
   React.useLayoutEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
-    const active = strip.querySelector('.SN_wsTab[data-active="true"]');
+    const active = strip.querySelector('.SN_wsSlot[data-current="true"]');
     if (!active) return;
     const left = active.offsetLeft;
     const right = left + active.offsetWidth;
@@ -249,25 +260,36 @@ function WorkspaceBar({
 
   const menuEntry = menu ? entries.find((entry) => entry.id === menu.id) : null;
 
-  function renderTab(entry) {
+  function shortcutBadge(digit) {
+    return digit ? h('kbd', { className: 'SN_shortcutKey SN_wsTabHint', 'aria-hidden': 'true' }, `⌘${digit}`) : null;
+  }
+
+  function shortcutAria(digit) { return digit ? `Meta+${digit}` : undefined; }
+
+  function renderTab(entry, index) {
+    const digit = workspaceShortcutDigit(index);
     const isAll = entry.id === WORKSPACE_ALL_ID;
     const dragging = drag && drag.id === entry.id ? drag : null;
     const title = isAll ? (notesDir || vaultPath || t('workspace.main')) : entry.path + '\n' + t('workspace.reorderHint');
-    return h('button', {
-      key: entry.id,
+    return h('div', {
+      key: entry.id, className: 'SN_wsSlot', 'data-workspace-slot': entry.id,
+      'data-current': entry.id === activeId ? 'true' : 'false',
+      'data-dragging': dragging ? 'true' : 'false',
+      style: dragging ? { '--sn-ws-drag-x': dragging.dx + 'px' } : undefined,
+    }, h('button', {
       type: 'button',
       role: 'tab',
-      'aria-selected': entry.id === activeId ? 'true' : 'false',
+      'aria-selected': visible(entry) ? 'true' : 'false',
       'aria-label': isAll ? t('workspace.main') : entry.path,
+      'aria-keyshortcuts': shortcutAria(digit),
       className: 'SN_wsTab',
       'data-all': isAll ? 'true' : 'false',
-      'data-active': entry.id === activeId ? 'true' : 'false',
+      'data-active': visible(entry) ? 'true' : 'false',
       'data-drop': dropId === entry.id ? 'true' : 'false',
       'data-dragging': dragging ? 'true' : 'false',
       'data-workspace-id': entry.id,
       title: title,
       tabIndex: entry.id === activeId ? 0 : -1,
-      style: dragging ? { '--sn-ws-drag-x': dragging.dx + 'px' } : undefined,
       onClick: () => activate(entry),
       onContextMenu: (event) => openMenu(event, entry),
       onKeyDown: (event) => onTabKeyDown(event, entry),
@@ -279,7 +301,8 @@ function WorkspaceBar({
     },
       dragActive ? h('span', { className: 'SN_wsTabMove', 'aria-hidden': 'true' }, h(ActionIcon, { kind: 'move', size: 12 })) : null,
       h('span', { className: 'SN_wsTabLabel' }, entry.label),
-    );
+      shortcutBadge(digit),
+    ));
   }
 
   return h('div', {
@@ -291,7 +314,7 @@ function WorkspaceBar({
   },
     h('div', {
       className: 'SN_wsTabs',
-      role: 'tablist',
+      role: 'tablist', 'aria-multiselectable': visibleIds.length > 1 ? 'true' : undefined,
       'aria-label': t('workspace.aria'),
       ref: stripRef,
       // 鼠标纵向滚轮也能横向浏览隐藏的标签（面板本身不纵向滚动）。
@@ -330,20 +353,32 @@ function WorkspaceBar({
         onClick: toggleAdd,
       }, h(PlusIcon, null)),
       moreOpen ? h('div', { className: 'SN_wsMenu SN_wsMoreMenu', role: 'menu', 'aria-label': t('workspace.more') },
-        entries.map((entry) => h('button', {
-          key: entry.id,
-          type: 'button',
-          role: 'menuitemradio',
+        entries.map((entry, index) => h('button', {
+          key: entry.id, type: 'button',
+          role: 'menuitemcheckbox',
           className: 'SN_wsMenuItem',
-          'aria-checked': entry.id === activeId ? 'true' : 'false',
-          'data-active': entry.id === activeId ? 'true' : 'false',
+          'aria-keyshortcuts': shortcutAria(workspaceShortcutDigit(index)),
+          'aria-checked': visible(entry) ? 'true' : 'false',
+          'data-active': visible(entry) ? 'true' : 'false',
           onClick: () => { onSelect(entry.id); closeOverlay(); },
         },
-          h('span', { className: 'SN_wsMenuCheck', 'aria-hidden': 'true' }, entry.id === activeId ? '✓' : ''),
+          h('span', { className: 'SN_wsMenuCheck', 'aria-hidden': 'true' }, visible(entry) ? '✓' : ''),
           h('span', { className: 'SN_wsMenuLabel' }, entry.label),
           entry.id === WORKSPACE_ALL_ID ? null : h('span', { className: 'SN_wsMenuPathShort' }, entry.path),
+          shortcutBadge(workspaceShortcutDigit(index)),
         )),
       ) : null,
+    ),
+    h('div', { className: 'SN_wsSplitControl' },
+      canSplit ? h('span', { className: 'SN_shortcutKey SN_wsSplitHint', 'aria-hidden': 'true' },
+        h('span', null, t(pinActive ? 'workspace.splitUnlockHint' : 'workspace.splitLockHint')), h('kbd', null, '⌘;'),
+      ) : null,
+      h('button', {
+        type: 'button', className: 'SN_wsTool SN_wsSplit', 'data-active': pinActive ? 'true' : 'false',
+        disabled: !canSplit, 'aria-pressed': Boolean(pinActive), 'aria-keyshortcuts': canSplit ? 'Meta+;' : undefined,
+        'aria-label': splitLabel, title: splitLabel,
+        onClick: () => { closeOverlay(); onTogglePin(); },
+      }, h(SplitViewIcon, null)),
     ),
     adding ? h('div', {
       className: 'SN_wsPop',

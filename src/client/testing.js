@@ -34,6 +34,9 @@ import { clearImageQueue, enqueueImageLoad, imageQueueStats } from './images/que
 import { StickyNotesPanel } from './panel.js';
 import { renderPanelHeader } from './panel/header.js';
 import { WorkspaceBar } from './panel/workspace-bar.js';
+import { WorkspacePanes } from './panel/workspace-panes.js';
+import { useWorkspaceReorder } from './panel/use-workspace-reorder.js';
+import { useWorkspaceShortcuts } from './panel/use-workspace-shortcuts.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
 import { SidebarWideReporter, getSidebarWide, setSidebarWide, useSidebarWide } from './sidebar-state.js';
 import { DeepSeekSendSettings } from './settings/deepseek-send.js';
@@ -78,6 +81,8 @@ import {
   replaceNoteAtPath, sortNotes,
 } from './wall/model.js';
 import { NoteCard } from './wall/note-card.js';
+import { WorkspaceWall } from './wall/workspace-wall.js';
+import { useCardReveal } from './wall/use-card-reveal.js';
 import { useWallFilters } from './wall/use-wall-filters.js';
 
 const __test = {
@@ -88,7 +93,7 @@ const __test = {
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
     useNotesData, useNoteEditor, useTaskReorder, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
-    useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters, useDeepSeekSend, useSidebarWide,
+    useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters, useDeepSeekSend, useSidebarWide, useWorkspaceReorder, useCardReveal, useWorkspaceShortcuts,
   },
   // 0.18 工作空间：纯规则、持久化与标签栏组件。
   WORKSPACES_KEY: WORKSPACES_KEY,
@@ -211,7 +216,7 @@ const __test = {
     PanelIcon: PanelIcon,
     StickyNotesPanel: StickyNotesPanel,
     NoteCard: NoteCard,
-    WorkspaceBar: WorkspaceBar,
+    WorkspaceBar, WorkspacePanes, WorkspaceWall,
     PanelHeader: renderPanelHeader,
     CardThumb: CardThumb,
     NoteImage,

@@ -1,8 +1,8 @@
 {
   "name": "dsh-obsidian-memo",
-  "version": "0.18.7",
+  "version": "0.19.0",
   "type": "module",
-  "description": "dsh-obsidian-memo：DeepSeek Harness 的 Obsidian 便签插件。把 Obsidian 文件夹变成淡色便签墙，支持工作空间标签与拖拽迁移、快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、发送到 DeepSeek、归档、到项目与在 Obsidian 打开；笔记仍是本地 Markdown。",
+  "description": "dsh-obsidian-memo：DeepSeek Harness 的 Obsidian 便签插件。把 Obsidian 文件夹变成淡色便签墙，支持工作空间标签、双视图与拖拽迁移、快速新建、多图与 WebP 压缩、阅读/编辑、AI 评论、发送到 DeepSeek、归档、到项目与在 Obsidian 打开；笔记仍是本地 Markdown。",
   "main": "lib/index.js",
   "icon": "icon.svg",
   "exports": {
