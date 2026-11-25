@@ -19,7 +19,7 @@ test('comment：异步生成后写入 callout，轮询到 done', async () => {
 
   const content = await readFile(notePath, 'utf8')
   assert.match(content, /> \[!quote\] 😈 毒舌 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
-  assert.match(content, /模拟内容/)
+  assert.match(content, /测试评论/)
   assert.match(content, /评论正文。/)
 
   const state = await c.call('state')

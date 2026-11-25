@@ -37,47 +37,24 @@ test('v0.15 拖拽浮层：预览为原尺寸 1/3，提示在上方独立层，�
   assert.equal(renderedCard.props.draggable, false)
   assert.equal(renderedCard.props.tabIndex, -1)
   assert.equal(nodes.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], '已归档')
-  assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(overlay, document\.body\)/)
+  assert.match(CLIENT_SOURCE, /ReactDOM\.createPortal\(layer, document\.body\)/)
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*bottom:calc\(100% \+ 8px\);z-index:2/)
   assert.match(CLIENT_SOURCE, /\.SN_dragPreview\{[^}]*z-index:1/)
   assert.match(CLIENT_SOURCE, /\.SN_dragLayer::before\{[^}]*box-shadow:/, '阴影按缩略图真实尺寸绘制，不随内部 1/3 缩放变淡')
   assert.match(CLIENT_SOURCE, /\.SN_dragFollow\{[^}]*left:50%;transform:translateX\(-50%\)/, '提示位于卡片上方居中')
 })
 
-test('归档提示保留在预览上方；只有项目目标菜单使用锚点提示', (t) => {
-  const runner = hookRunner(t), positions = [], listeners = new Map()
-  const win = { innerWidth: 1024, addEventListener: (kind, fn) => listeners.set(kind, fn), removeEventListener: (kind) => listeners.delete(kind) }
-  let rect = { left: 60, top: 340, width: 210 }
-  const anchor = { ownerDocument: { defaultView: win }, getBoundingClientRect: () => rect }
-  const { CardDragOverlay } = runner.api.components
-  const archive = captureNodes(CardDragOverlay({
-    note: { path: '/vault/notes/A/B/a.md' }, point: {}, action: 'archive',
-    archiveSettings: { archiveMode: 'mapped', vaultPath: '/vault', notesDir: '/vault/notes', archiveDir: '/vault/Archive' },
-    t: (key, vars) => key + ':' + (vars?.path || vars?.folder || ''),
-  }))
-  assert.equal(archive.some((node) => node.props.className === 'SN_dragTargetHint'), false)
-  assert.equal(archive.find((node) => node.props.className === 'SN_dragFollow').children[1].children[0], 'drag.releaseArchiveMapped:Archive/A/B')
-
-  const projectOverlay = CardDragOverlay({ note: { path: 'a.md' }, point: {}, action: 'project', targetId: 'work', targetAnchor: anchor,
-    projectTargets: [{ id: 'work', label: '工作' }], t: (key, vars) => vars?.label || key })
-  assert.equal(captureNodes(projectOverlay).some((node) => node.props.className === 'SN_dragFollow'), false)
-  const hint = projectOverlay.children[1]
-  assert.equal(hint.props.anchor, anchor)
-  assert.equal(hint.props.text, '工作')
-  const style = { set top(val) { positions.push(val) }, left: '', maxWidth: '' }
-  const hintNode = runner.render(hint.type, hint.props, (result) => { result.props.ref.current = { style } })
-  assert.equal(hintNode.props.className, 'SN_dragFollow SN_dragTargetHint')
-  assert.equal(style.left, '165px')
-  assert.deepEqual(positions, ['332px'], '提示底边与菜单顶边相隔 8px')
-  rect = { ...rect, top: 380 }
-  listeners.get('resize')()
-  assert.deepEqual(positions, ['332px', '372px'])
-  runner.unmount()
-  assert.equal(listeners.size, 0)
-  assert.match(CLIENT_SOURCE, /\.SN_dropItem:first-child\{border-radius:calc\(var\(--sn-drop-radius\) - 1px\)/)
-  assert.match(CLIENT_SOURCE, /\.SN_dropItem:last-child\{border-radius:0 calc\(var\(--sn-drop-radius\) - 1px\)/)
-  assert.match(CLIENT_SOURCE, /\.SN_dropRow\{[^}]*overflow:visible/, '圆角不应把垂直目录菜单裁掉')
-})
+test('Zen 拖拽只渲染小便签图标，不渲染卡片预览', (t) => {
+  const previous = globalThis.document;
+  globalThis.document = { body: {} };
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
+  const api = loadClient(t).mod.__test;
+  const nodes = captureNodes(api.components.CardDragOverlay({ note: { path: 'a.md', title: 'A' }, point: { x: 100, y: 80 }, action: null,
+    zen: true, t: (key) => key }));
+  assert.equal(nodes.some((node) => node.props.className === 'SN_dragPreview'), false);
+  assert.equal(nodes.some((node) => node.props.className === 'SN_dragFollow'), false, 'Zen 中鼠标旁只保留便签图标');
+  assert.equal(nodes.find((node) => node.props.className === 'SN_dragZenGlyph').children[0].type.name, 'NoteGlyphIcon');
+});
 
 test('v0.15 拖拽性能：1000 次移动合并为一帧，只写 transform，无 React 更新与布局读取', (t) => {
   const api = loadClient(t).mod.__test, fixture = dragMotionFixture(api)
@@ -138,29 +115,6 @@ test('v0.15 放手：有效操作仅淡出，减弱动态效果时立即结束�
   reduced.motion.dispose()
 })
 
-test('归档待选择：缩略卡停在归档位置正中，停止跟随鼠标，取消仍能回到原卡片', async (t) => {
-  const fixture = dragMotionFixture(loadClient(t).mod.__test)
-  fixture.move(500, 500)
-  const anchor = { getBoundingClientRect: () => ({ left: 100, top: 600, width: 300, height: 90 }) }
-  fixture.motion.park(anchor)
-  assert.equal(fixture.frames.size, 0)
-  assert.equal(fixture.listeners.has('dragover'), false)
-  assert.equal(fixture.listeners.has('drag'), false)
-  assert.equal(fixture.layer.dataset.parked, 'true')
-  assert.equal(fixture.writes.find(([kind]) => kind === 'transform')[1], 'translate3d(200px,610.3333333333334px,0)')
-  const writes = fixture.writes.length
-  fixture.move(800, 100); fixture.frame()
-  assert.equal(fixture.writes.length, writes)
-  assert.equal(fixture.sourceReads(), 0, '停靠不读取卡片墙布局')
-  const result = fixture.motion.finish('return', fixture.source)
-  assert.equal(fixture.sourceReads(), 1)
-  assert.equal(fixture.animations[0].keyframes[0].transform, 'translate3d(200px,610.3333333333334px,0)')
-  assert.equal(fixture.animations[0].keyframes[1].transform, 'translate3d(50px,80px,0) scale(3)')
-  fixture.complete(); await result
-  fixture.motion.dispose()
-  assert.equal(fixture.listeners.size, 0)
-})
-
 test('拖拽放手：空白处接收内部拖放并立即回落，不等待原生 dragend，不拦截外部文件', async (t) => {
   const runner = hookRunner(t), listeners = new Map(), animation = deferred()
   const previousDocument = globalThis.document
@@ -206,3 +160,23 @@ test('拖拽放手：空白处接收内部拖放并立即回落，不等待原�
   assert.equal(listeners.has('dragover:true'), false)
   assert.equal(listeners.has('drop:false'), false)
 })
+
+
+test('Zen 拖拽取消直接收起图标，不执行回落动画', async (t) => {
+  const api = loadClient(t).mod.__test
+  const fixture = dragMotionFixture(api)
+  const motion = api.createCardDragMotion(fixture.layer, fixture.point, { iconOnly: true })
+  await motion.finish('return', fixture.source)
+  assert.equal(fixture.animations.length, 0)
+  assert.equal(fixture.sourceReads(), 0)
+  assert.equal(fixture.layer.style.opacity, '0')
+  motion.dispose()
+})
+
+test('Zen 拖拽只跟随小便签图标，不创建卡片缩略预览', (t) => {
+  const api = loadClient(t).mod.__test
+  const layout = api.iconDragLayout({ x: 120, y: 90 }, { width: 800, height: 600 })
+  assert.deepEqual([layout.width, layout.height, layout.left, layout.top], [24, 24, 128, 98])
+  const boundary = api.iconDragLayout({ x: 900, y: 700 }, { width: 800, height: 600 })
+  assert.deepEqual([boundary.left, boundary.top], [772, 572])
+});

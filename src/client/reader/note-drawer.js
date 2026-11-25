@@ -13,7 +13,7 @@ import { useTaskReorder } from './use-task-reorder.js';
 function NoteDrawer(props) {
   const {
     t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, titleDraft, onTitleChange, titleMode, pinned,
-    inline, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
+    inline, zen, onTogglePinned, drawerActions, commentsLayout, commentsActions, onClose, onRetry, onStartEdit,
     onBodyChange, onSave, onCancelEdit, onResizeStart, onResizeReset, onToggleTask, taskBusy,
     editPositionRef, onEditPositionChange, onReorderTask,
   } = props;
@@ -21,7 +21,8 @@ function NoteDrawer(props) {
   const listShortcuts = useListShortcuts({ editing, path: drawer.path, saving });
   const editorPosition = useEditorPosition({ editing, path: drawer.path, editPositionRef, onEditPositionChange, onBodySelection: listShortcuts.refresh });
   const bodyField = editorPosition.fieldProps('body', !editFromTitle.current, onBodyChange);
-  const drawerStyle = typeof drawerWidth === 'number' && Number.isFinite(drawerWidth)
+  const drawerStyle = zen ? { width: '100%', minWidth: 0, maxWidth: 'none', flex: '1 1 auto' }
+    : typeof drawerWidth === 'number' && Number.isFinite(drawerWidth)
     ? {
       width: drawerWidth + 'px',
       minWidth: 'min(320px,100%)',
@@ -43,7 +44,6 @@ function NoteDrawer(props) {
   const updated = source.mtime ? t('drawer.updated', { time: formatTime(source.mtime) }) : '';
   const blocks = full && Array.isArray(full.blocks) ? full.blocks : [];
   const comments = full && Array.isArray(full.comments) ? full.comments : [];
-  const projects = source.projects;
   const canEdit = Boolean(full);
 
   const taskDrag = useTaskReorder({ path: drawer.path, body: full?.body, bodyLineOffset: full?.bodyLineOffset || 0, editing, busy: taskBusy || saving || drawer.loading, onReorderTask, t });
@@ -54,7 +54,7 @@ function NoteDrawer(props) {
     if (!target || typeof target.closest !== 'function') return;
     // 双击按钮 / 空白边缘不算（§7.3）。
     if (target.closest('button')) return;
-    const inText = target.closest('.SN_blockP, .SN_blockH, .SN_blockLi, .SN_blockQuote, .SN_blockCode, .SN_commentCard, .SN_projects');
+    const inText = target.closest('.SN_blockP, .SN_blockH, .SN_blockLi, .SN_blockQuote, .SN_blockCode, .SN_commentCard');
     if (!inText && blocks.length > 0) return;
     editFromTitle.current = false;
     onStartEdit();
@@ -76,10 +76,6 @@ function NoteDrawer(props) {
       ? h('p', { className: 'SN_noteViewEmpty' }, t('drawer.editHint'))
       : null,
     blocks.map((block, index) => h(NoteBlock, { key: index, block: block, path: drawer.path, onToggleTask, taskBusy, taskDrag: taskDrag.blockProps(block), t })),
-    projects ? h('div', { className: 'SN_projects' },
-      h('span', { className: 'SN_projectsLabel' }, t('drawer.projects')),
-      h('span', { className: 'SN_projectsValue' }, String(projects)),
-    ) : null,
   );
 
   // 折叠只隐藏评论列表；预设始终可见，生成中禁用按钮而不替换它们。
@@ -182,14 +178,13 @@ function NoteDrawer(props) {
   );
 
   // 抽屉操作条（§7.3.2）：header 分割线下方；锁定/未锁定都显示，编辑态隐藏。
-  // 0.16.6：一行放完——左侧归档 / 到项目 / 删除 / 复制全文，右侧紫色 Obsidian 图文入口。
+  // 0.16.6：一行放完——左侧归档 / 删除 / 复制全文，右侧紫色 Obsidian 图文入口。
   const actionsNode = drawerActions
     ? h('div', { className: 'SN_drawerActions' },
       h('div', { className: 'SN_drawerActionLeft' },
         h('div', { className: 'SN_drawerActionTop' }, [
           { kind: 'archive', label: t('card.archive'), onClick: drawerActions.onArchive,
             disabled: Boolean(drawerActions.pending) },
-          { kind: 'project', label: t('card.project'), onClick: drawerActions.onProject, disabled: Boolean(drawerActions.pending) },
           { kind: 'delete', label: t('card.delete'), onClick: drawerActions.onDelete, disabled: Boolean(drawerActions.pending) },
           { kind: 'copy', label: t('drawer.copy'), onClick: drawerActions.onCopy },
           { kind: 'deepseek', label: t('send.action'), onClick: (event) => drawerActions.onDeepSeek(event.currentTarget) },
@@ -260,7 +255,7 @@ function NoteDrawer(props) {
           title: t('drawer.close'),
         }, h(CloseIcon, null)),
       // 锁定态不渲染关闭按钮（只留锁定/解锁）；Esc 仍可关。
-      h('button', {
+      !props.zen ? h('button', {
         type: 'button',
         className: 'SN_iconBtn',
         'data-active': pinned ? 'true' : 'false',
@@ -268,7 +263,7 @@ function NoteDrawer(props) {
         'aria-label': pinned ? t('drawer.unlock') : t('drawer.lock'),
         title: pinned ? t('drawer.unlock') : t('drawer.lock'),
         onClick: onTogglePinned,
-      }, h(PinIcon, { pinned: pinned })),
+      }, h(PinIcon, { pinned: pinned })) : null,
     ),
   );
   const drawerNode = h('aside', {

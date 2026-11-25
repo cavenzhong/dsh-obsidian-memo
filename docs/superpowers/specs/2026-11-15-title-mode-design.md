@@ -265,7 +265,7 @@ export function truncateNoteName(name, maxBytes = LIMITS.noteNameBytes)
 
 ### 5.5 开档对话框
 
-`src/client/ai/use-project-dialog.js` 的默认项目名从 `note.name || note.title` 改为 `note.title || note.name`，避免正文模式下预填成时间戳文件名。
+避免正文模式下插件操作对话框预填为时间戳文件名：应优先使用 `note.title`，再回退 `note.name`。
 
 ### 5.6 模块与一致性
 
@@ -371,7 +371,7 @@ export function truncateNoteName(name, maxBytes = LIMITS.noteNameBytes)
 - `src/client/capture/composer.js`：按模式切换标题 aria-label（`capture.title` / `capture.titleBody`）。
 - `src/client/wall/use-note-actions.js`：复制去重。
 - `src/client/wall/model.js`：按展示标题排序。
-- `src/client/ai/use-project-dialog.js`：默认项目名优先 `note.title`。
+- 表单中的便签名称默认值：优先 `note.title`，再回退 `note.name`。
 - `src/client/constants.js`：模式常量、`EMPTY_SETTINGS` 新字段。
 - `src/client/i18n/zh.js`、`en.js`：新增设置、模式、模板、提示、排序与编辑提示文案，包括 `drawer.titleAria` / `drawer.titleAriaBody` / `drawer.titleEmptyHint`、`capture.titleBody`。
 - `src/client/styles/settings.js`：三卡与模板区样式（沿用主题变量）。

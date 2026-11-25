@@ -15,8 +15,8 @@ function resizeCaptureBody(field) {
 
 function CaptureComposer(props) {
   const {
-    t, onCreate, onCreated, onError, enabled, imageCompression, titleMode, dragNote, dropAction,
-    dropTargetId, projectTargets, projectParked, onDragHover, onArchiveDrop, onProjectDrop, onProjectChoose, onDeleteDrop, onDeepSeekDrop,
+    t, onCreate, onCreated, onError, enabled, zen = false, imageCompression, titleMode, dragNote, dropAction,
+    onDragHover, onArchiveDrop, onDeleteDrop, onDeepSeekDrop,
     showBackTop, onBackTop, captureWorkspace,
   } = props;
   const [draft, setDraft] = React.useState(readCaptureDraft);
@@ -57,14 +57,14 @@ function CaptureComposer(props) {
     }
   }, [enabled, bodyOpen, dragNote]);
   React.useEffect(() => {
-    if (!enabled || dragNote || typeof document === 'undefined') return undefined;
+    if (!enabled || zen || dragNote || typeof document === 'undefined') return undefined;
     const onKeyDown = (event) => focusCaptureOnTab(event, {
       panel: dockRef.current?.closest('.SN_panel'), form: formRef.current, title: titleRef.current, busy: busyRef.current,
     });
     // 捕获阶段先处理 Enter，避免卡片/按钮的处理器或默认点击抢先打开详情。
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [enabled, dragNote]);
+  }, [enabled, zen, dragNote]);
   React.useLayoutEffect(() => {
     const field = titleRef.current;
     if (!field || dragNote) return undefined;
@@ -173,11 +173,11 @@ function CaptureComposer(props) {
     } else if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); submit(); }
   }
   if (!enabled) return null;
-  return h('div', { className: 'SN_captureDock', ref: dockRef, 'data-card-dragging': dragNote ? 'true' : 'false', 'data-drop': dropAction || '' },
+  return h('div', { className: 'SN_captureDock', ref: dockRef, 'data-card-dragging': dragNote ? 'true' : 'false', 'data-drop': dropAction || '', 'data-zen': zen ? 'true' : undefined },
     showBackTop && !dragNote ? h('button', { type: 'button', className: 'SN_backTop', title: t('panel.backToTop'), 'aria-label': t('panel.backToTop'), onClick: onBackTop }, h(ActionIcon, { kind: 'up', size: 17 })) : null,
     dragNote ? h(DropActions, {
-      t, active: dropAction, activeTargetId: dropTargetId, projectTargets: projectTargets || [], parked: projectParked, onHover: onDragHover,
-      onArchive: onArchiveDrop, onProject: onProjectDrop, onProjectChoose, onDelete: onDeleteDrop, onDeepSeek: onDeepSeekDrop,
+      t, active: dropAction, onHover: onDragHover,
+      onArchive: onArchiveDrop, onDelete: onDeleteDrop, onDeepSeek: onDeepSeekDrop,
     }) : null,
     h('form', {
       className: 'SN_capture', ref: formRef, 'data-body': bodyOpen ? 'true' : 'false', 'data-dragging': dragging ? 'true' : 'false',

@@ -4,24 +4,20 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { DEFAULT_SETTINGS, normalizeSettings, readSettingsFile, resolveUserPath, settingsEqual, writeSettingsFile } from '../../lib/settings.js'
-import { CALLOUT_TYPES, DEFAULT_EMOJIS, DEFAULT_PROJECT_PROMPT, DEFAULT_PROJECT_ADD, PREVIOUS_PROJECT_PROMPT, PREVIOUS_PROJECT_ADD, FULLTEXT_PROJECT_PROMPT, FULLTEXT_PROJECT_ADD, LEGACY_PROJECT_PROMPT, LEGACY_EMOJIS, LIMITS } from '../../lib/shared.js'
+import { CALLOUT_TYPES, DEFAULT_EMOJIS, LEGACY_EMOJIS, LIMITS } from '../../lib/shared.js'
 
 test('DEFAULT_SETTINGS：形状与默认值（0.12 含 includeSubfolders）', () => {
   assert.equal(DEFAULT_SETTINGS.vaultPath, '')
   assert.equal(DEFAULT_SETTINGS.notesDir, '')
-  assert.equal(DEFAULT_SETTINGS.projectDir, '')
   assert.equal(DEFAULT_SETTINGS.archiveMode, 'local')
   assert.equal(DEFAULT_SETTINGS.archiveFolderName, '归档')
   assert.equal(DEFAULT_SETTINGS.archiveDir, '')
-  assert.equal(DEFAULT_SETTINGS.projectPrompt, DEFAULT_PROJECT_PROMPT)
   assert.equal(DEFAULT_SETTINGS.includeSubfolders, true)
   assert.equal(DEFAULT_SETTINGS.emojis.length, 4)
   assert.deepEqual(
     DEFAULT_SETTINGS.emojis.map((item) => item.id),
     DEFAULT_EMOJIS.map((item) => item.id),
   )
-  assert.match(DEFAULT_PROJECT_PROMPT, /## 当前概况/)
-  assert.match(DEFAULT_PROJECT_ADD, /## 进展记录/)
 })
 
 test('DEFAULT_SETTINGS / DEFAULT_EMOJIS：0.12 四枚评论人格（😈 毒舌 / ✨ 另一面 / 🧭 落地 / 😇 真心话）', () => {
@@ -54,12 +50,10 @@ test('normalizeSettings：空对象得到完整默认设置', () => {
   const settings = normalizeSettings({})
   assert.equal(settings.vaultPath, '')
   assert.equal(settings.notesDir, '')
-  assert.equal(settings.projectDir, '')
   assert.equal(settings.includeSubfolders, true)
   assert.equal(settings.archiveMode, 'local')
   assert.equal(settings.archiveFolderName, '归档')
   assert.equal(settings.emojis.length, DEFAULT_EMOJIS.length)
-  assert.equal(settings.projectPrompt, DEFAULT_PROJECT_PROMPT)
 })
 
 test('normalizeSettings：非对象输入安全回退', () => {
@@ -85,55 +79,42 @@ test('normalizeSettings：includeSubfolders 只有显式 false 才关闭', () =>
   }
 })
 
-test('DEFAULT_SETTINGS：每枚 emoji 与开档都有默认高预算（high / 8192）', () => {
-  assert.deepEqual(DEFAULT_SETTINGS.projectAi, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+test('DEFAULT_SETTINGS：每枚 emoji 都有默认高预算（high / 8192）', () => {
   for (const emoji of DEFAULT_SETTINGS.emojis) {
     assert.deepEqual(emoji.ai, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 }, `${emoji.id} 默认预算`)
   }
-  // normalizeSettings 缺省 / 旧设置文件（没有 ai 字段）同样补默认高。
   const settings = normalizeSettings({})
   for (const emoji of settings.emojis) assert.equal(emoji.ai.preset, 'high')
-  assert.equal(settings.projectAi.preset, 'high')
 })
 
-test('normalizeSettings：四档预设映射正确（低=off/2048 中=low/4096 高=high/8192）', () => {
-  const preset = (id) => normalizeSettings({ projectAi: { preset: id } }).projectAi
-  assert.deepEqual(preset('low'), { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
-  assert.deepEqual(preset('medium'), { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
-  assert.deepEqual(preset('high'), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
-})
-
-test('normalizeSettings：非自定义档以预设数值为准（手改值不生效）', () => {
-  const settings = normalizeSettings({ projectAi: { preset: 'medium', reasoningEffort: 'max', maxTokens: 1 } })
-  assert.deepEqual(settings.projectAi, { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
-})
-
-test('normalizeSettings：自定义档保留 effort，maxTokens 夹紧并取整', () => {
-  const custom = (raw) => normalizeSettings({ projectAi: raw }).projectAi
-  assert.deepEqual(custom({ preset: 'custom', reasoningEffort: 'max', maxTokens: 12345 }), {
+test('normalizeSettings：emoji AI 四档预设映射与自定义预算边界', () => {
+  const withBudget = (ai) => normalizeSettings({ emojis: [
+    { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai },
+  ] }).emojis[0].ai
+  assert.deepEqual(withBudget({ preset: 'low' }), { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
+  assert.deepEqual(withBudget({ preset: 'medium' }), { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
+  assert.deepEqual(withBudget({ preset: 'high' }), { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
+  assert.deepEqual(withBudget({ preset: 'medium', reasoningEffort: 'max', maxTokens: 1 }), {
+    preset: 'medium', reasoningEffort: 'low', maxTokens: 4096,
+  })
+  assert.deepEqual(withBudget({ preset: 'custom', reasoningEffort: 'max', maxTokens: 12345 }), {
     preset: 'custom', reasoningEffort: 'max', maxTokens: 12345,
   })
-  // effort 非法 → 回退 high
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'ultra', maxTokens: 1000 }).reasoningEffort, 'high')
-  // 低于下限 / 高于上限 / 小数
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 1 }).maxTokens, 256)
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 10 ** 9 }).maxTokens, 65536)
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 3000.6 }).maxTokens, 3001)
-  // 非法 maxTokens → 默认 8192
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off', maxTokens: 'x' }).maxTokens, 8192)
-  assert.equal(custom({ preset: 'custom', reasoningEffort: 'off' }).maxTokens, 8192)
+  assert.equal(withBudget({ preset: 'custom', reasoningEffort: 'ultra', maxTokens: 1000 }).reasoningEffort, 'high')
+  assert.equal(withBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 1 }).maxTokens, 256)
+  assert.equal(withBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 10 ** 9 }).maxTokens, 65536)
+  assert.equal(withBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 3000.6 }).maxTokens, 3001)
+  assert.equal(withBudget({ preset: 'custom', reasoningEffort: 'off', maxTokens: 'x' }).maxTokens, 8192)
 })
 
-test('normalizeSettings：预设值非法时回退默认高；每枚 emoji 的 ai 独立保留', () => {
+test('normalizeSettings：emoji AI 非法预设回退默认且各自独立', () => {
   const settings = normalizeSettings({
-    projectAi: { preset: 'nope', reasoningEffort: 'off', maxTokens: 1000 },
     emojis: [
       { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'low' } },
       { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
-      { id: 'c', emoji: '🧭', label: '落地', callout: 'info', prompt: 'p' },
+      { id: 'c', emoji: '🧭', label: '落地', callout: 'info', prompt: 'p', ai: { preset: 'nope', reasoningEffort: 'off', maxTokens: 1000 } },
     ],
   })
-  assert.deepEqual(settings.projectAi, { preset: 'high', reasoningEffort: 'high', maxTokens: 8192 })
   assert.deepEqual(settings.emojis.map((item) => item.ai.preset), ['low', 'custom', 'high'])
   assert.equal(settings.emojis[0].ai.reasoningEffort, 'off')
   assert.equal(settings.emojis[1].ai.maxTokens, 5000)
@@ -195,30 +176,25 @@ test('resolveUserPath：~ 与 ~/ 展开到主目录', () => {
 })
 
 test('normalizeSettings：~ 展开后再按 vaultPath 解析相对路径', () => {
-  const settings = normalizeSettings({ vaultPath: '~/vault', notesDir: 'note', projectDir: '~/projects' })
+  const settings = normalizeSettings({ vaultPath: '~/vault', notesDir: 'note' })
   assert.equal(settings.vaultPath, resolve(homedir(), 'vault'))
   assert.equal(settings.notesDir, resolve(homedir(), 'vault', 'note'))
-  assert.equal(settings.projectDir, resolve(homedir(), 'projects'))
 })
 
 test('normalizeSettings：相对路径按 vaultPath 解析成绝对路径', () => {
   const settings = normalizeSettings({
     vaultPath: '/vault',
     notesDir: '进行时',
-    projectDir: '项目',
   })
   assert.equal(settings.notesDir, '/vault/进行时')
-  assert.equal(settings.projectDir, '/vault/项目')
 })
 
 test('normalizeSettings：绝对路径原样保留', () => {
   const settings = normalizeSettings({
     vaultPath: '/vault',
     notesDir: '/other/notes',
-    projectDir: '/other/projects',
   })
   assert.equal(settings.notesDir, '/other/notes')
-  assert.equal(settings.projectDir, '/other/projects')
 })
 
 test('normalizeSettings：相对路径基准取设置自身的 vaultPath', () => {
@@ -315,18 +291,6 @@ test('normalizeSettings：不修改传入的 DEFAULT_SETTINGS / 输入对象', (
   assert.equal(JSON.stringify(input), snapshot)
 })
 
-test('normalizeSettings：projectPrompt 空 / 缺失 / 非字符串回退默认', () => {
-  assert.equal(normalizeSettings({}).projectPrompt, DEFAULT_PROJECT_PROMPT)
-  assert.equal(normalizeSettings({ projectPrompt: '' }).projectPrompt, DEFAULT_PROJECT_PROMPT)
-  assert.equal(normalizeSettings({ projectPrompt: '   ' }).projectPrompt, DEFAULT_PROJECT_PROMPT)
-  assert.equal(normalizeSettings({ projectPrompt: 123 }).projectPrompt, DEFAULT_PROJECT_PROMPT)
-})
-
-test('normalizeSettings：自定义 projectPrompt 保留', () => {
-  assert.equal(normalizeSettings({ projectPrompt: '自定义建档提示' }).projectPrompt, '自定义建档提示')
-})
-
-// 0.16.8：便签标题模式与文件名模板
 test('settings 0.16.8：titleMode / fileNamePattern 默认值与旧配置升级', () => {
   assert.equal(DEFAULT_SETTINGS.titleMode, 'filename')
   assert.equal(DEFAULT_SETTINGS.fileNamePattern, '{date}-{time}')
@@ -359,16 +323,6 @@ test('settings 0.16.8：settingsEqual 受标题模式与模板影响', () => {
   assert.equal(settingsEqual({ ...base, titleMode: 'heading' }, { ...base, titleMode: 'heading' }), true)
 })
 
-
-test('项目整稿提示词：精确升级两代建档默认值与上一版补充默认值，不改用户定制', () => {
-  for (const projectPrompt of [FULLTEXT_PROJECT_PROMPT, PREVIOUS_PROJECT_PROMPT, LEGACY_PROJECT_PROMPT]) {
-    const saved = normalizeSettings({ projectPrompt, projectAddPrompt: PREVIOUS_PROJECT_ADD })
-    assert.equal(saved.projectPrompt, DEFAULT_PROJECT_PROMPT); assert.equal(saved.projectAddPrompt, DEFAULT_PROJECT_ADD)
-  }
-  assert.equal(normalizeSettings({ projectAddPrompt: FULLTEXT_PROJECT_ADD }).projectAddPrompt, DEFAULT_PROJECT_ADD)
-  const custom = normalizeSettings({ projectPrompt: '我的概况', projectAddPrompt: PREVIOUS_PROJECT_ADD + ' 我的定制' })
-  assert.equal(custom.projectPrompt, '我的概况'); assert.equal(custom.projectAddPrompt, PREVIOUS_PROJECT_ADD + ' 我的定制')
-})
 
 test('0.18.6 发送设置：深度合并规范化，旧配置补齐默认，目标与形式可落盘', async (t) => {
   assert.deepEqual(DEFAULT_SETTINGS.deepseekSend, { skipMenu: false, workspaceId: '', workspacePath: '', workspaceTitle: '', format: 'text' })

@@ -2,24 +2,24 @@
 import { readStoredPinnedNote, storePinnedNote } from '../preferences.js';
 import { React } from '../react.js';
 
-function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view }) {
+function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes, view, suspended = false }) {
   React.useEffect(() => {
-    if (!pinned) return;
+    if (suspended || !pinned) return;
     if (noteDrawer && typeof noteDrawer.path === 'string' && noteDrawer.path !== '') storePinnedNote(noteDrawer.path);
-  }, [pinned, noteDrawer && noteDrawer.path]);
+  }, [pinned, noteDrawer && noteDrawer.path, suspended]);
 
   React.useEffect(() => {
-    if (!pinned || !view.loaded || pinnedUserClosedRef.current) return;
+    if (suspended || !pinned || !view.loaded || pinnedUserClosedRef.current) return;
     if (noteDrawerRef.current) return;
     if (sortedNotes.length === 0) return;
     const stored = readStoredPinnedNote();
     // 「当前筛选里最前的一篇」按当前排序结果算（默认创建时间新→旧）。
     const target = (stored !== '' && sortedNotes.find((note) => note.path === stored)) || sortedNotes[0];
     if (target) openNoteDrawer(target);
-  }, [pinned, view.loaded, sortedNotes]);
+  }, [pinned, view.loaded, sortedNotes, suspended]);
 
   React.useEffect(() => {
-    if (!view.loaded) return;
+    if (suspended || !view.loaded) return;
     // 恢复的便签可能不在日期筛选里，全文返回前也不能自动切走。
     if (restoringDraftRef?.current) return;
     // 编辑中不切走/不关闭：日期筛选变化等触发的自动切换会重置草稿；等保存/取消后再跟随。
@@ -36,7 +36,7 @@ function usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteD
     } else {
       closeNoteDrawer();
     }
-  }, [sortedNotes, pinned, view.loaded, editing]);
+  }, [sortedNotes, pinned, view.loaded, editing, suspended]);
 
 }
 

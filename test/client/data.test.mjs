@@ -75,10 +75,8 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
   const settings = {
     vaultPath: '/vault',
     notesDir: '/vault/notes',
-    projectDir: '',
     archiveMode: 'local',
     emojis: [{ id: 'devil', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'x' }],
-    projectPrompt: 'p',
     includeSubfolders: true,
   }
   const prev = {
@@ -152,13 +150,4 @@ test('client __test：mergeState 无变化时返回同一对象（不新建 view
   // 非法 value 安全回退
   assert.equal(api.mergeState(prev, null), prev)
   assert.equal(api.mergeState(prev, undefined), prev)
-})
-
-test('Host 项目任务在状态合并后仍锁定便签；任务结束解除，不误显示为写评论', t => {
-  const api = getTestApi(loadClient(t).mod), note = { path: 'a.md', pending: null }
-  for (const [kind, key] of [['project-check', 'project.analyzing'], ['project', 'toast.projectStarted'], ['project-add', 'project.updating']]) {
-    const job = { kind, status: 'running', path: note.path, name: '跟踪' }
-    const [running] = api.decorateNotes([note], [job], {}); assert.equal(running.pending.textKey, key)
-    assert.equal(api.decorateNotes([running], [{ ...job, status: 'done' }], {})[0].pending, null)
-  }
 })

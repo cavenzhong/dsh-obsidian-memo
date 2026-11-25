@@ -13,22 +13,6 @@ test('浅色和深色便签悬停时细边变白，保留投影', () => {
   }
 })
 
-test('Project 卡片按链接目标选底纹，别名与纸色不影响选择，普通卡片无底纹', (t) => {
-  const { components } = loadClient(t).mod.__test
-  const actions = { current: { t: (key) => key } }
-  const render = (projects, paper, preview = false) => components.NoteCard({
-    note: { path: '/vault/memo.md', projects }, actions, paper, preview,
-  })
-  const original = render('[[计划-项目]]')
-  const tinted = render('[[计划-项目.md#进展|别名]]', { light: '#FDF5F6', dark: '#2E2426' }, true)
-  assert.ok(original.props['data-texture'])
-  assert.equal(tinted.props['data-texture'], original.props['data-texture'])
-  assert.equal(tinted.props.style['--sn-card-bg'], '#FDF5F6')
-  assert.equal(tinted.props.style['--sn-card-bg-dark'], '#2E2426')
-  assert.equal(render(undefined).props['data-texture'], undefined)
-  assert.equal(render('无项目链接').props['data-texture'], undefined)
-})
-
 test('点击只给当前卡片播放轻量缩小回弹，拖拽、预览及减少动态效果不播放', (t) => {
   const { components } = loadClient(t).mod.__test
   const note = { path: '/vault/memo.md' }, opened = [], animations = []
@@ -124,17 +108,17 @@ test('v0.16 卡片标签：不占标题行，仅随菜单激活显示在右上�
   assert.doesNotMatch(CLIENT_SOURCE, /\.SN_card(?:\[[^\]]*\])?\{[^}]*cursor:pointer/)
 })
 
-test('卡片预览保留换行和编号，项目点及待办只替换标记为等大圆点', (t) => {
+test('卡片预览保留换行和编号，无序列表点及待办只替换标记为等大圆点', (t) => {
   const { components } = loadClient(t).mod.__test
   const note = { path: 'a.md', title: '标题', excerpt: '旧摘要 ☐ 待办 ☑ 完成',
-    cardPreview: '第一行中的 ☑ 原样保留\n• 项目\n3) ☐ 待办\n☑ 完成\n4. 下一项' }
+    cardPreview: '第一行中的 ☑ 原样保留\n• 列表项\n3) ☐ 待办\n☑ 完成\n4. 下一项' }
   const render = (patch) => captureNodes(components.NoteCard({
     note: { ...note, ...patch }, actions: { current: { t: (key) => key } },
   })).find((node) => node.props.className === 'SN_cardExcerpt')
   const multiline = render()
   const markers = (node) => captureNodes(node).filter((child) => child.props.className === 'SN_cardMarker')
   const textParts = (node) => node.children.flat().filter((child) => typeof child === 'string')
-  assert.deepEqual(textParts(multiline), ['第一行中的 ☑ 原样保留\n', ' 项目\n3) ', ' 待办\n', ' 完成\n4. 下一项'])
+  assert.deepEqual(textParts(multiline), ['第一行中的 ☑ 原样保留\n', ' 列表项\n3) ', ' 待办\n', ' 完成\n4. 下一项'])
   assert.deepEqual(markers(multiline).map((dot) => dot.props['data-kind']), ['bullet', 'todo', 'done'])
   assert.equal(markers(multiline)[0].props['aria-hidden'], 'true')
   assert.deepEqual(markers(multiline).slice(1).map((dot) => dot.props['aria-label']), ['card.task.todo', 'card.task.done'])

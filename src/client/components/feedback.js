@@ -31,7 +31,6 @@ function ToastStack(props) {
         key: item.id,
         className: 'SN_toast',
         'data-kind': item.kind,
-        'data-project-review': item.projectReview || undefined,
         // toast 浮在顶栏拖动行的几何范围内；macOS 0.2.2-rc.2 起需自行声明 no-drag 区域。
         'data-window-drag-exclude': '',
         role: 'status',

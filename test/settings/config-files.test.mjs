@@ -17,7 +17,7 @@ test('v0.16 配置迁移：保留旧文件，优先已有新配置，记住选�
     const legacy = join(root, 'plugin', 'data', 'settings.json')
     const home = join(root, 'user-config')
     const vault = join(root, 'vault')
-    await writeSettingsFile(legacy, { vaultPath: vault, notesDir: join(vault, '便签'), projectDir: join(vault, '项目') })
+    await writeSettingsFile(legacy, { vaultPath: vault, notesDir: join(vault, '便签') })
     const old = await readFile(legacy, 'utf8')
     const location = await locateConfig({ legacyPath: legacy, home, override: '' })
     assert.equal(location.path, join(home, 'config.json'))
@@ -39,14 +39,13 @@ test('v0.16 配置迁移：保留旧文件，优先已有新配置，记住选�
 })
 
 test('v0.16 文件夹历史：跨字段共享、去重、限制仓库边界并保留旧选择', () => {
-  const settings = normalizeSettings({ vaultPath: '/vault', notesDir: '/vault/notes', projectDir: 'projects',
+  const settings = normalizeSettings({ vaultPath: '/vault', notesDir: '/vault/notes',
     archiveMode: 'mapped', archiveDir: 'archive', folderHistory: ['old', '/vault/notes', '../outside', '.trash'] })
-  assert.deepEqual(settings.folderHistory, ['/vault/notes', '/vault/projects', '/vault/archive', '/vault/old'])
+  assert.deepEqual(settings.folderHistory, ['/vault/notes', '/vault/archive', '/vault/old'])
   const portable = portableSettings(settings)
   assert.equal(portable.notesDir, 'notes')
-  assert.deepEqual(portable.folderHistory, ['notes', 'projects', 'archive', 'old'])
+  assert.deepEqual(portable.folderHistory, ['notes', 'archive', 'old'])
   assert.equal(portable.archiveDir, 'archive')
-  assert.equal(normalizeSettings(portable).projectDir, '/vault/projects')
 })
 
 test('v0.16 配置原子写入失败时清理临时文件，保留原目标', async (t) => {

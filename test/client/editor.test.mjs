@@ -3,7 +3,7 @@ import test from 'node:test'
 import { loadClient, captureNodes, hookRunner, flush, deferred, editorOptions, getTestApi, CLIENT_SOURCE } from '../../test-support/client.mjs'
 import assert from 'node:assert/strict'
 
-test('阅读列表：有序项目显示数字标记，无序项目保留圆点样式', (t) => {
+test('阅读列表：有序列表项显示数字标记，无序列表项保留圆点样式', (t) => {
   const api = loadClient(t).mod.__test
   const ordered = api.components.NoteBlock({ block: { kind: 'li', text: '第二项', marker: '2.' } })
   assert.equal(ordered.props.className, 'SN_blockLi SN_blockOrdered')

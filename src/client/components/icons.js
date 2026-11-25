@@ -104,6 +104,28 @@ function PinIcon(props) {
   );
 }
 
+
+
+function NoteGlyphIcon() {
+  return h('svg', {
+    width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none',
+    'aria-hidden': 'true', focusable: 'false', style: { display: 'block' },
+  },
+    h('path', { d: 'M6 3.5h8.8L19 7.7v12.8H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2Z', stroke: 'currentColor', strokeWidth: 1.5, strokeLinejoin: 'round' }),
+    h('path', { d: 'M14.5 3.8v4h4M8 12h7M8 15.5h7', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+  );
+}
+
+function LeafIcon() {
+  return h('svg', {
+    width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
+    'aria-hidden': 'true', focusable: 'false', style: { display: 'block' },
+  },
+    h('path', { d: 'M20 4c-8.3.1-13.3 2.8-14.8 7.8-1.1 3.8 1.7 6.8 5.1 6.2C16 17.1 19.8 12.4 20 4Z', stroke: 'currentColor', strokeWidth: 1.6, strokeLinejoin: 'round' }),
+    h('path', { d: 'M4 21c2.8-5.6 6.4-9.1 11.3-12', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+  );
+}
+
 function SplitViewIcon() {
   return h('svg', {
     width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
@@ -205,7 +227,6 @@ function ActionIcon({ kind, size = 20 }) {
   const paths = {
     delete: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7',
     archive: 'M4 4h16v4H4zM6 8v12h12V8M10 12h4',
-    project: 'M3 7V5h6l2 2h10v12H3zM12 10v6m-3-3h6',
     copy: 'M8 8h12v12H8zM16 8V4H4v12h4',
     up: 'M12 19V5m-6 6 6-6 6 6',
     move: 'M12 3.6v9.8m-4.1-4 4.1 4.1 4.1-4.1M4.5 19.5h15',
@@ -214,4 +235,4 @@ function ActionIcon({ kind, size = 20 }) {
     h('path', { d: paths[kind], stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }));
 }
 
-export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SplitViewIcon, SortIcon, ObsidianIcon, DeepSeekIcon, CalendarIcon, ChevronIcon, ActionIcon, PlusIcon, MoreIcon };
+export { PanelIcon, RefreshIcon, GearIcon, CloseIcon, FolderTreeIcon, PinIcon, SplitViewIcon, LeafIcon, NoteGlyphIcon, SortIcon, ObsidianIcon, DeepSeekIcon, CalendarIcon, ChevronIcon, ActionIcon, PlusIcon, MoreIcon };

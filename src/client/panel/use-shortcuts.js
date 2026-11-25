@@ -3,9 +3,9 @@ import { panelIsVisible } from '../data/visibility.js';
 import { React } from '../react.js';
 
 function usePanelShortcuts({
-  anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeProjectDialog, closeSettings,
-  commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned,
-  pinnedUserClosedRef, projectBusy, projectTarget, runDelete, saveEditing, savingSettings, setDateMenu,
+  anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeSettings,
+  commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned, zen = false,
+  pinnedUserClosedRef, runDelete, saveEditing, savingSettings, setDateMenu,
   setSortMenu, settingsOpen, sortMenu,
 }) {
   const keyHandlerRef = React.useRef(null);
@@ -21,7 +21,7 @@ function usePanelShortcuts({
 
   keyHandlerRef.current = function handleGlobalKeyDown(event) {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Backspace' && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented) {
-      if (settingsOpen || projectTarget || commentConfirm || editing || event.target?.closest?.('input,textarea,[contenteditable]:not([contenteditable="false"])')) return;
+      if (settingsOpen || commentConfirm || editing || event.target?.closest?.('input,textarea,[contenteditable]:not([contenteditable="false"])')) return;
       const panel = panelRef.current;
       if (!panel || !panelIsVisible(panel)) return;
       const doc = panel.ownerDocument;
@@ -45,17 +45,13 @@ function usePanelShortcuts({
         setSortMenu(false);
         return;
       }
-      if (projectTarget) {
-        if (!projectBusy) closeProjectDialog();
-        return;
-      }
       if (settingsOpen) {
         if (!savingSettings) closeSettings();
         return;
       }
       if (noteDrawer) {
         if (editing) cancelEditing();
-        else {
+        else if (!zen) {
           // 锁定态用 Esc 主动关闭：本次挂载内不要自动重开（重进面板仍会恢复/选第一篇）。
           if (pinned) pinnedUserClosedRef.current = true;
           closeNoteDrawer();

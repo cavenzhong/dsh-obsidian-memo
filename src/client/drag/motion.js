@@ -13,12 +13,20 @@ function cardDragLayout(point, viewport) {
   return { width, height, scale, previewWidth, previewHeight, left, top, hintWidth };
 }
 
-function createCardDragMotion(layer, initialPoint) {
+function iconDragLayout(point, viewport) {
+  const size = 24;
+  const left = Math.max(4, Math.min((point?.x || 0) + 8, viewport.width - size - 4));
+  const top = Math.max(4, Math.min((point?.y || 0) + 8, viewport.height - size - 4));
+  return { width: size, height: size, scale: 1, previewWidth: size, previewHeight: size, left, top, hintWidth: 270 };
+}
+
+function createCardDragMotion(layer, initialPoint, options = {}) {
   const win = layer.ownerDocument.defaultView;
   const point = Object.assign({}, initialPoint);
   let viewport = { width: win.innerWidth, height: win.innerHeight };
-  let layout = cardDragLayout(point, viewport);
-  let frame = null, disposed = false, settling = false, animation = null, anchor = null;
+  const computeLayout = options.iconOnly === true ? iconDragLayout : cardDragLayout;
+  let layout = computeLayout(point, viewport);
+  let frame = null, disposed = false, settling = false, animation = null;
   const transform = (position) => 'translate3d(' + position.left + 'px,' + position.top + 'px,0)';
   const position = (next) => {
     if (next.left !== layout.left || next.top !== layout.top) layer.style.transform = transform(next);
@@ -28,7 +36,7 @@ function createCardDragMotion(layer, initialPoint) {
   const paint = () => {
     frame = null;
     if (disposed || settling) return;
-    position(cardDragLayout(point, viewport));
+    position(computeLayout(point, viewport));
   };
   const schedule = () => { if (frame === null) frame = win.requestAnimationFrame(paint); };
   const move = (event) => {
@@ -38,13 +46,7 @@ function createCardDragMotion(layer, initialPoint) {
     point.x = event.clientX; point.y = event.clientY;
     schedule();
   };
-  const placeParked = () => {
-    const rect = anchor.getBoundingClientRect();
-    viewport = { width: win.innerWidth, height: win.innerHeight };
-    Object.assign(point, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, offsetX: layout.width / 2, offsetY: layout.height / 2 });
-    position(cardDragLayout(point, viewport));
-  };
-  const resize = () => { if (anchor) placeParked(); else { viewport = { width: win.innerWidth, height: win.innerHeight }; schedule(); } };
+  const resize = () => { viewport = { width: win.innerWidth, height: win.innerHeight }; schedule(); };
   const detach = () => {
     if (frame !== null) { win.cancelAnimationFrame(frame); frame = null; }
     layer.ownerDocument.removeEventListener('dragover', move, true);
@@ -55,16 +57,13 @@ function createCardDragMotion(layer, initialPoint) {
   layer.ownerDocument.addEventListener('drag', move, true);
   win.addEventListener('resize', resize);
   return {
-    park(element) {
-      if (disposed || settling || !element) return;
-      detach(); anchor = element;
-      layer.dataset.parked = 'true';
-      placeParked();
-      win.addEventListener('resize', resize);
-    },
     finish(mode, source) {
       if (settling || disposed) return Promise.resolve();
       settling = true; detach();
+      if (options.iconOnly === true) {
+        layer.style.opacity = '0';
+        return Promise.resolve();
+      }
       // 只在松手时读一次原卡片位置；回落结束前保留虚线占位，避免原卡片闪回。
       const rect = mode === 'return' && source?.isConnected ? source.getBoundingClientRect() : null;
       layer.dataset.settling = 'true';
@@ -81,4 +80,4 @@ function createCardDragMotion(layer, initialPoint) {
   };
 }
 
-export { cardDragLayout, createCardDragMotion };
+export { cardDragLayout, iconDragLayout, createCardDragMotion };

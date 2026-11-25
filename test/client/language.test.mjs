@@ -1,4 +1,4 @@
-/** Language preference, project beta UI, and translated reader/diagnostics. */
+/** Language preference and translated reader/diagnostics. */
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { CLIENT_SOURCE, captureNodes, flush, hookRunner, loadClient } from '../../test-support/client.mjs'
@@ -47,7 +47,7 @@ test('界面语言：默认跟随 Harness，可从设置即时覆盖、恢复跟
   const initialSettings = drawer(render()).props
   assert.equal(initialSettings.language, 'system')
   assert.equal(initialSettings.t('settings.languageSystem'), '跟随 Harness')
-  initialSettings.onPatch({ projectDir: '尚未保存的路径' })
+  initialSettings.onPatch({ notesDir: '尚未保存的路径' })
   const draft = drawer(render()).props.draft
 
   // Execute the real <select> handler from the SettingsDrawer tree.
@@ -97,21 +97,6 @@ test('语言偏好：localStorage 不可用时仍可在当前面板切换', asyn
   assert.equal(render().props.lang, 'en')
 })
 
-test('项目标签右上角带 Beta，项目页首项是双语提示', (t) => {
-  const { SettingsDrawer } = loadClient(t).mod.__test.components
-  for (const [dictionary, notice] of [[zh, '该项目功能仍在测试与推进中，版本推进功能可能会大改。'],
-    [en, 'Project features are in beta and may change substantially in future releases.']]) {
-    const nodes = captureNodes(SettingsDrawer({ draft: {}, initialTab: 'project', t: translate(dictionary) }))
-    const badges = nodes.filter(byClass('SN_settingsBeta'))
-    assert.equal(badges.length, 1)
-    assert.equal(badges[0].children[0], 'Beta')
-    assert.ok(nodes.find((node) => node.props['data-tab'] === 'project').children.includes(badges[0]))
-    const page = nodes.find(isTab('project'))
-    assert.equal(page.props.hidden, false)
-    assert.equal(page.children[0].props.role, 'note')
-    assert.equal(page.children[0].children[0], notice)
-  }
-})
 
 test('阅读器任务、图片占位和已知 Host 错误使用当前语言', (t) => {
   const { NoteBlock, NoteImage, ToastStack } = loadClient(t).mod.__test.components

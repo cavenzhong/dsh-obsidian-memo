@@ -1,22 +1,15 @@
-/** 持有一次拖拽会话；统一 drop/dragend、归档停靠和取消。 */
-import { focusCaptureOnTab } from '../capture/keyboard.js';
+/** 持有一次拖拽会话；统一 drop/dragend 与取消。 */
 import { React } from '../react.js';
 
 function useCardDrag({
-  aliveRef, moveWorkspaceNote, projectTargets, queueProjectDrop, requestDeepSeek, panelRef, runArchive, runDelete,
+  aliveRef, moveWorkspaceNote, requestDeepSeek, runArchive, runDelete,
   setDateMenu, setHoverPath, setSortMenu,
 }) {
   const [dragSession, setDragSession] = React.useState(null);
-  const dragSessionRef = React.useRef(null), dragMotionRef = React.useRef(null), captureFocusRef = React.useRef(false);
+  const dragSessionRef = React.useRef(null), dragMotionRef = React.useRef(null);
   const leaveTimer = React.useRef(null);
   const dragNote = dragSession?.note || null;
 
-  React.useLayoutEffect(() => {
-    if (!dragNote && captureFocusRef.current) {
-      captureFocusRef.current = false;
-      panelRef.current?.querySelector('.SN_captureTitle')?.focus();
-    }
-  }, [dragNote]);
   const [dropTarget, setDropTarget] = React.useState(null);
   const dropAction = dropTarget?.kind || null, dropTargetId = dropTarget?.id || null;
 
@@ -26,38 +19,24 @@ function useCardDrag({
     // 延迟 dragend 后才轮到自定义回落。操作栏仍先处理 drop，再冒泡到此处。
     const accept = (event) => {
       const session = dragSessionRef.current;
-      if (!session || session.ending || session.parked || !Array.from(event.dataTransfer?.types || []).includes('application/x-dsh-memo')) return;
+      if (!session || session.ending || !Array.from(event.dataTransfer?.types || []).includes('application/x-dsh-memo')) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
     };
     const end = (event) => {
       if (event.type === 'drop') {
-        if (dragSessionRef.current?.parked || !Array.from(event.dataTransfer?.types || []).includes('application/x-dsh-memo')) return;
+        if (!Array.from(event.dataTransfer?.types || []).includes('application/x-dsh-memo')) return;
         event.preventDefault();
       }
       return endCardDrag();
     };
     const key = (event) => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); endCardDrag(); }
-      else if (event.key === 'Enter' && dragSessionRef.current?.parked && !event.target?.closest?.('.SN_dropTarget')) {
-        const panel = panelRef.current;
-        focusCaptureOnTab(event, {
-          panel, form: panel?.querySelector('.SN_capture'), busy: false,
-          // 等 React 提交输入岛可见状态后再聚焦，避免聚焦仍隐藏的 textarea。
-          title: { focus() { captureFocusRef.current = true; endCardDrag(); } },
-        });
-      }
-    };
-    const dismissParked = (event) => {
-      if (!dragSessionRef.current?.parked || event.target?.closest?.('.SN_dropItem[data-action="project"]')) return;
-      endCardDrag();
     };
     document.addEventListener('dragenter', accept, true);
     document.addEventListener('dragover', accept, true);
     document.addEventListener('drop', end);
     document.addEventListener('keydown', key, true);
-    document.addEventListener('pointerdown', dismissParked, true);
-    document.addEventListener('focusin', dismissParked, true);
     window.addEventListener('blur', end);
     return () => {
       clearTimeout(leaveTimer.current);
@@ -65,8 +44,6 @@ function useCardDrag({
       document.removeEventListener('dragover', accept, true);
       document.removeEventListener('drop', end);
       document.removeEventListener('keydown', key, true); window.removeEventListener('blur', end);
-      document.removeEventListener('pointerdown', dismissParked, true);
-      document.removeEventListener('focusin', dismissParked, true);
     };
   }, [Boolean(dragNote)]);
 
@@ -74,7 +51,6 @@ function useCardDrag({
     const session = dragSessionRef.current;
     if (!session || session.ending) return session?.finished || Promise.resolve();
     session.ending = true; clearTimeout(leaveTimer.current);
-    if (session.parked) setDropTarget(null);
     // drop 与 dragend 共用一次收尾；文件操作并行进行，不先闪回原卡片再移除。
     const animation = dragMotionRef.current?.finish(mode, session.source);
     session.finished = Promise.all([animation, operation]).then(() => {
@@ -96,25 +72,25 @@ function useCardDrag({
   /** 立即清掉拖放目标（离开标签栏空白处时用，不走 150ms 防抖）。 */
   function clearDropTarget() {
     const session = dragSessionRef.current;
-    if (!session || session.ending || session.parked) return;
+    if (!session || session.ending) return;
     clearTimeout(leaveTimer.current);
     setDropTarget(null);
   }
 
-  function hoverDragAction(kind, targetId, anchor = null) {
-    if (!dragSessionRef.current || dragSessionRef.current.ending || dragSessionRef.current.parked) return;
+  function hoverDragAction(kind, targetId = null) {
+    if (!dragSessionRef.current || dragSessionRef.current.ending) return;
     clearTimeout(leaveTimer.current);
     // Chromium may report a null relatedTarget between the button and its floating rows.
     if (!kind) {
       const session = dragSessionRef.current;
       leaveTimer.current = setTimeout(() => {
-        if (dragSessionRef.current === session && !session.parked && !session.ending) setDropTarget(null);
+        if (dragSessionRef.current === session && !session.ending) setDropTarget(null);
       }, 150);
       return;
     }
     setDropTarget((current) => {
       const id = targetId || null;
-      return current?.kind === kind && current.id === id && current.anchor === anchor ? current : { kind, id, anchor };
+      return current?.kind === kind && current.id === id ? current : { kind, id };
     });
   }
 
@@ -136,17 +112,17 @@ function useCardDrag({
     endCardDrag('drop', runArchive(note));
   }
 
-  /** 0.18：把卡片拖到工作空间标签上，松手即移动到该文件夹。 */
+  /** 把便签拖到工作空间标签上，松手即移动到该文件夹。 */
   function workspaceDrop(event, workspace) {
     const session = dragSessionRef.current;
-    if (!session || session.ending || session.parked || !workspace) return;
+    if (!session || session.ending || !workspace) return;
     const note = session.note;
     const path = event.dataTransfer.getData('application/x-dsh-memo');
     if (path !== note.path) { endCardDrag(); return; }
     endCardDrag('drop', moveWorkspaceNote(note, workspace));
   }
 
-  /** 0.18.6：拖到发送位后结束拖拽，再打开共享工作区/形式菜单。 */
+  /** 拖到发送位后结束拖拽，再打开共享工作区/形式菜单。 */
   function deepSeekDrop(event) {
     const session = dragSessionRef.current;
     if (!session || session.ending) return;
@@ -157,30 +133,8 @@ function useCardDrag({
     requestDeepSeek(note, event.currentTarget);
   }
 
-  function projectDrop(event, targetId) {
-    const session = dragSessionRef.current;
-    if (!session || session.ending) return;
-    const note = session.note;
-    const path = event.dataTransfer.getData('application/x-dsh-memo');
-    if (path !== note.path) { endCardDrag(); return; }
-    const target = targetId && targetId !== '__new__' ? projectTargets.find((item) => item.id === targetId) : null;
-    if (targetId === '__new__') { endCardDrag('drop', queueProjectDrop(note)); return; }
-    if (target) { endCardDrag('drop', queueProjectDrop(note, target)); return; }
-    const anchor = event.currentTarget?.closest?.('.SN_dropItem[data-action="project"]');
-    if (!anchor) { endCardDrag(); return; }
-    session.parked = true;
-    dragMotionRef.current?.park(anchor);
-    setDragSession(Object.assign({}, session));
-    setDropTarget({ kind: 'project', id: null });
-  }
 
-  function chooseProjectTarget(target) {
-    const session = dragSessionRef.current;
-    if (!session?.parked || session.ending || !target) return;
-    endCardDrag('drop', queueProjectDrop(session.note, target.id === '__new__' ? null : target));
-  }
-
-  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor: dropTarget?.anchor || null, endCardDrag, startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, deepSeekDrop, chooseProjectTarget, workspaceDrop };
+  return { dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, endCardDrag, startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, deepSeekDrop, workspaceDrop };
 }
 
 export { useCardDrag };

@@ -1,6 +1,6 @@
-# 代码结构与修改入口（0.19.1）
+# 代码结构与修改入口（0.19.2）
 
-先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。0.17 的实机验收记录见 [0.17 复核](AUDIT-0.17.md)。
+先按下表定位功能，再读目标文件的导入、参数和导出。RPC 与用户交互行为以 [CONTRACT.md](CONTRACT.md) 为准；历史修复见 [CHANGELOG.md](CHANGELOG.md)，暂缓事项见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
 
 ## 运行与源码
 
@@ -34,8 +34,7 @@ Harness Web  → lib/client.js（生成）
 | 当前仓库与便签路径 | `lib/host/vault.js` | 读取最新配置；便签以仓库为边界、拒绝隐藏目录与越界符号链接 |
 | 全文与模型输入读取 | `lib/host/note-content.js` | 读原始 Markdown，不复用展示摘要 |
 | 本地图片读取与附件查找 | `lib/host/images.js` | 持有命中/负缓存；切库和删除后清理 |
-| AI 评论 / 项目跟踪 | `lib/host/ai-jobs.js`、`lib/host/projects.js` | 共用任务表与写锁；项目服务持有取消句柄及双文件验收快照 |
-| 项目文档 / 归属字段 | `lib/project.js`、`lib/project-revision.js`、`lib/project-meta.js` | 评估协议、AI 概况与新增记录、Host 原文合并、便签归属字段；不执行文件操作 |
+| AI 评论任务 | `lib/host/ai-jobs.js` | 共用任务表与写锁，支持取消与状态通知 |
 | 评论删除与撤回 | `lib/host/comments.js`、`lib/comments.js` | 按序号定位 callout；撤回 token 与删除前原文由实例 session 持有 |
 | 任务、撤回 token、过期回收 | `lib/host/session.js` | 持有当前实例的 jobs、归档与删除 token |
 | 归档、工作空间迁移、删除、撤回、系统回收站 | `lib/host/mutations.js` | 负责同名避让、撤销与回收站；物理路径改变交给迁移服务 |
@@ -54,17 +53,16 @@ Harness Web  → lib/client.js（生成）
 | 主面板组合 | `src/client/panel.js` | reader-layout、drag-sessions |
 | 顶栏与全局快捷键 | `src/client/panel/`；工作空间切换与分屏快捷键在 `use-workspace-shortcuts.js` | preferences、reader-layout、workspace-shortcuts |
 | 工作空间标签：主空间/默认工作空间、多根上报、路径/筛选规则、纸色、localStorage、添加删除、拖动排序、便签迁移 | `src/client/panel/workspaces.js`、`use-workspaces.js`、`use-workspace-reorder.js`、`workspace-bar.js` | workspaces |
-| 工作空间固定、并排显示和可调分隔线 | `src/client/panel/workspace-display.js`、`workspace-panes.js`、`src/client/wall/workspace-wall.js` | workspace-split |
+| 工作空间固定、并排显示、Zen 单工作区与可调分隔线 | `src/client/panel/workspace-display.js`、`workspace-panes.js`、`zen-view.js`、`use-zen-layout.js`、`src/client/wall/workspace-wall.js` | workspace-split、styles |
 | 阅读抽屉重排后的卡片缓动定位和高亮 | `src/client/wall/use-card-reveal.js` | reader-avoidance |
 | 数据读取、响应代次与轮询 | `src/client/data/` | data、editor |
 | 卡片、排序筛选、分页、笔记操作 | `src/client/wall/` | preferences、wall-rendering、note-actions、drag-sessions |
-| Project 便签底纹 | `src/client/wall/project-textures.js`、`src/client/styles/wall.js` | wall-rendering、project-textures |
 | 阅读块、抽屉编辑、宽度、钉住和编辑草稿恢复、评论区折叠/拖高/删除 | `src/client/reader/` | editor、reader-layout |
 | 阅读态列表拖动、正文快捷键和条件提示 | `src/client/reader/use-task-reorder.js`、`list-shortcuts.js`；共享规则在 `src/shared/list-editing.js` | list-interactions、list-editing、host/task-reorder |
 | 快速记录、文字草稿持久化、图片编码、输入快捷键 | `src/client/capture/` | capture、images |
 | 拖拽浮层、动作栏、动画与会话（含拖到工作空间标签迁移） | `src/client/drag/` | drag-motion、drag-sessions、workspaces |
 | 图片队列、LRU、视口加载 | `src/client/images/` | images |
-| 评论确认、到项目、任务通知 | `src/client/ai/` | ai、notifications |
+| 评论确认与任务通知 | `src/client/ai/` | ai、notifications |
 | 发送到 DeepSeek：DSH 工作区读取、共享发送菜单、选中文字右键菜单、直发设置、标题/文档内容 | `src/client/deepseek/`（`api.js`、`use-deepseek-send.js`、`send-menu.js`、`selection-menu.js`）；面板选区接线在 `src/client/panel/use-selection-menu.js`；共享规则在 `src/shared/send.js` | send、settings-ui、registration |
 | 宿主侧栏折叠上报与顶栏留白 | `src/client/sidebar-state.js`、`src/client/styles/base.js` | registration、styles |
 | 设置组件、草稿、配置文件与回收站 | `src/client/settings/`（含 `deepseek-send.js`） | settings-ui、settings-draft、settings-config |
@@ -73,7 +71,7 @@ Harness Web  → lib/client.js（生成）
 | 图标、通用对话框与 toast | `src/client/components/` | ai、reader-layout、notifications |
 | localStorage 兼容与抽屉尺寸约束 | `src/client/preferences.js` | preferences、reader-layout |
 | 中英文文案、界面语言偏好与诊断显示 | `src/client/i18n/` | language、registration、settings-ui、ai |
-| 样式和主题变量 | `src/client/styles/` | styles、wall-rendering |
+| 样式、Zen 布局和主题变量 | `src/client/styles/` | styles、wall-rendering |
 
 `panel.js` 组合数据、编辑、设置与交互 hooks，并把明确的回调交给视图。每个 hook 持有自己创建的 state/ref/effect；异步任务继续通过 `aliveRef`、请求代次和会话代次拒绝过期回调。高频拖拽移动仍只更新浮层 transform，不经过整墙渲染。
 

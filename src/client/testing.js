@@ -1,11 +1,10 @@
 /** 集中组装调试与测试接口，业务模块不反向依赖这里。 */
-import { useProjectDialog } from './ai/use-project-dialog.js';
 import { useJobNotifications } from './ai/use-job-notifications.js';
 import { useToasts } from './components/use-toasts.js';
 import { CaptureComposer } from './capture/composer.js';
 import { captureFiles, captureImageSize, compressCaptureImage, readImageCompression } from './capture/images.js';
 import { captureRefocusField, focusCaptureOnTab, focusPanelForCapture } from './capture/keyboard.js';
-import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
+import { ConfirmDialog } from './components/dialogs.js';
 import { contextMenuPosition, readSelectedText, SelectionMenu } from './deepseek/selection-menu.js';
 import { SendMenu, sendMenuPosition } from './deepseek/send-menu.js';
 import { messageOf, useDeepSeekSend } from './deepseek/use-deepseek-send.js';
@@ -21,7 +20,7 @@ import {
 import { decorateNotes, jobsSignature, mergeState, pendingFromJob } from './data/state.js';
 import { createStateReader, useNotesData } from './data/use-notes-data.js';
 import { DropActions } from './drag/drop-actions.js';
-import { cardDragLayout, createCardDragMotion } from './drag/motion.js';
+import { cardDragLayout, iconDragLayout, createCardDragMotion } from './drag/motion.js';
 import { CardDragOverlay } from './drag/overlay.js';
 import { en, zh } from './i18n/index.js';
 import {
@@ -35,9 +34,12 @@ import { StickyNotesPanel } from './panel.js';
 import { renderPanelHeader } from './panel/header.js';
 import { WorkspaceBar } from './panel/workspace-bar.js';
 import { WorkspacePanes } from './panel/workspace-panes.js';
+import { ZenWorkspaceList, ZenDetailEmpty } from './panel/zen-view.js';
+import { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, toggleZenDisplay, workspacePaneIds } from './panel/workspace-display.js';
 import { useWorkspaceReorder } from './panel/use-workspace-reorder.js';
 import { useWorkspaceShortcuts } from './panel/use-workspace-shortcuts.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
+import { clampZenSplit, useZenLayout } from './panel/use-zen-layout.js';
 import { SidebarWideReporter, getSidebarWide, setSidebarWide, useSidebarWide } from './sidebar-state.js';
 import { DeepSeekSendSettings } from './settings/deepseek-send.js';
 import {
@@ -89,16 +91,17 @@ const __test = {
   // 0.13 契约 §6.1 要求导出的纯函数 / 常量。
   formatVersionLabel: formatVersionLabel,
   createStateReader: createStateReader,
-  captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, focusPanelForCapture, captureRefocusField, cardDragLayout, createCardDragMotion,
+  captureFiles, captureImageSize, readImageCompression, compressCaptureImage, focusCaptureOnTab, focusPanelForCapture, captureRefocusField, cardDragLayout, iconDragLayout, createCardDragMotion,
   CAPTURE_IMAGES, CAPTURE_IMAGE_BYTES, CAPTURE_TOTAL_BYTES, CAPTURE_SOURCE_IMAGE_BYTES, CAPTURE_SOURCE_TOTAL_BYTES,
   hooks: {
-    useNotesData, useNoteEditor, useTaskReorder, useSettingsDraft, useProjectDialog, useJobNotifications, useToasts,
+    useNotesData, useNoteEditor, useTaskReorder, useSettingsDraft, useJobNotifications, useToasts,
     useCommentActions, useCommentsLayout, useWorkspaces, useWallFilters, useDeepSeekSend, useSidebarWide, useWorkspaceReorder, useCardReveal, useWorkspaceShortcuts,
   },
   // 0.18 工作空间：纯规则、持久化与标签栏组件。
   WORKSPACES_KEY: WORKSPACES_KEY,
   WORKSPACES_MAX: WORKSPACES_MAX,
   WORKSPACE_ALL_ID: WORKSPACE_ALL_ID,
+  clampZenSplit, useZenLayout, normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, toggleZenDisplay, workspacePaneIds,
   WORKSPACE_COLORS: WORKSPACE_COLORS,
   workspaceColor: workspaceColor,
   nextWorkspaceColorId: nextWorkspaceColorId,
@@ -216,7 +219,7 @@ const __test = {
     PanelIcon: PanelIcon,
     StickyNotesPanel: StickyNotesPanel,
     NoteCard: NoteCard,
-    WorkspaceBar, WorkspacePanes, WorkspaceWall,
+    WorkspaceBar, WorkspacePanes, WorkspaceWall, ZenWorkspaceList, ZenDetailEmpty,
     PanelHeader: renderPanelHeader,
     CardThumb: CardThumb,
     NoteImage,
@@ -226,7 +229,6 @@ const __test = {
     SettingsDrawer: SettingsDrawer, VaultFolderPicker, ConfigFileSettings, TrashSettings,
     SettingsPathField: SettingsPathField,
     StyleSelect: StyleSelect,
-    ProjectDialog: ProjectDialog,
     ConfirmDialog: ConfirmDialog,
     CenterState: CenterState,
     ToastStack: ToastStack,

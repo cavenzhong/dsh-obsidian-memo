@@ -18,23 +18,18 @@ test('writeSettingsFile / readSettingsFile：AI 预算落盘并读回', async ()
   try {
     const saved = await writeSettingsFile(file, {
       emojis: [{ id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 } }],
-      projectAi: { preset: 'low' },
     })
     assert.equal(saved.emojis[0].ai.maxTokens, 6000)
     const onDisk = JSON.parse(await readFile(file, 'utf8'))
     assert.equal(onDisk.emojis[0].ai.preset, 'custom')
-    assert.equal(onDisk.projectAi.preset, 'low')
     const readBack = await readSettingsFile(file)
     assert.deepEqual(readBack.emojis[0].ai, { preset: 'custom', reasoningEffort: 'max', maxTokens: 6000 })
-    assert.deepEqual(readBack.projectAi, { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
 
 test('settingsEqual：AI 预算变化算不同设置', () => {
-  assert.equal(settingsEqual({ projectAi: { preset: 'high' } }, {}), true)
-  assert.equal(settingsEqual({ projectAi: { preset: 'low' } }, {}), false)
   assert.equal(
     settingsEqual(
       { emojis: [{ emoji: '😈', label: 'x', callout: 'quote', prompt: 'p', ai: { preset: 'low' } }] },

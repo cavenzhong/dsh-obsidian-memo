@@ -44,7 +44,7 @@ function useSettingsDraft(options) {
     const draft = cloneJson(settings);
     settingsSessionRef.current += 1;
     baseSettingsRef.current = cloneJson(settings);
-    setSettingsTab(focus === 'ai' ? 'ai' : focus === 'project' ? 'project' : 'folders');
+    setSettingsTab(focus === 'ai' ? 'ai' : 'folders');
     // 旧 Host 没有 includeSubfolders 时补上当前语义（缺省 = true），保存时整份回传不丢字段。
     if (draft && typeof draft === 'object' && draft.includeSubfolders === undefined) {
       draft.includeSubfolders = settings.includeSubfolders !== false;
@@ -53,7 +53,6 @@ function useSettingsDraft(options) {
     if (draft && typeof draft === 'object') {
       const emojis = Array.isArray(draft.emojis) ? draft.emojis : [];
       draft.emojis = emojis.map((emoji) => Object.assign({}, emoji, { ai: readAiBudget(emoji && emoji.ai) }));
-      draft.projectAi = readAiBudget(draft.projectAi);
       draft.imageCompression = readImageCompression(draft.imageCompression);
       // 0.18.6：旧 Host / 旧配置没有发送设置时补齐，保证控件可编辑、保存不丢。
       draft.deepseekSend = normalizeSendSettings(draft.deepseekSend);
@@ -84,11 +83,11 @@ function useSettingsDraft(options) {
       const next = Object.assign({}, current, patch);
       const root = next.vaultPath || '';
       if (patch.vaultPath !== undefined && patch.vaultPath !== current.vaultPath) {
-        ['notesDir', 'projectDir', 'attachmentDir', 'archiveDir'].forEach((key) => { next[key] = vaultRelative(current.vaultPath, current[key]); });
+        ['notesDir', 'attachmentDir', 'archiveDir'].forEach((key) => { next[key] = vaultRelative(current.vaultPath, current[key]); });
         if (!current.vaultPath && !next.notesDir && root.trim()) next.notesDir = '.';
         next.folderHistory = [];
       }
-      next.folderHistory = [...new Set([next.notesDir, next.projectDir, next.attachmentDir,
+      next.folderHistory = [...new Set([next.notesDir, next.attachmentDir,
         next.archiveDir, ...(next.folderHistory || [])]
         .filter(Boolean).map((path) => vaultRelative(root, path)).filter((path) => !isAbsolutePath(path)))].slice(0, 40);
       return next;

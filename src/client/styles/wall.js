@@ -1,11 +1,18 @@
 /** 界面样式片段：wall；组合顺序由 styles/index.js 固定。 */
 import { DEFAULT_NOTE_COLOR } from './tokens.js';
-import { PROJECT_TEXTURES } from '../wall/project-textures.js';
-
-const textureRules = PROJECT_TEXTURES.map(({ key, mask }) => `.SN_card[data-texture='${key}']{--sn-project-mask:${mask}}`).join('\n');
 
 const wallStyles = `
 /* 0.13.8 动态加载：墙底部的简约加载指示（三点脉冲 + 淡字）；只在补下一批卡片时出现。 */
+.SN_zenList{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.18)) transparent;padding:8px 0 18px}
+.SN_zenRow{position:relative;width:100%;min-height:42px;display:flex;align-items:center;gap:8px;padding:9px 18px;border:0;border-bottom:.5px solid var(--dsw-alias-border-l1);background:transparent;color:var(--sn-ink-title);text-align:left;font-family:SimSun,"Songti SC","Noto Serif CJK SC",serif!important;font-weight:700;font-size:14px;line-height:1.55;cursor:pointer}
+.SN_zenRow:hover,.SN_zenRow[data-selected='true']{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#f2f0ec) 55%,transparent)}
+.SN_zenRow[data-selected='true']{color:var(--sn-accent)}
+.SN_zenRow[data-dragging='true']{color:transparent}
+.SN_zenRowTitle{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.SN_zenEmpty,.SN_zenDetailEmpty{margin:auto;padding:24px;color:var(--dsw-alias-label-tertiary);font-size:12px;text-align:center}
+.SN_zenDetail{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.SN_zenList::-webkit-scrollbar{width:8px}
+.SN_zenList::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2,rgba(0,0,0,.16));border-radius:4px}
 .SN_loadMore{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:8px;height:1px;min-height:1px;overflow:hidden;opacity:0;transition:height .16s ease,opacity .16s ease;pointer-events:none}
 .SN_loadMore[data-loading='true']{height:44px;opacity:1}
 .SN_loadDots{display:inline-flex;align-items:center;gap:5px}
@@ -16,13 +23,6 @@ const wallStyles = `
 @keyframes SN_loadPulse{0%,80%,100%{opacity:.28;transform:scale(.8)}40%{opacity:.95;transform:scale(1)}}
 
 .SN_card{--sn-note-bg:var(--sn-card-bg,${DEFAULT_NOTE_COLOR});--sn-tag-ink:var(--sn-card-bg-dark,#2C2721);position:relative;height:208px;border-radius:11px;cursor:default;outline:none;transition:transform .16s ease,box-shadow .16s ease;box-shadow:0 1px 2px rgba(40,30,10,.05),0 0 0 .5px rgba(70,55,30,.10)}
-/* 只在支持 SVG 蒙版的宿主上绘制；纹理不遮挡内容或拦截指针。 */
-@supports (mask-image:none) or (-webkit-mask-image:none){
-  .SN_card[data-texture] .SN_cardClip{isolation:isolate}
-  .SN_card[data-texture] .SN_cardClip::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:#2e2e2e;opacity:.6;-webkit-mask:var(--sn-project-mask) center/100% 100% no-repeat;mask:var(--sn-project-mask) center/100% 100% no-repeat}
-  body[data-ds-dark-theme] .SN_card[data-texture] .SN_cardClip::before{background:#e6e6e6;opacity:.52}
-}
-${textureRules}
 .SN_card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(40,30,10,.12),0 0 0 .5px #fff}
 /* 卡片内层背景是不透明的，负偏移的 outline 会被盖住；在卡片内容上方单独绘制描边。 */
 .SN_card[data-revealed]::before{content:'';position:absolute;inset:0;z-index:9;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--sn-accent);pointer-events:none;animation:SN_cardReveal .25s ease-out .5s both}
@@ -113,8 +113,6 @@ ${textureRules}
 .SN_toast[data-kind='error']{border-left-color:var(--dsw-alias-state-error-primary)}
 .SN_toast[data-kind='success']{border-left-color:var(--dsw-alias-brand-primary)}
 .SN_toastText{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
-.SN_toast[data-project-review]{flex-wrap:wrap}
-.SN_toast[data-project-review] .SN_toastText{display:block;flex:1 1 16ch}
 .SN_toastAction{flex:none;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:2px 4px}
 .SN_toastAction:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05))}
 

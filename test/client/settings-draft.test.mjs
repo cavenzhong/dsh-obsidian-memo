@@ -25,8 +25,7 @@ test('设置 hook：实时设置刷新不覆盖正在编辑的草稿', (t) => {
 
 test('v0.16 设置草稿：切换仓库保留相对文件夹，保存使用打开时的配置版本', async (t) => {
   const runner = hookRunner(t), calls = []
-  const settings = { vaultPath: '/old', notesDir: '/old/notes', projectDir: '/old/projects',
-    archiveMode: 'mapped', archiveDir: '/old/archive', emojis: [{ id: 'a', emoji: '🙂' }], configFile: { path: '/config.json', revision: 'original' } }
+  const settings = { vaultPath: '/old', notesDir: '/old/notes',     archiveMode: 'mapped', archiveDir: '/old/archive', emojis: [{ id: 'a', emoji: '🙂' }], configFile: { path: '/config.json', revision: 'original' } }
   const options = { t: (key) => key, tRef: { current: (key) => key }, viewRef: { current: { settings } },
     updateView() {}, request: async (endpoint, payload) => { calls.push({ endpoint, payload }); return { settings: payload.settings } },
     refreshNow: async () => {}, aliveRef: { current: true }, panelRef: { current: null }, pushToast() {}, pushErrorToast() {}, onOpen() {} }
@@ -34,7 +33,6 @@ test('v0.16 设置草稿：切换仓库保留相对文件夹，保存使用打�
   controls.openSettings(); controls = runner.render(runner.api.hooks.useSettingsDraft, options)
   controls.patchDraft({ vaultPath: '/new' }); controls = runner.render(runner.api.hooks.useSettingsDraft, options)
   assert.equal(controls.settingsDraft.notesDir, 'notes')
-  assert.equal(controls.settingsDraft.projectDir, 'projects')
   assert.equal(controls.settingsDraft.archiveDir, 'archive')
   controls.saveSettingsDraft(); await flush()
   assert.equal(calls[0].payload.expected, 'original')

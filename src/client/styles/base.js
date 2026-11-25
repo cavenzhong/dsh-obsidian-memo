@@ -132,6 +132,11 @@ body[data-ds-dark-theme] .SN_wsSwatch{background:var(--sn-ws-paper-dark)}
 .SN_wallWrap{position:relative;flex:1;min-height:0;min-width:0;margin-right:var(--sn-dock-right,0px);display:flex;flex-direction:column;container-type:inline-size;container-name:sn-wall}
 .SN_workspacePanes{isolation:isolate;flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
 .SN_workspacePane{min-width:0;min-height:0;display:flex;flex-direction:column}
+.SN_panel[data-zen='true'] .SN_body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);grid-template-rows:minmax(0,1fr)}
+.SN_panel[data-zen='true'] .SN_wallWrap{min-width:0;margin-right:0}
+.SN_zenDivider{position:absolute;top:0;bottom:0;width:10px;transform:translateX(-50%);z-index:4;cursor:col-resize;touch-action:none;outline:none}
+.SN_zenDivider::after{content:'';position:absolute;inset:0 4px;background:transparent}
+.SN_zenDivider:hover::after,.SN_zenDivider:focus-visible::after,.SN_panel[data-zen='true'][data-resizing='true'] .SN_zenDivider::after{background:var(--sn-accent)}
 .SN_workspacePaneLabel{flex:none;padding:7px clamp(8px,1.5vw,22px) 0;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .SN_workspacePane[data-current='true'] .SN_workspacePaneLabel{color:var(--sn-accent)}
 .SN_workspaceDivider{position:relative;z-index:1;cursor:col-resize;touch-action:none;outline-offset:-1px}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureNodes, flush, hookRunner, CLIENT_SOURCE } from '../../test-support/client.mjs';
-import { normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, workspacePaneIds } from '../../src/client/panel/workspace-display.js';
+import { captureNodes, flush, hookRunner, CLIENT_SOURCE, loadClient } from '../../test-support/client.mjs';
+import { normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, toggleZenDisplay, workspacePaneIds } from '../../src/client/panel/workspace-display.js';
 import { WORKSPACE_ALL_ID as ALL } from '../../src/client/constants.js';
 
 const items = ['a', 'b', 'c'].map((id) => ({ id, path: id, color: 'mist' }));
@@ -30,9 +30,43 @@ test('双屏切换只替换有焦点的一侧，点击已显示空间只改变�
   assert.equal(toggleWorkspacePin(onlyMain), onlyMain, '只有一个空间时不能开启分屏');
 });
 
+test('Zen 从双屏收敛到焦点工作空间；退出后恢复原有分屏，且状态按仓库持久化', (t) => {
+  let state = toggleWorkspacePin(selectWorkspace(start, 'b'));
+  state = selectWorkspace(state, 'a');
+  const zen = toggleZenDisplay(state);
+  assert.equal(zen.zen, true);
+  assert.equal(zen.activeId, 'a');
+  assert.deepEqual(workspacePaneIds(zen), ['a']);
+  const restored = toggleZenDisplay(zen);
+  assert.equal(restored.zen, false);
+  assert.deepEqual(workspacePaneIds(restored), ['a', ALL]);
+  const api = loadClient(t).mod.__test;
+  api.writeStoredWorkspaces('/zen-vault', items, state.activeId, 'paper', { ...state, zen: true });
+  assert.equal(api.readStoredWorkspaces('/zen-vault').zen, true);
+});
+
+test('Zen 切换第三个工作区不覆盖隐藏的双视图，重新打开后也能恢复', (t) => {
+  const api = loadClient(t).mod.__test;
+  const previous = { ...start, activeId: 'a', pinnedIds: ['a', 'b'], split: 0.63 };
+  let zen = selectWorkspace(toggleZenDisplay(previous), 'c');
+  assert.deepEqual(workspacePaneIds(zen), ['c']);
+  assert.equal(toggleWorkspacePin(zen), zen);
+  api.writeStoredWorkspaces('/vault', items, zen.activeId, 'paper', zen);
+  zen = api.readStoredWorkspaces('/vault');
+  assert.deepEqual(workspacePaneIds(zen), ['c']);
+  const restored = toggleZenDisplay(zen);
+  assert.deepEqual(workspacePaneIds(restored), ['a', 'b']);
+  assert.equal(restored.activeId, 'a');
+  assert.equal(restored.split, 0.63);
+  assert.equal(restored.zenActiveId, undefined);
+  assert.deepEqual(workspacePaneIds(normalizeWorkspaceDisplay(items.slice(0, 2), zen)), ['a']);
+  const single = toggleZenDisplay({ ...start, activeId: 'b' });
+  assert.deepEqual(workspacePaneIds(toggleZenDisplay(selectWorkspace(single, 'c'))), ['b']);
+});
+
 test('兼容旧存档：单固定项补齐双屏；只剩主空间时恢复为单屏；失效选项不点亮', () => {
   assert.deepEqual(normalizeWorkspaceDisplay(items, { pinnedIds: ['a'], activeId: 'a', companionId: 'c', split: 0.65 }),
-    { pinnedIds: ['a', 'c'], activeId: 'a', companionId: null, split: 0.65 });
+    { pinnedIds: ['a', 'c'], activeId: 'a', companionId: null, split: 0.65, zen: false });
   assert.deepEqual(normalizeWorkspaceDisplay(items, { pinnedIds: ['a'], activeId: 'b', companionId: 'c' }).pinnedIds, ['a', 'b']);
   assert.deepEqual(normalizeWorkspaceDisplay(items, { pinnedIds: [ALL, 'missing'], activeId: ALL }).pinnedIds, [ALL, 'a']);
   assert.deepEqual(normalizeWorkspaceDisplay(items, { pinnedIds: ['missing', 'b'], activeId: 'b' }).pinnedIds, [ALL, 'b']);
@@ -125,7 +159,7 @@ test('唯一的全局分屏图标位于右端；单双屏状态与标签高亮�
   t.after(() => { globalThis.document = original; });
   const entries = items.map((item) => ({ ...item, label: item.id }));
   const props = { entries, activeId: 'b', visibleIds: ['a', 'b'], pinActive: true,
-    t: (key) => key, onTogglePin: () => calls.push('toggle') };
+    t: (key) => key, onTogglePin: () => calls.push('toggle'), onToggleZen: () => calls.push('zen') };
   const tabs = (nodes) => nodes.filter((node) => node.props.role === 'tab');
   const splitButtons = (nodes) => nodes.filter((node) => node.props.className === 'SN_wsTool SN_wsSplit');
   const selected = (nodes) => tabs(nodes).map((node) => node.props['aria-selected']);
@@ -150,6 +184,16 @@ test('唯一的全局分屏图标位于右端；单双屏状态与标签高亮�
   assert.equal(svg.children[1].props.d, 'M12 5v14', '窗口中央是左右分割线');
   splitButtons(nodes)[0].props.onClick();
   assert.deepEqual(calls, ['toggle']);
+  const leafButtons = (tree) => tree.filter((node) => node.props.className === 'SN_wsTool SN_wsZen');
+  const leaf = leafButtons(nodes)[0];
+  assert.ok(nodes.indexOf(leaf) < nodes.indexOf(splitButtons(nodes)[0]), '叶子在分屏图标左侧');
+  leaf.props.onClick();
+  assert.deepEqual(calls, ['toggle', 'zen']);
+  nodes = captureNodes(render(api.components.WorkspaceBar, { ...props, zen: true }));
+  assert.equal(leafButtons(nodes).length, 1);
+  assert.equal(leafButtons(nodes)[0].props['aria-pressed'], true);
+  assert.equal(splitButtons(nodes).length, 0, 'Zen 模式隐藏分屏按钮');
+  assert.equal(hint(nodes), undefined, 'Zen 模式隐藏分屏快捷键提示');
 
   nodes = captureNodes(render(api.components.WorkspaceBar, { ...props, visibleIds: ['b'], pinActive: false }));
   assert.deepEqual(selected(nodes), ['false', 'true', 'false']);

@@ -11,8 +11,8 @@ const DEFAULT_WORKSPACE = {
 }
 const OTHER_WORKSPACE = {
   workspaceId: 'ws-other',
-  path: '/Users/me/project',
-  title: '我的项目',
+  path: '/Users/me/workspace',
+  title: '我的便签',
   sessionIds: [],
 }
 
@@ -227,16 +227,15 @@ test('stripCommentCallouts：首行标题 callout 保持原样，其后的评论
     '> [!note] 标题\n\n正文\n')
 })
 
-test('0.18.6 侧栏折叠：主面板上报 wide，展开时顶部留白缩短；拖拽栏为四格', () => {
+test('0.18.6 侧栏折叠：主面板上报 wide，展开时顶部留白缩短；拖拽栏为三格', () => {
   assert.match(CLIENT_SOURCE, /'data-sidebar-wide': sidebarWide === null/)
   assert.match(CLIENT_SOURCE, /\.SN_panel\[data-sidebar-wide='true'\] \.SN_head\{--sn-head-top-padding:/)
   assert.match(CLIENT_SOURCE, /sidebar\.footer\.action/)
-  assert.match(CLIENT_SOURCE, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/)
+  assert.match(CLIENT_SOURCE, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/)
   assert.match(CLIENT_SOURCE, /'data-action': kind/)
   assert.match(CLIENT_SOURCE, /onContextMenu: selection\.handlePanelContextMenu/)
   assert.doesNotMatch(CLIENT_SOURCE, /actions\.current\.onContextMenu/)
   assert.match(CLIENT_SOURCE, /data-drop='deepseek'\]\{--sn-drop-color:#5477bb\}/)
-  assert.match(CLIENT_SOURCE, /data-drop='project'\]\{--sn-drop-color:#8B5CF6\}/)
 })
 
 test('浮层定位：菜单与右键菜单都夹在视口内，空间不足时翻到锚点上方', (t) => {

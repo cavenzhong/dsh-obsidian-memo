@@ -1,6 +1,6 @@
 /** 工作空间标签栏：切换、添加文件夹、右键删除、拖动排序和便签拖放迁移。 */
 import { WORKSPACE_ALL_ID, WORKSPACE_POPOVER_WIDTH } from '../constants.js';
-import { ActionIcon, CloseIcon, MoreIcon, PlusIcon, SplitViewIcon } from '../components/icons.js';
+import { ActionIcon, CloseIcon, MoreIcon, PlusIcon, SplitViewIcon, LeafIcon } from '../components/icons.js';
 import { React, h } from '../react.js';
 import { VaultFolderPicker } from '../settings/paths.js';
 import { isAbsolutePath, vaultRelative } from '../utils.js';
@@ -10,7 +10,7 @@ import { WORKSPACE_COLORS, popoverLeftFor } from './workspaces.js';
 
 
 function WorkspaceBar({
-  t, entries, activeId, pinActive, visibleIds = [activeId], onTogglePin, vaultPath, notesDir, request, history, dragActive, dropId,
+  t, entries, activeId, pinActive, zen = false, visibleIds = [activeId], onTogglePin, onToggleZen = () => {}, vaultPath, notesDir, request, history, dragActive, dropId,
   onSelect, onAdd, onRemove, onSetColor, onReorder, onHoverWorkspace, onClearWorkspaceHover, onDropWorkspace,
 }) {
   const barRef = React.useRef(null);
@@ -370,15 +370,21 @@ function WorkspaceBar({
       ) : null,
     ),
     h('div', { className: 'SN_wsSplitControl' },
-      canSplit ? h('span', { className: 'SN_shortcutKey SN_wsSplitHint', 'aria-hidden': 'true' },
+      h('button', {
+        type: 'button', className: 'SN_wsTool SN_wsZen', 'data-active': zen ? 'true' : 'false',
+        'aria-pressed': zen, 'aria-label': t(zen ? 'workspace.zenClose' : 'workspace.zenOpen'),
+        title: t(zen ? 'workspace.zenClose' : 'workspace.zenOpen'),
+        onClick: () => { closeOverlay(); onToggleZen(); },
+      }, h(LeafIcon, null)),
+      !zen && canSplit ? h('span', { className: 'SN_shortcutKey SN_wsSplitHint', 'aria-hidden': 'true' },
         h('span', null, t(pinActive ? 'workspace.splitUnlockHint' : 'workspace.splitLockHint')), h('kbd', null, '⌘;'),
       ) : null,
-      h('button', {
+      !zen ? h('button', {
         type: 'button', className: 'SN_wsTool SN_wsSplit', 'data-active': pinActive ? 'true' : 'false',
         disabled: !canSplit, 'aria-pressed': Boolean(pinActive), 'aria-keyshortcuts': canSplit ? 'Meta+;' : undefined,
         'aria-label': splitLabel, title: splitLabel,
         onClick: () => { closeOverlay(); onTogglePin(); },
-      }, h(SplitViewIcon, null)),
+      }, h(SplitViewIcon, null)) : null,
     ),
     adding ? h('div', {
       className: 'SN_wsPop',

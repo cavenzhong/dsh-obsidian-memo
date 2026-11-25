@@ -6,11 +6,11 @@ import {
   addWorkspace, moveWorkspace, normalizeFolder, noteWorkspacePaper,
   readStoredWorkspaces, removeWorkspace, setWorkspaceColor, workspaceColor, workspaceLabels, writeStoredWorkspaces,
 } from './workspaces.js';
-import { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, workspacePaneIds } from './workspace-display.js';
+import { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, toggleZenDisplay, workspacePaneIds } from './workspace-display.js';
 
 function useWorkspaces({
   tRef, aliveRef, request, viewRef, updateView, refreshNow, pushToast, pushErrorToast,
-  noteDrawerRef, closeNoteDrawer, editingRef, t,
+  noteDrawerRef, closeNoteDrawer, editingRef, restoringDraftRef, t,
 }) {
   const settings = viewRef.current && viewRef.current.settings && typeof viewRef.current.settings === 'object'
     ? viewRef.current.settings : {};
@@ -26,7 +26,8 @@ function useWorkspaces({
   const state = React.useMemo(() => record.vaultPath === vaultPath ? record.state : readStoredWorkspaces(vaultPath), [record, vaultPath]);
   const stateRef = React.useRef(state);
   stateRef.current = state;
-  const { items, activeId, primaryColor, split } = state;
+  const { items, primaryColor, split, zen } = state;
+  const activeId = zen ? workspacePaneIds(state)[0] : state.activeId;
 
   function commit(next) {
     stateRef.current = next;
@@ -84,6 +85,7 @@ function useWorkspaces({
 
   function select(id) {
     const current = stateRef.current;
+    if (current.zen && id !== (current.zenActiveId || current.activeId) && blockZenEdit()) return;
     const next = selectWorkspace(current, id);
     if (next !== current) commit(next);
   }
@@ -92,6 +94,16 @@ function useWorkspaces({
     const current = stateRef.current;
     const next = toggleWorkspacePin(current);
     if (next !== current) commit(next);
+  }
+
+  function blockZenEdit() {
+    if (!editingRef?.current && !restoringDraftRef?.current) return false;
+    pushToast({ text: tRef.current('workspace.zenFinishEditing'), kind: 'info' });
+    return true;
+  }
+
+  function toggleZen() {
+    if (!blockZenEdit()) commit(toggleZenDisplay(stateRef.current));
   }
 
   function setSplit(value) {
@@ -122,7 +134,7 @@ function useWorkspaces({
       return { ok: false, error: tRef.current('workspace.error.' + result.error, { count: WORKSPACES_MAX }) };
     }
     const next = { ...stateRef.current, items: result.items };
-    commit(selectWorkspace(next, result.item.id));
+    commit(next.zen && (editingRef?.current || restoringDraftRef?.current) ? next : selectWorkspace(next, result.item.id));
     const label = workspaceLabels(result.items).get(result.item.id) || result.item.path;
     pushToast({ text: tRef.current('workspace.added', { label: label }), kind: 'success' });
     refreshRoots();
@@ -131,6 +143,7 @@ function useWorkspaces({
 
   function remove(id) {
     const current = stateRef.current;
+    if (current.zen && id === (current.zenActiveId || current.activeId) && blockZenEdit()) return;
     const before = current.items;
     const result = removeWorkspace(before, id);
     if (!result) return;
@@ -233,7 +246,7 @@ function useWorkspaces({
   }
 
   return {
-    entries, paneEntries, pinActive: paneEntries.length === 2, split, togglePin, setSplit,
+    entries, paneEntries, pinActive: paneEntries.length === 2, split, zen, togglePin, toggleZen, setSplit,
     activeId: resolvedActiveId,
     activeEntry: activeEntry,
     activeFolder: activeFolder,

@@ -18,13 +18,10 @@ const settingsStyles = `
 .SN_drawerSectionHint{margin:0;font-size:11px;line-height:1.55;color:var(--dsw-alias-label-tertiary)}
 .SN_field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .SN_panel [hidden]{display:none!important}
-.SN_drawerBody>.SN_drawerSection:is([data-settings-tab='ai'],[data-settings-tab='project']){padding-top:0;border-top:0}
 .SN_drawerSection>.SN_field+.SN_field{margin-top:6px}
 .SN_settingsTabs{display:flex;gap:4px;padding:8px 20px;border-bottom:.5px solid var(--dsw-alias-border-l1);flex:none}
 .SN_settingsTab{flex:1;border:0;border-radius:7px;padding:8px 4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;cursor:pointer}
-.SN_settingsTab[data-tab='project']{position:relative}
 .SN_settingsBeta{position:absolute;inset-block-start:-5px;inset-inline-end:3px;padding:1px 4px;border-radius:5px;background:color-mix(in srgb,var(--sn-accent) 14%,transparent);color:var(--sn-accent);font:600 8px/1.1 system-ui,sans-serif;letter-spacing:.02em}
-.SN_projectBetaNotice{margin:0;padding:8px 10px;border-radius:7px;border-inline-start:2px solid var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 8%,transparent);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:1.55}
 .SN_settingsTab[aria-selected='true']{background:color-mix(in srgb,var(--sn-accent) 10%,transparent);color:var(--sn-accent);font-weight:600}
 .SN_settingsPage{display:flex;flex-direction:column;gap:22px}
 .SN_archiveSettings{padding-top:0;border-top:0}
@@ -72,8 +69,6 @@ const settingsStyles = `
 .SN_emojiTab{flex:none;width:42px;height:38px;border:.5px solid transparent;border-radius:9px;background:transparent;font-size:21px;cursor:pointer}
 .SN_emojiTab[aria-selected='true']{border-color:var(--sn-accent);background:color-mix(in srgb,var(--sn-accent) 9%,transparent)}
 .SN_emojiAdd{width:32px;font-size:20px;color:var(--dsw-alias-label-tertiary);border:1px dashed var(--dsw-alias-border-l3)}
-.SN_projectSettings{display:flex;flex-direction:column;gap:10px;font-size:12px}
-.SN_projectSettings summary{cursor:pointer;color:var(--dsw-alias-label-secondary);margin-bottom:10px}
 .SN_configPath{font-size:11px;line-height:1.6;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
 .SN_configActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .SN_configActions>.SN_ghostBtn{flex:none;width:88px;padding:0 10px;text-align:center}
@@ -158,12 +153,6 @@ const settingsStyles = `
 .SN_dialog{width:min(440px,100%);display:flex;flex-direction:column;gap:14px;padding:20px 22px 18px;border:.5px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 18px 60px rgba(0,0,0,.28);animation:SN_toastIn .18s ease}
 .SN_dialogTitle{margin:0;font-family:var(--sn-serif);font-size:18px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
 .SN_dialogText{margin:0;font-size:12.5px;line-height:1.7;color:var(--dsw-alias-label-secondary)}
-.SN_projectModes{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}
-.SN_projectModes label{display:inline-flex;align-items:center;gap:4px}
-.SN_projectCheck{padding:12px 14px;border-radius:9px;background:color-mix(in srgb,#b48c38 12%,transparent);font-size:13px}
-.SN_projectCheck[data-level='符合']{background:color-mix(in srgb,#58876a 13%,transparent)}
-.SN_projectCheck[data-level='不建议']{background:color-mix(in srgb,#ba776f 13%,transparent)}
-.SN_projectCheck p{margin:5px 0 0;line-height:1.55}
 .SN_dialogActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
 
 /* 提示词被改过时，恢复动作紧贴编辑器，避免误以为是另一项设置。 */

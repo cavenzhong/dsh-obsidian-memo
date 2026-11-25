@@ -4,6 +4,8 @@ import { DEFAULT_NOTE_COLOR } from './tokens.js';
 const readerStyles = `
 /* ── 右侧便签抽屉（查看 / 编辑） ── */
 .SN_noteDrawerLayer{position:absolute;inset:0;z-index:30;pointer-events:none;display:flex;justify-content:flex-end}
+.SN_panel[data-zen='true'] .SN_noteDrawer{width:100%;min-width:0;max-width:none;border-left:.5px solid var(--dsw-alias-border-l1);box-shadow:none;animation:none}
+.SN_panel[data-zen='true'] .SN_noteDrawerHandle{display:none}
 .SN_noteDrawer{--sn-note-bg:var(--sn-card-bg,${DEFAULT_NOTE_COLOR});--sn-tag-ink:var(--sn-card-bg-dark,#2C2721);pointer-events:auto;position:relative;width:34%;min-width:min(340px,100%);max-width:min(620px,100%);height:100%;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-layer-1,#fff);border-left:.5px solid var(--dsw-alias-border-l1);box-shadow:-10px 0 30px rgba(0,0,0,.12);animation:SN_slideIn .18s ease}
 /* 两条拖拽线共享热区、线宽和主题色，仅方向不同。 */
 .SN_noteDrawerHandle,.SN_noteDrawerCommentsHandle{--sn-resize-hit:10px;--sn-resize-line:2px;--sn-resize-edge:calc((var(--sn-resize-hit) - var(--sn-resize-line)) / 2);position:absolute;touch-action:none}
@@ -75,9 +77,6 @@ body[data-ds-dark-theme] .SN_noteDrawerBody [data-list-dragging='true']{--sn-lis
 .SN_blockLi[data-task-drop='after']{box-shadow:0 2px 0 var(--sn-accent)}
 .SN_taskCheck:disabled{cursor:wait;opacity:.5}
 .SN_noteEditBar .SN_primaryBtn{background:var(--dsw-alias-brand-primary,#2f6feb);color:var(--dsw-alias-label-primary-foreground,#fff)}
-.SN_projects{margin-top:20px;display:flex;align-items:baseline;gap:10px;padding:10px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f2f0ec);font-size:12px;line-height:1.6}
-.SN_projectsLabel{flex:none;color:var(--dsw-alias-label-tertiary)}
-.SN_projectsValue{min-width:0;color:var(--dsw-alias-label-primary);word-break:break-all}
 .SN_commentCard{border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-1,#faf9f7);padding:12px 14px}
 .SN_commentCardHead{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary)}
 .SN_commentCardLabel{font-weight:500;color:var(--dsw-alias-label-primary)}

@@ -58,9 +58,8 @@ test('client 字典：AI 预算与预算提示文案中英文齐全', (t) => {
     'settings.aiPreset.low', 'settings.aiPreset.medium', 'settings.aiPreset.high', 'settings.aiPreset.custom',
     'settings.aiPresetDetail.low', 'settings.aiPresetDetail.medium', 'settings.aiPresetDetail.high', 'settings.aiPresetDetail.custom',
     'settings.aiEffort', 'settings.aiEffort.off', 'settings.aiEffort.low', 'settings.aiEffort.high', 'settings.aiEffort.max',
-    'settings.aiMaxTokens', 'settings.aiTokensUnit', 'settings.aiProjectHint',
-    'settings.projectAi', 'settings.projectAiHint', 'settings.projectModel', 'settings.projectModelDefault',
-    'toast.budgetFailed', 'toast.budgetCommentTruncated', 'toast.budgetProjectTruncated',
+    'settings.aiMaxTokens', 'settings.aiTokensUnit',
+    'toast.budgetFailed', 'toast.budgetCommentTruncated',
     'toast.budgetAction', 'toast.budgetAck',
   ]
   for (const key of keys) {
@@ -99,7 +98,7 @@ test('client ToastStack：预算提示渲染「去设置 / 知道了」两个动
   assert.equal(singleButtons[0].children[0], '撤销')
 })
 
-test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件，自定义才露出两个字段', (t) => {
+test('client SettingsDrawer：每枚 emoji 各有一个 AI 预算控件，自定义才露出两个字段', (t) => {
   const api = getTestApi(loadClient(t).mod)
   const collect = (node, out = []) => {
     if (node == null) return out
@@ -117,13 +116,11 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
   const draft = {
     vaultPath: '/v',
     notesDir: '/v/notes',
-    projectDir: '/v/projects',
     archiveMode: 'local',
     emojis: [
       { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p' },
       { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
     ],
-    projectPrompt: '建档',
   }
   const noop = () => {}
   const tree = api.components.SettingsDrawer({
@@ -141,9 +138,9 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
     onSave: noop,
     onCancel: noop,
   })
-  // 组件元素（AiBudgetRow）带 ai prop：2 枚 emoji + 1 个开档
+  // 组件元素（AiBudgetRow）带 ai prop：2 枚 emoji
   const budgetRows = collect(tree).filter((node) => node && typeof node.type === 'function' && node.props && Object.prototype.hasOwnProperty.call(node.props, 'ai'))
-  assert.equal(budgetRows.length, 3)
+  assert.equal(budgetRows.length, 2)
   // 每行都渲染出「AI 预算」预设下拉
   const presetValues = budgetRows.map((row) => {
     const rendered = collect(row.type(row.props))
@@ -151,10 +148,9 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
     assert.ok(select, 'AI 预算下拉缺失')
     return select.props.value
   })
-  // 0.17：AI 页先放「项目 AI」预算，再是每枚 emoji 的预算
-  assert.deepEqual(presetValues, ['high', 'high', 'custom'])
+  assert.deepEqual(presetValues, ['high', 'custom'])
   // 自定义行额外渲染「思考档位 + 输出上限」
-  const customRendered = collect(budgetRows[2].type(budgetRows[2].props))
+  const customRendered = collect(budgetRows[1].type(budgetRows[1].props))
   const effort = customRendered.find((node) => node && node.type === 'select' && node.props && node.props['aria-label'] === 'settings.aiEffort')
   const tokens = customRendered.find((node) => node && node.type === 'input' && node.props && node.props['aria-label'] === 'settings.aiMaxTokens')
   assert.equal(effort.props.value, 'max')
@@ -163,40 +159,4 @@ test('client SettingsDrawer：每枚 emoji 与开档各有一个 AI 预算控件
   const presetRendered = collect(budgetRows[0].type(budgetRows[0].props))
   assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiEffort'), false)
   assert.equal(presetRendered.some((node) => node && node.props && node.props['aria-label'] === 'settings.aiMaxTokens'), false)
-})
-
-test('v0.16.8 开档：默认项目名优先展示标题，而不是自动文件名', async (t) => {
-  const previousDocument = globalThis.document, previousWindow = globalThis.window
-  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-  globalThis.document = { addEventListener() {}, removeEventListener() {} }
-  globalThis.window = { addEventListener() {}, removeEventListener() {} }
-  const runner = hookRunner(t)
-  t.after(() => {
-    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument
-    if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow
-    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator
-  })
-  const note = { path: '/A.md', name: '2026-11-13-1924', title: '展示标题', excerpt: '', comments: [], images: [], created: Date.now() }
-  let projectJobs = []
-  runner.connect(async (channel, endpoint, payload) => {
-    if (endpoint === 'projectCheck') { projectJobs = [{ id: 'check', kind: 'project-check', status: 'done', result: { name: '展示事项', level: '符合', reason: '可持续跟踪', matches: [], candidates: [] } }]; return { ok: true, value: { jobId: 'check' } } }
-    if (endpoint === 'state') {
-      return { ok: true, value: { configured: true, notes: [note], revision: String(projectJobs.length), jobs: projectJobs, settings: { emojis: [], archiveMode: 'local', titleMode: 'heading' } } }
-    }
-    if (endpoint === 'note') return { ok: true, value: { ...note, body: '# 展示标题\n\n正文', contentRevision: 'v' } }
-    assert.fail('Unexpected endpoint ' + endpoint)
-  })
-  const render = () => captureNodes(runner.render(runner.api.components.StickyNotesPanel, { t: (key) => key }))
-  render()
-  await flush()
-  render().find((node) => node.type === runner.api.components.NoteCard).props.actions.current.onOpen(note)
-  await flush()
-  const drawer = render().find((node) => node.type === runner.api.components.NoteDrawer)
-  assert.ok(drawer)
-  await drawer.props.drawerActions.onProject()
-  await flush()
-  render()
-  const dialog = render().find((node) => node.type === runner.api.components.ProjectDialog)
-  assert.ok(dialog)
-  assert.equal(dialog.props.name, '展示事项')
 })

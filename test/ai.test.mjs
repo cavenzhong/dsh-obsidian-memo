@@ -1,5 +1,5 @@
 /**
- * lib/ai.js 的单测：输出清理、项目文档拼装、请求构造、模型调用的成功/失败路径。
+ * lib/ai.js 的单测：输出清理、评论请求构造与模型调用的成功/失败路径。
  * 全部用假 llm，不发网络请求。
  */
 
@@ -8,13 +8,10 @@ import assert from 'node:assert/strict'
 
 import {
   buildCommentRequest,
-  buildProjectDocument,
-  buildProjectRequest,
   cleanupModelText,
   generateText,
   modelCatalog,
   renderNoteForModel,
-  sourceWikilink,
 } from '../lib/ai.js'
 
 /* ────────────────────────────── 纯函数 ────────────────────────────── */
@@ -32,37 +29,6 @@ test('cleanupModelText：整段代码围栏被剥掉', () => {
   assert.equal(cleanupModelText('```\n正文\n```'), '正文')
   // 不是「整段就是围栏」时保留原文
   assert.equal(cleanupModelText('前言\n```js\nx\n```'), '前言\n```js\nx\n```')
-})
-
-test('buildProjectDocument：frontmatter 指向源便签、无重复标题、带来源', () => {
-  const document = buildProjectDocument({
-    name: '甲',
-    generated: '# 甲\n\n正文内容',
-    sourceRelPath: '进行时/a.md',
-    sourceTitle: 'A',
-  })
-  assert.equal(
-    document,
-    '---\nPROJECTS: "[[进行时/a|A]]"\nTODO: []\n---\n# 甲\n\n正文内容\n\n## 来源\n- [[进行时/a|A]]\n',
-  )
-})
-
-test('buildProjectDocument：模型正文没有标题时补一个', () => {
-  const document = buildProjectDocument({
-    name: '乙',
-    generated: '只有正文',
-    sourceRelPath: '进行时/b.md',
-    sourceTitle: 'B',
-  })
-  assert.match(document, /^---\nPROJECTS: "\[\[进行时\/b\|B\]\]"\nTODO: \[\]\n---\n# 乙\n\n只有正文\n\n## 来源/)
-})
-
-test('buildProjectDocument：来源路径/标题里的双引号被转义', () => {
-  const sourceRelPath = '进行时/c "引号".md'
-  const sourceTitle = 'C "引号"'
-  const document = buildProjectDocument({ name: '丙', generated: '正文', sourceRelPath, sourceTitle })
-  const escapedLink = '[[进行时/c \\"引号\\"|C \\"引号\\"]]'
-  assert.ok(document.startsWith(`---\nPROJECTS: "${escapedLink}"\nTODO: []\n---\n`))
 })
 
 test('buildCommentRequest：emoji 提示词进 system，便签内容进 prompt，预算默认高', () => {
@@ -95,31 +61,6 @@ test('buildCommentRequest：emoji.ai 的预设/自定义预算进入请求', () 
   assert.equal(forced.reasoningEffort, 'low')
 })
 
-test('buildProjectRequest：建档提示词进 system，项目名与便签内容进 prompt，预算默认高', () => {
-  const request = buildProjectRequest(
-    { title: '标题', blocks: [], comments: [] },
-    '建档提示词',
-    '新项目',
-  )
-  assert.ok(request.system.startsWith('建档提示词'))
-  assert.match(request.system, /只返回 JSON/)
-  assert.match(request.prompt, /项目名：新项目/)
-  assert.match(request.prompt, /标题：标题/)
-  assert.equal(request.maxTokens, 8192)
-  assert.equal(request.reasoningEffort, 'high')
-})
-
-test('buildProjectRequest：projectAi 预算进入请求', () => {
-  const request = buildProjectRequest(
-    { title: '标题', blocks: [], comments: [] },
-    '建档提示词',
-    '新项目',
-    { preset: 'custom', reasoningEffort: 'low', maxTokens: 3000 },
-  )
-  assert.equal(request.maxTokens, 3000)
-  assert.equal(request.reasoningEffort, 'low')
-})
-
 test('renderNoteForModel：原始 Markdown 不受展示块与评论上限影响', () => {
   const body = '# 正文\n\n' + '长'.repeat(2100) + '段尾信息\n\n> [!quote] 😈 评论\n> 原始评论'
   const rendered = renderNoteForModel({ title: '便签', body, blocks: [{ kind: 'p', text: '已裁切的展示内容' }] })
@@ -133,11 +74,6 @@ test('renderNoteForModel：空文本与超长输入有明确边界提示', () =>
   const rendered = renderNoteForModel({ body: '🙂'.repeat(13000) })
   assert.equal(Array.from(rendered).length, 12000)
   assert.match(rendered, /后续内容未提供/)
-})
-
-test('sourceWikilink：去掉 .md 并生成别名', () => {
-  assert.equal(sourceWikilink('项目/甲/甲.md', '甲'), '[[项目/甲/甲|甲]]')
-  assert.equal(sourceWikilink('项目/乙.md', '乙'), '[[项目/乙|乙]]')
 })
 
 /* ───────────────────────────── generateText ───────────────────────────── */
@@ -370,7 +306,7 @@ test('generateText：模型返回空内容 → llm-failed', async () => {
   )
 })
 
-test('generateText：评论与开档分别限长，字符裁切也标记 truncated', async () => {
+test('generateText：评论达到字符上限时标记 truncated', async () => {
   const ctx = {
     get(key) {
       return key === 'llm'
@@ -381,9 +317,6 @@ test('generateText：评论与开档分别限长，字符裁切也标记 truncat
   const comment = await generateText(ctx, buildCommentRequest({ body: '正文' }, { prompt: '评论' }))
   assert.equal(comment.text.length, 4000)
   assert.equal(comment.truncated, true)
-  const project = await generateText(ctx, buildProjectRequest({ body: '正文' }, '开档', '项目'))
-  assert.equal(project.text.length, 5000)
-  assert.equal(project.truncated, false)
 })
 
 test('模型目录支持异步 provider 列表，同时隔离同步抛错与异步拒绝', async () => {
@@ -396,11 +329,4 @@ test('模型目录支持异步 provider 列表，同时隔离同步抛错与异�
   assert.deepEqual((await modelCatalog(ctx)).models.map(m => m.provider), ['ok'])
   llm.listProviders = async () => { throw new Error('offline') }
   assert.deepEqual((await modelCatalog(ctx)).models, [])
-})
-test('项目指定引擎时不读取默认模型', async () => {
-  const model = { provider: 'chosen', model: 'm' }
-  const ctx = { get(name) { assert.equal(name, 'llm'); return { async *stream(opts) {
-    assert.equal(opts.provider, model.provider); yield { type: 'text-delta', text: 'ok' }
-  } } } }
-  assert.equal((await generateText(ctx, { ...REQUEST, model })).text, 'ok')
 })

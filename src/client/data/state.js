@@ -5,7 +5,7 @@ function runningNoteJobs(jobs) {
   const running = new Map();
   if (!Array.isArray(jobs)) return running;
   for (const job of jobs) {
-    if (!job || !['comment', 'project', 'project-check', 'project-add'].includes(job.kind) || job.status !== 'running') continue;
+    if (!job || job.kind !== 'comment' || job.status !== 'running') continue;
     if (typeof job.path !== 'string') continue;
     running.set(job.path, job);
   }
@@ -13,9 +13,6 @@ function runningNoteJobs(jobs) {
 }
 
 function pendingFromJob(job, settings) {
-  if (job.kind === 'project-check') return { emoji: '🔎', label: '分析项目', textKey: 'project.analyzing' };
-  if (job.kind === 'project-add') return { emoji: '↻', label: '更新项目', textKey: 'project.updating', name: job.name || '' };
-  if (job.kind === 'project') return { emoji: '✦', label: '建立项目', textKey: 'toast.projectStarted', name: job.name || '' };
   const emojis = settings && Array.isArray(settings.emojis) ? settings.emojis : [];
   const emoji = emojis.find((item) => item && item.id === job.emojiId);
   if (emoji) return { emoji: emoji.emoji || '✍️', label: emoji.label || '' };

@@ -1,28 +1,32 @@
 /** host: paths regression coverage. */
 import test from 'node:test'
 import { join, dirname } from 'node:path'
-import { mkdir, symlink, writeFile, readFile, readdir, stat } from 'node:fs/promises'
+import { mkdir, rmdir, symlink, writeFile, readFile, readdir, stat } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import { setOpenExternalUrlForTests } from '../../lib/obsidian.js'
 import { LIMITS } from '../../lib/shared.js'
 import { ROOT, makeCase, saveNote } from '../../test-support/host.mjs'
 
-test('路径边界：设置、归档、开档与打开不能经目录符号链接越过仓库', async () => {
+test('路径边界：设置、归档与打开不能经目录符号链接越过仓库', async () => {
   const c = await makeCase({ notes: { '甲.md': '原文\n' } })
   const outside = join(c.dir, 'outside')
+  const archiveDir = join(c.vault, 'mapped-archive')
   await mkdir(outside)
-  await symlink(outside, c.archiveDir, 'dir')
-  await symlink(outside, c.projectDir, 'dir')
+  await mkdir(archiveDir)
+  const initial = (await c.call('state')).value.settings
+  const configured = await c.call('saveSettings', { settings: { ...initial, archiveMode: 'mapped', archiveDir } })
+  assert.equal(configured.ok, true)
+  await rmdir(archiveDir)
+  await symlink(outside, archiveDir, 'dir')
   const path = c.seeded['甲.md']
   const archive = await c.call('archive', { path })
   assert.equal(archive.error.code, 'bad-request')
-  const project = await c.call('openProject', { path, name: '项目' })
-  assert.equal(project.error.code, 'bad-request')
   const current = (await c.call('state')).value.settings
   const saved = await c.call('saveSettings', { settings: current })
+  assert.equal(saved.ok, false)
   assert.equal(saved.error.code, 'bad-request')
   await writeFile(join(outside, '外部.md'), '外部内容')
-  const opened = await c.call('openInObsidian', { path: join(c.archiveDir, '外部.md') })
+  const opened = await c.call('openInObsidian', { path: join(archiveDir, '外部.md') })
   assert.equal(opened.error.code, 'bad-request')
   assert.equal(await readFile(path, 'utf8'), '原文\n')
   assert.deepEqual(await readdir(outside), ['外部.md'])

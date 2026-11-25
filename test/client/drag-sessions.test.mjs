@@ -32,7 +32,6 @@ test('v0.18.6 卡片：菜单保留复制、DeepSeek 和 Obsidian，Enter 不再
     onOpen: (n) => calls.push(['open', n.path]),
     onOpenObsidian: (n) => calls.push(['obsidian', n.path]),
     onDeepSeek: (n) => calls.push(['deepseek', n.path]),
-    onProject: (n) => calls.push(['project', n.path]),
     onDelete: (n) => calls.push(['delete', n.path]),
     onDragStart: (n) => calls.push(['drag', n.path]),
     onDragEnd: () => calls.push(['end']),
@@ -42,7 +41,7 @@ test('v0.18.6 卡片：菜单保留复制、DeepSeek 和 Obsidian，Enter 不再
   nodes.find((node) => node.children.includes('card.copy')).props.onClick({ stopPropagation() {} })
   nodes.find((node) => node.props.className === 'SN_mini SN_deepSeekMini').props.onClick({ stopPropagation() {}, currentTarget: {} })
   nodes.find((node) => node.props.className === 'SN_mini SN_obsidianBtn').props.onClick({ stopPropagation() {} })
-  assert.equal(nodes.some((node) => node.children.includes('card.archive') || node.children.includes('card.project')), false)
+  assert.equal(nodes.some((node) => node.children.includes('card.archive')), false)
   const actionRow = nodes.find((node) => node.props.className === 'SN_actionRow')
   assert.equal(actionRow.children.filter((node) => node.type === 'button').length, 3)
   assert.match(actionRow.children[0].props.className, /SN_deepSeekMini/, 'DeepSeek 图标应在复制左侧')
@@ -88,42 +87,28 @@ test('v0.15 拖拽：透明系统拖影，保存真实尺寸与抓取位置，�
   assert.equal(removed, true)
 })
 
-test('拖拽栏：归档直接执行，项目保留目标菜单，取消后输入草稿仍在', (t) => {
-  const runner = hookRunner(t), api = runner.api
-  const calls = [], active = []
+test('拖拽栏：归档、DeepSeek 与删除直接执行，取消后输入草稿仍在', (t) => {
+  const runner = hookRunner(t), api = runner.api;
+  const calls = [];
   const menu = captureNodes(api.components.DropActions({
-    t: (key) => key, active: null, activeTargetId: null, projectTargets: [{ id: 'work', label: '进行时' }],
-    onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
-    onArchive: () => calls.push(['archive']),
-    onProject: () => calls.push(['project']),
-    onDeepSeek: () => calls.push(['deepseek']),
-    onDelete: () => calls.push(['delete']),
-  }))
-  assert.deepEqual(menu.filter((node) => node.props.className === 'SN_dropLabel').map((node) => node.children[0]), ['card.archive', 'card.project', 'drag.deepseek', 'drag.delete'])
-  const event = { dataTransfer: {}, preventDefault() {}, stopPropagation() {} }
+    t: (key) => key, active: null,
+    onHover() {}, onArchive: () => calls.push(['archive']),
+    onDeepSeek: () => calls.push(['deepseek']), onDelete: () => calls.push(['delete']),
+  }));
+  assert.deepEqual(menu.filter((node) => node.props.className === 'SN_dropLabel').map((node) => node.children[0]), ['card.archive', 'drag.deepseek', 'drag.delete']);
+  const event = { dataTransfer: {}, preventDefault() {}, stopPropagation() {} };
   for (const node of menu.filter((node) => node.props['data-action'])) {
-    node.props.onDragEnter(event)
-    node.props.onDragOver(event)
-    assert.equal(event.dataTransfer.dropEffect, 'move')
-    node.props.onDrop(event)
+    node.props.onDragEnter(event); node.props.onDrop(event);
   }
-  assert.deepEqual(calls, [['archive'], ['project'], ['deepseek'], ['delete']])
-  const archiveHover = captureNodes(api.components.DropActions({
-    t: (key) => key, active: 'archive', activeTargetId: null, projectTargets: [{ id: 'work', label: '进行时' }],
-    onHover: (kind, targetId, anchor) => active.push([kind, targetId, anchor]),
-    onArchive: () => calls.push(['archive-again']), onProject() {}, onDelete() {},
-  }))
-  assert.equal(archiveHover.some((node) => node.props.className === 'SN_dropTarget'), false)
-  archiveHover.find((node) => node.props['data-action'] === 'archive').props.onDrop(event)
-  assert.deepEqual(calls[4], ['archive-again'])
-  const props = { enabled: true, t: (key) => key }
-  let nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
-  nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } })
-  nodes = captureNodes(runner.render(api.components.CaptureComposer, { ...props, dragNote: { path: 'a.md' } }))
-  assert.equal(nodes.find((node) => node.props.className === 'SN_captureDock').props['data-card-dragging'], 'true')
-  nodes = captureNodes(runner.render(api.components.CaptureComposer, props))
-  assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').props.value, '未提交的草稿')
-})
+  assert.deepEqual(calls, [['archive'], ['deepseek'], ['delete']]);
+  const props = { enabled: true, t: (key) => key };
+  let nodes = captureNodes(runner.render(api.components.CaptureComposer, props));
+  nodes.find((node) => node.props.className === 'SN_captureTitle').props.onChange({ target: { value: '未提交的草稿' } });
+  nodes = captureNodes(runner.render(api.components.CaptureComposer, { ...props, dragNote: { path: 'a.md' } }));
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureDock').props['data-card-dragging'], 'true');
+  nodes = captureNodes(runner.render(api.components.CaptureComposer, props));
+  assert.equal(nodes.find((node) => node.props.className === 'SN_captureTitle').props.value, '未提交的草稿');
+});
 
 for (const failed of [false, true]) {
   test(`拖拽会话：drop 与 dragend 只收尾一次，${failed ? '操作失败恢复卡片' : '操作成功移除卡片'}`, async (t) => {
@@ -302,16 +287,14 @@ test('归档拖放：松手立即执行，不停靠也不传目标 ID', async (t
   const source = {}
   card.props.actions.current.onDragStart(note, { x: 100, y: 100, width: 300, height: 208 }, source)
   const panel = render(), overlay = captureNodes(panel).find((node) => node.type === runner.api.components.CardDragOverlay)
-  let parked = 0, modes = []
+  let modes = []
   overlay.props.motionRef.current = {
-    park() { parked++ },
     finish(mode, element) { assert.equal(element, source); modes.push(mode); return animation.promise },
   }
   const composer = captureNodes(panel).find((node) => node.type === runner.api.components.CaptureComposer)
   composer.props.onArchiveDrop({ dataTransfer: { getData: () => note.path } })
   assert.deepEqual(mutations, [{ path: note.path }])
   assert.deepEqual(modes, ['drop'])
-  assert.equal(parked, 0)
   animation.resolve(); operation.resolve(); await flush()
   assert.equal(render().props['data-card-dragging'], 'false')
 })

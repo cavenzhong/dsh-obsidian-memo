@@ -60,23 +60,23 @@ test('client __test：drawerWidthBounds 锁定态上限 = max(320, min(960, 面�
   assert.ok(api.drawerWidthBounds(1200, true).upper < api.drawerWidthBounds(1200, false).upper)
 })
 
-test('v0.18.6 抽屉操作条：五个线图标在左（DeepSeek 在复制后）、Obsidian 在右同一行；AI emoji 与评论标题同一行', (t) => {
+test('v0.18.6 抽屉操作条：四个线图标在左（DeepSeek 在复制后）、Obsidian 在右同一行；AI emoji 与评论标题同一行', (t) => {
   const api = loadClient(t).mod.__test, calls = []
   const emojis = [{ id: 'one', emoji: '🔥', label: '毒舌' }, { id: 'two', emoji: '🌱', label: '落地' }]
   const drawerActions = { emojis, onComment: (emoji) => calls.push('comment:' + emoji.id),
-    onArchive: () => calls.push('archive'), onProject: () => calls.push('project'),
+    onArchive: () => calls.push('archive'),
     onCopy: () => calls.push('copy'), onOpenObsidian: () => calls.push('obsidian'), onDelete: () => calls.push('delete'),
     onDeepSeek: (anchor) => calls.push('deepseek:' + (anchor && anchor.id)) }
   const props = { t: (key) => key, drawer: { full: { title: '便签', blocks: [] } }, drawerActions }
   let nodes = captureNodes(api.components.NoteDrawer(props))
 
-  // 操作条一行：左 = 五个操作（DeepSeek 紧跟复制），右 = Obsidian；不再有右侧两行容器。
+  // 操作条一行：左 = 四个操作（DeepSeek 紧跟复制），右 = Obsidian；不再有右侧两行容器。
   const bar = nodes.find((node) => node.props.className === 'SN_drawerActions')
   assert.deepEqual(bar.children.map((node) => node.props.className), ['SN_drawerActionLeft', 'SN_mini SN_obsidianBtn'])
   const top = captureNodes(bar).find((node) => node.props.className === 'SN_drawerActionTop')
   const buttons = captureNodes(top).filter((node) => node.type === 'button')
-  assert.deepEqual(buttons.map((node) => node.props['aria-label']), ['card.archive', 'card.project', 'card.delete', 'drawer.copy', 'send.action'])
-  assert.deepEqual(buttons.map((node) => node.children[0].props.kind), ['archive', 'project', 'delete', 'copy', undefined])
+  assert.deepEqual(buttons.map((node) => node.props['aria-label']), ['card.archive', 'card.delete', 'drawer.copy', 'send.action'])
+  assert.deepEqual(buttons.map((node) => node.children[0].props.kind), ['archive', 'delete', 'copy', undefined])
   for (const button of buttons) {
     assert.equal(button.children[0].props.size, 15)
     assert.equal(button.children[1].props.className, 'SN_aiLabel')
@@ -90,8 +90,8 @@ test('v0.18.6 抽屉操作条：五个线图标在左（DeepSeek 在复制后）
   assert.equal(obsidian.children[1].props.className, 'SN_obsidianText')
   assert.deepEqual(obsidian.children[1].children, ['card.obsidian'])
   obsidian.props.onClick()
-  assert.deepEqual(calls, ['archive', 'project', 'delete', 'copy', 'deepseek:anchor', 'obsidian'])
-  assert.ok(buttons[2].props.className.includes('SN_drawerDeleteBtn'))
+  assert.deepEqual(calls, ['archive', 'delete', 'copy', 'deepseek:anchor', 'obsidian'])
+  assert.ok(buttons[1].props.className.includes('SN_drawerDeleteBtn'))
   assert.equal(buttons[0].props['aria-haspopup'], undefined)
   assert.equal(captureNodes(bar).some((node) => String(node.props.className || '').includes('SN_drawerMenu')), false,
     '归档操作不再展开目标菜单')
@@ -110,7 +110,7 @@ test('v0.18.6 抽屉操作条：五个线图标在左（DeepSeek 在复制后）
   const emojiButtons = captureNodes(commentsHead).filter((node) => node.type === 'button' && node.props.className === 'SN_aiBtn')
   assert.deepEqual(emojiButtons.map((node) => node.props['aria-label']), ['🔥 毒舌', '🌱 落地'])
   emojiButtons[0].props.onClick({ stopPropagation() {} })
-  assert.deepEqual(calls, ['archive', 'project', 'delete', 'copy', 'deepseek:anchor', 'obsidian', 'comment:one'])
+  assert.deepEqual(calls, ['archive', 'delete', 'copy', 'deepseek:anchor', 'obsidian', 'comment:one'])
 
   assert.doesNotMatch(CLIENT_SOURCE, /\.SN_drawerActionRight\{/, '操作条右侧两行容器应删除')
   assert.match(CLIENT_SOURCE, /\.SN_drawerActions\{[^}]*justify-content:space-between/)
@@ -122,7 +122,7 @@ test('v0.18.6 抽屉操作条：五个线图标在左（DeepSeek 在复制后）
   assert.match(CLIENT_SOURCE, /\.SN_drawerActionBtn:hover:not\(:disabled\) \.SN_aiLabel[^}]*opacity:1/)
   nodes = captureNodes(api.components.NoteDrawer({ ...props, drawerActions: { ...drawerActions, pending: {} } }))
   const pendingButtons = captureNodes(nodes.find((node) => node.props.className === 'SN_drawerActionTop')).filter((node) => node.type === 'button')
-  assert.deepEqual(pendingButtons.map((node) => Boolean(node.props.disabled)), [true, true, true, false, false])
+  assert.deepEqual(pendingButtons.map((node) => Boolean(node.props.disabled)), [true, true, false, false])
   const pendingHead = nodes.find((node) => node.props.className === 'SN_noteDrawerCommentsHead')
   const pendingEmojis = captureNodes(pendingHead).filter((node) => node.props.className === 'SN_aiBtn')
   assert.deepEqual(pendingEmojis.map((node) => node.props.disabled), [true, true], '生成期间保留预设但不允许重复提交')
@@ -150,11 +150,7 @@ test('v0.16.6 DSH 0.2.2-rc.2 窗口拖动区：盖住顶栏拖动行的浮层声
   // 顶部居中的 toast（撤销 / 去设置）和对话框遮罩同样落在拖动行内。
   const toasts = captureNodes(api.components.ToastStack({ toasts: [{ id: 't', kind: 'success', text: 'ok', action: { label: 'undo', run() {} } }] }))
   assert.equal(toasts.find((node) => node.props.className === 'SN_toast').props['data-window-drag-exclude'], '')
-  for (const dialog of [api.components.ProjectDialog({ t: (key) => key, check: { level: '符合', reason: '可跟踪' }, name: 'x', onName() {}, onConfirm() {}, onCancel() {} }),
-    api.components.ConfirmDialog({ t: (key) => key, title: 'x', text: 'y', onConfirm() {}, onCancel() {} })]) {
-    assert.equal(captureNodes(dialog).find((node) => node.props.className === 'SN_dialogLayer').props['data-window-drag-exclude'], '')
-  }
-  // 自绘顶栏仍显式声明 drag / no-drag，不依赖 DSH 的自动排除。
+    // 自绘顶栏仍显式声明 drag / no-drag，不依赖 DSH 的自动排除。
   assert.match(CLIENT_SOURCE, /\.SN_head\{[^}]*-webkit-app-region:drag/)
   assert.match(CLIENT_SOURCE, /\.SN_headActions,\.SN_headActions \*\{[^}]*-webkit-app-region:no-drag/)
 })

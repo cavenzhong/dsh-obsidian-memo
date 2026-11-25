@@ -25,15 +25,25 @@ function normalizeWorkspaceDisplay(items, source) {
   if (pinnedIds.length < 2) pinnedIds.length = 0;
   const activeId = pinnedIds.length ? (pinnedIds.includes(active) ? active : pinnedIds.at(-1)) : (active || WORKSPACE_ALL_ID);
   const companionId = !pinnedIds.length && companion !== activeId ? companion : null;
-  return { activeId, pinnedIds, companionId, split: normalizeSplit(source.split) };
+  const zen = source.zen === true;
+  const zenActiveId = zen && available(source.zenActiveId) && source.zenActiveId !== activeId ? source.zenActiveId : null;
+  return { activeId, pinnedIds, companionId, split: normalizeSplit(source.split), zen, ...(zenActiveId ? { zenActiveId } : {}) };
 }
 
-function workspacePaneIds({ pinnedIds, activeId }) {
+function workspacePaneIds({ pinnedIds, activeId, zen, zenActiveId }) {
+  if (zen) return [zenActiveId || activeId];
   return pinnedIds.length ? pinnedIds : [activeId];
 }
 
+function toggleZenDisplay(state) {
+  const { zenActiveId, ...previous } = state;
+  return { ...previous, zen: !state.zen };
+}
+
 function selectWorkspace(state, id) {
-  if (id === state.activeId || !workspaceIds(state.items).includes(id)) return state;
+  if (!workspaceIds(state.items).includes(id)) return state;
+  if (state.zen) return id === (state.zenActiveId || state.activeId) ? state : { ...state, zenActiveId: id };
+  if (id === state.activeId) return state;
   if (!state.pinnedIds.length) return { ...state, activeId: id, companionId: state.activeId };
   // 点已显示的空间只切换焦点；新空间替换当前焦点所在的槽位，另一侧不动。
   const pinnedIds = state.pinnedIds.includes(id) ? state.pinnedIds : state.pinnedIds.map((paneId) => paneId === state.activeId ? id : paneId);
@@ -41,6 +51,7 @@ function selectWorkspace(state, id) {
 }
 
 function toggleWorkspacePin(state) {
+  if (state.zen) return state;
   const { activeId, companionId, pinnedIds } = state;
   if (pinnedIds.length) return { ...state, pinnedIds: [], companionId: pinnedIds.find((id) => id !== activeId) };
   const other = workspaceIds(state.items).find((id) => id === companionId && id !== activeId)
@@ -49,4 +60,4 @@ function toggleWorkspacePin(state) {
   return { ...state, pinnedIds: [activeId, other], companionId: null, split: DEFAULT_SPLIT };
 }
 
-export { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, workspacePaneIds };
+export { normalizeSplit, normalizeWorkspaceDisplay, selectWorkspace, toggleWorkspacePin, toggleZenDisplay, workspacePaneIds };

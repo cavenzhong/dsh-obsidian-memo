@@ -1,7 +1,6 @@
 
 
 const FULL_NOTE = `---
-PROJECTS: "[[x/y|Y]]"
 tags: meta
 ---
 # 标题 **加粗**

@@ -1,8 +1,8 @@
 /** 组装右侧阅读抽屉的 props；把 panel.js 的展示接线与数据组合分开。 */
 function buildNoteDrawerProps(input) {
   const {
-    t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, pinned, paper,
-    emojis, pending, onComment, onArchive, onProject, onOpenObsidian, onCopy, onDelete,
+    t, drawer, editing, bodyDraft, saving, drawerWidth, resizing, pinned, zen = false, paper,
+    emojis, pending, onComment, onArchive, onOpenObsidian, onCopy, onDelete,
     commentsLayout, deletingIndex, onDeleteComment, onTogglePinned, onToggleTask, onReorderTask,
     taskBusy, titleDraft, titleMode, onTitleChange, onResizeStart, onResizeReset, onClose,
     onRetry, onStartEdit, onBodyChange, editPositionRef, onEditPositionChange, onSave, onCancelEdit,
@@ -14,7 +14,8 @@ function buildNoteDrawerProps(input) {
     editing: editing,
     bodyDraft: bodyDraft,
     saving: saving,
-    drawerWidth: drawerWidth,
+    drawerWidth: zen ? null : drawerWidth,
+    zen: zen,
     resizing: resizing,
     pinned: pinned,
     paper: paper,
@@ -23,7 +24,6 @@ function buildNoteDrawerProps(input) {
       pending: pending,
       onComment: onComment,
       onArchive: onArchive,
-      onProject: onProject,
       onOpenObsidian: onOpenObsidian,
       onCopy: onCopy,
       onDelete: onDelete,

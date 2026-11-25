@@ -33,20 +33,16 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
     settings: {
       vaultPath: c.vault,
       notesDir: '进行时2',
-      projectDir: '项目',
       archiveMode: 'mapped',
       archiveDir: '归档二',
       emojis: [{ id: 'brain', emoji: '🧠', label: '脑暴', callout: 'tip', prompt: '给我灵感' }],
-      projectPrompt: '新的建档提示词',
     },
   })
   assert.equal(result.ok, true)
   assert.equal(result.value.settings.notesDir, notesDir2)
-  assert.equal(result.value.settings.projectDir, join(c.vault, '项目'))
   assert.equal(result.value.settings.archiveDir, join(c.vault, '归档二'))
   assert.equal(result.value.settings.emojis.length, 1)
   assert.equal(result.value.settings.emojis[0].callout, 'tip')
-  assert.equal(result.value.settings.projectPrompt, '新的建档提示词')
 
   const onDisk = JSON.parse(await readFile(SETTINGS_FILE, 'utf8'))
   assert.equal(onDisk.notesDir, '进行时2')
@@ -54,37 +50,31 @@ test('saveSettings：规范化后落盘，随后 state 使用新设置', async (
 
   const state = await c.call('state')
   assert.equal(state.value.settings.notesDir, notesDir2)
-  assert.equal(state.value.settings.projectPrompt, '新的建档提示词')
   assert.deepEqual(state.value.notes.map((note) => note.name), ['新'])
 })
 
-test('saveSettings：每枚 emoji 的 ai 与 projectAi 规范化后落盘并读回', async () => {
+test('saveSettings：每枚 emoji 的 ai 规范化后落盘并读回', async () => {
   const c = await makeCase({ notes: { '甲.md': '# 甲\n' } })
   const result = await c.call('saveSettings', {
     settings: {
       vaultPath: c.vault,
       notesDir: c.notesDir,
-      projectDir: c.projectDir,
       archiveMode: 'local',
       emojis: [
         { id: 'a', emoji: '😈', label: '毒舌', callout: 'quote', prompt: 'p', ai: { preset: 'low' } },
         { id: 'b', emoji: '✨', label: '另一面', callout: 'abstract', prompt: 'p', ai: { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 } },
       ],
-      projectAi: { preset: 'medium' },
     },
   })
   assert.equal(result.ok, true)
   assert.deepEqual(result.value.settings.emojis.map((item) => item.ai.preset), ['low', 'custom'])
   assert.deepEqual(result.value.settings.emojis[0].ai, { preset: 'low', reasoningEffort: 'off', maxTokens: 2048 })
   assert.deepEqual(result.value.settings.emojis[1].ai, { preset: 'custom', reasoningEffort: 'max', maxTokens: 5000 })
-  assert.deepEqual(result.value.settings.projectAi, { preset: 'medium', reasoningEffort: 'low', maxTokens: 4096 })
 
   const onDisk = JSON.parse(await readFile(SETTINGS_FILE, 'utf8'))
   assert.equal(onDisk.emojis[0].ai.preset, 'low')
-  assert.equal(onDisk.projectAi.preset, 'medium')
 
   const state = await c.call('state')
-  assert.equal(state.value.settings.projectAi.preset, 'medium')
 })
 
 test('state：旧版默认预设（LEGACY_EMOJIS）读盘时迁移为 0.12 预设', async () => {
@@ -202,9 +192,9 @@ test('v0.16 设置读取不扫描便签，仍检测外部配置修改和版本�
   assert.equal(first.ok, true)
   assert.equal(first.value.notes, undefined)
   assert.equal((await c.call('settings', { knownRevision: first.value.revision })).value.unchanged, true)
-  await writeFile(c.settingsPath, JSON.stringify({ ...first.value.settings, projectPrompt: '外部更新' }))
+  await writeFile(c.settingsPath, JSON.stringify({ ...first.value.settings, imageCompression: { enabled: false } }))
   const next = await c.call('settings', { knownRevision: first.value.revision })
-  assert.equal(next.value.settings.projectPrompt, '外部更新')
+  assert.equal(next.value.settings.imageCompression.enabled, false)
   assert.notEqual(next.value.revision, first.value.revision)
   assert.equal(scan.mock.callCount(), 0)
 })
@@ -225,7 +215,7 @@ test('v0.16 并发 state 复用扫描，慢扫描不阻塞设置读取和保存'
   await started
   const second = c.call('state')
   const settings = (await c.call('settings')).value.settings
-  const saved = await c.call('saveSettings', { settings: { ...settings, projectPrompt: '扫描期间保存' }, expected: settings.configFile.revision })
+  const saved = await c.call('saveSettings', { settings: { ...settings, imageCompression: { ...settings.imageCompression, enabled: false } }, expected: settings.configFile.revision })
   assert.equal(saved.ok, true)
   release()
   const results = await Promise.all([first, second])

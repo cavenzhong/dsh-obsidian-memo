@@ -18,25 +18,24 @@
   <a href="#install"><ins>Install</ins></a> ·
   <a href="#everyday-use"><ins>Everyday use</ins></a> ·
   <a href="#workspaces"><ins>Workspaces</ins></a> ·
-  <a href="#dual-view"><ins>Dual view</ins></a> ·
+  <a href="#view-modes"><ins>View modes</ins></a> ·
   <a href="#ai-comments-four-perspectives"><ins>AI comments</ins></a> ·
   <a href="#send-to-deepseek"><ins>Send to DeepSeek</ins></a> ·
-  <a href="#from-note-to-project"><ins>From note to project</ins></a> ·
   <a href="#faq"><ins>FAQ</ins></a> ·
   <a href="README.md"><ins>简体中文</ins></a>
 </p>
 
-![Obsidian MEMO 0.19.0: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
+![Obsidian MEMO: workspace tabs above the sticky-note wall and the quick capture bar at the bottom](docs/assets/en/cover.png)
 
-**Fixed in 0.19.1:** Moves, archives, and renames now use the Obsidian CLI by default to keep links within the vault working. Settings checks the CLI and link-update setting. For a plain Markdown folder, choose Folder management instead. [See what changed (中文)](docs/CHANGELOG.md).
+**0.19.2:** Adds Zen mode, a minimal single-workspace view with a title list and a wide reading/editing pane. [See what changed (中文)](docs/CHANGELOG.md).
 
 ## Install
 
 You need **DeepSeek Harness 0.2.2-rc.1 or a later 0.2.x version** and a local Obsidian vault or Markdown folder that Harness can access. No companion plugin in Obsidian is needed.
 
-1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.19.1** or later on the Plugins page.
+1. In Harness, go to **Plugins → Add Plugin**, enter `dsh-obsidian-memo`, then install and enable it. Confirm the version is **0.19.2** or later on the Plugins page.
 2. If DSH asks you to restart, restart once. Then open the sticky notes panel in the sidebar. Under **Settings → Folders**, select your **vault folder** and **default workspace** (Main space). If you do not use Obsidian, choose Folder management.
-3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note. To track projects, also select a **Project index folder**.
+3. Type a thought in the capture bar at the bottom and press `Enter` to save your first note.
 
 You can also ask an agent to install it:
 
@@ -88,7 +87,11 @@ A custom tab shows notes in its folder and subfolders. The **Include subfolders*
 
 *In this example, the card is headed to **Field Archive**, a folder outside Main space. The same file move is visible in Obsidian.*
 
-## Dual view
+## View modes
+
+By default, notes appear as cards in a single workspace. Use Dual View to compare two folders side by side, or Zen to focus on reading and editing.
+
+### Dual view
 
 Keep two workspaces side by side: collect ideas on the left and review tasks or reference notes on the right, without repeatedly switching tabs. Add at least one custom workspace, then click the split-view icon at the far right of the tab bar, or press `Cmd+;`, to turn dual view on or off.
 
@@ -97,6 +100,10 @@ Keep two workspaces side by side: collect ideas on the left and review tasks or 
 - **Switch the focused side:** Click either wall to focus it; choosing a third workspace replaces only that side. The other workspace stays in place, and new notes go to the focused workspace.
 - **Browse independently:** Each wall scrolls and loads more notes independently. Drag the divider to resize them, or double-click it to restore equal widths; the view state and width ratio are saved locally for this vault.
 - **Use the keyboard:** Hold `Cmd` to see the first nine tabs’ `⌘1–⌘9` shortcuts and the split-view `⌘;` hint. These shortcuts do not interrupt text entry. Turning dual view off keeps the focused workspace.
+
+### Zen mode
+
+Select the leaf to the left of the split-view button. Zen keeps one workspace visible, with a minimal bold Song-style title list in the left third (long titles wrap fully) and a wide reading/editing pane on the right. The divider can be adjusted temporarily, but resets to one-third the next time Zen opens. Pin and split controls are hidden until you exit Zen. Selecting the leaf again restores the previous workspace and layout; if the right pane was not pinned before entry, it closes on exit. While dragging a note, only a small note glyph follows the pointer.
 
 ## AI comments: Four perspectives
 
@@ -125,37 +132,19 @@ When reading a long answer inside the note wall is not ideal, send the note to a
 
 Title + content sends the title and body; MD attachment sends the title and an `.md` copy with comment callouts removed (frontmatter and other content are preserved). Sending selected text sends only that text. Existing AI comments are not included and the note is never modified.
 
-## From note to project <img src="docs/assets/project-beta.svg" width="36" height="16" alt="Beta">
-
-> Project features are still being tested and may change substantially in future releases.
-
-Drag a note to **To project** to start a project or add an update to an existing one. The note stays where it is and gets an Obsidian link back to the project.
-
-![The To project drop menu offers a new project or an existing one, River in Sound](docs/assets/en/project-drop.png)
-
-*Drag over To project to see new and existing project options. After choosing an existing project, you have 3 seconds to cancel by default.*
-
-As you add notes, AI revises the **current overview** and appends one entry to the **progress log**. Read the overview to see where things stand; read the log to see how they got there. Old entries and standalone level-two sections such as “My notes” stay intact.
-
-![A project update says venue scheduling has resumed but dates are still pending, with Inspect, Accept, and Undo actions](docs/assets/en/project-review.png)
-
-*Review the change summary after it’s written. If it’s not right, choose Undo before accepting to restore both the project and the source note. This undo is no longer available after restarting Harness.*
-
-[See a project document example (中文)](docs/GUIDE.md#项目文档怎么读怎么补充).
-
 ## FAQ
 
 **How do I change the interface language?** Go to **Settings → Manage & about → Interface language** and choose Follow Harness (default), 简体中文, or English. The change takes effect immediately in this client and does not change your notes or AI prompts.
 
 **Missing the sidebar entry, or seeing an empty wall?** Make sure the plugin is enabled and restart DSH if it asks you to — the desktop app usually needs one restart before the sidebar entry appears. If the wall is empty, check for `.md` files in the selected workspace and try turning off the date filter. If notes in Main space are in subfolders, enable **Include subfolders**. To show a folder outside Main space, add it with **+**.
 
-**Do I need a separate AI key? What if generation fails?** No. Comments use the Harness default model. Projects can use a different one under **Settings → AI → Project AI**. If generation fails, check your model setup and use the panel message to decide whether to retry or adjust the output budget.
+**Do I need a separate AI key? What if generation fails?** No. Comments use the Harness default model. If generation fails, check your model setup and use the panel message to decide whether to retry or adjust the output budget.
 
 **Do updates or uninstalling touch my notes?** Updates follow the npm version on the Plugins page; uninstalling only removes the plugin registration, and your notes and images stay in the vault.
 
 **Which systems are supported?** Developed and verified on macOS. The path and “Open in Obsidian” code also covers Windows and Linux but is untested there. There’s no mobile-specific layout; it’s desktop-first.
 
-**Are my notes uploaded?** Notes and images stay in the local vault. The plugin has no telemetry. Only when you use AI comments or project features are the relevant note and any needed project content sent to your configured model provider.
+**Are my notes uploaded?** Notes and images stay in the local vault. The plugin has no telemetry. Only when you request an AI comment is the selected note content sent to your configured model provider.
 
 **What if I delete a note by accident?** It goes to the vault’s `.trash`, not straight to permanent deletion. Undo from the notification while it’s visible, or recover the note from the vault’s trash later.
 
@@ -164,3 +153,5 @@ As you add notes, AI revises the **current overview** and appends one entry to t
 ---
 
 [Detailed guide (中文)](docs/GUIDE.md) · [Changelog (中文)](docs/CHANGELOG.md) · [Development (中文)](docs/ARCHITECTURE.md) · [Known issues (中文)](docs/KNOWN_ISSUES.md) · [Report an issue](https://github.com/cavenzhong/dsh-obsidian-memo/issues) · [MIT license](LICENSE)
+
+<sub>The Projects feature will return after a redesign.</sub>

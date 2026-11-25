@@ -28,9 +28,7 @@ function useJobNotifications({ onOpenSettings, pushErrorToast, pushToast, tRef }
         watched.delete(job.id);
         if (job.truncated === true) {
           // 有正文但撞上 token 上限：内容已写入，提示可能被截断并引导调预算。
-          pushBudgetToast(tRef.current(info.kind === 'project' ? 'toast.budgetProjectTruncated' : 'toast.budgetCommentTruncated'), 'info');
-        } else if (info.kind === 'project') {
-          pushToast({ text: tRef.current('toast.projectDone'), kind: 'success', timeout: 7000 });
+          pushBudgetToast(tRef.current('toast.budgetCommentTruncated'), 'info');
         } else {
           pushToast({ text: tRef.current('toast.commentDone'), kind: 'success' });
         }

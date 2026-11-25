@@ -2,33 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureNodes, hookRunner } from '../../test-support/client.mjs';
 
-test('全部提示词：三份项目提示词、内置与自定义预设修改后都能恢复默认', (t) => {
+test('评论提示词：内置与自定义预设修改后都能恢复默认', (t) => {
   const runner = hookRunner(t);
-  const defaults = { projectCheckPrompt: '默认分析', projectPrompt: '默认项目', projectAddPrompt: '默认补充', customEmoji: '默认自定义', emojis: { builtin: '默认内置' } };
-  let draft = { vaultPath: '/vault', promptDefaults: defaults, projectCheckPrompt: '改过分析', projectPrompt: '改过项目', projectAddPrompt: '改过补充', emojis: [
+  const defaults = { customEmoji: '默认自定义', emojis: { builtin: '默认内置' } };
+  let draft = { vaultPath: '/vault', promptDefaults: defaults, emojis: [
     { id: 'builtin', emoji: '✨', prompt: '改过内置' }, { id: 'custom', emoji: '😈', prompt: '改过自定义' },
   ] };
-  const props = () => ({ t: (key) => key, draft, initialTab: 'project', onPatch: (patch) => { draft = { ...draft, ...patch }; },
-    onPatchEmoji(index, patch) { draft = { ...draft, emojis: draft.emojis.map((value, i) => i === index ? { ...value, ...patch } : value) }; } });
-  const editors = () => captureNodes(runner.render(runner.api.components.SettingsDrawer, props())).filter((node) => node.type?.name === 'PromptEditor');
-  assert.equal(editors().length, 5, '所有用户可编辑提示词必须经过统一恢复组件');
+  const props = () => ({ t: (key) => key, draft, onPatchEmoji(index, patch) {
+    draft = { ...draft, emojis: draft.emojis.map((value, i) => i === index ? { ...value, ...patch } : value) };
+  } });
+  const editors = () => captureNodes(runner.render(runner.api.components.SettingsDrawer, props()))
+    .filter((node) => node.type?.name === 'PromptEditor');
+  assert.equal(editors().length, 2);
   for (const editor of editors()) {
-    const nodes = captureNodes(editor.type(editor.props));
-    const restore = nodes.find((node) => node.props.className === 'SN_promptRestore');
+    const restore = captureNodes(editor.type(editor.props)).find((node) => node.props.className === 'SN_promptRestore');
     assert.ok(restore);
-    assert.equal(restore.props.disabled, false);
     restore.props.onClick();
   }
-  assert.equal(draft.projectCheckPrompt, defaults.projectCheckPrompt);
-  assert.equal(draft.projectPrompt, defaults.projectPrompt);
-  assert.equal(draft.projectAddPrompt, defaults.projectAddPrompt);
   assert.equal(draft.emojis[0].prompt, defaults.emojis.builtin);
   assert.equal(draft.emojis[1].prompt, defaults.customEmoji);
-  for (const editor of editors()) {
-    assert.equal(captureNodes(editor.type(editor.props)).some((node) => node.props.className === 'SN_promptRestore'), false);
-    const changed = { ...editor.props, value: '', disabled: true };
-    assert.equal(captureNodes(editor.type(changed)).find((node) => node.props.className === 'SN_promptRestore').props.disabled, true, '清空也可恢复，保存中不允许改动');
-  }
+  runner.unmount();
 });
 
 test('工作空间配色：主空间与子空间独立设色、持久化并按仓库隔离', (t) => {

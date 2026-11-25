@@ -6,7 +6,6 @@ import { CardThumb } from '../images/components.js';
 import { React, h } from '../react.js';
 import { DEFAULT_NOTE_COLOR } from '../styles/tokens.js';
 import { cardCommentGroups, cardImages, emojiLabel } from './model.js';
-import { projectTexture } from './project-textures.js';
 
 function playCardPress(card) {
   if (!card?.animate || card.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -71,7 +70,6 @@ const NoteCard = React.memo(function NoteCard(props) {
     'data-menu': menuVisible ? 'true' : 'false',
     'data-images': hasImages ? 'true' : 'false',
     'data-body': excerpt ? 'true' : 'false',
-    'data-texture': projectTexture(note.projects),
     'data-drawer': drawerOpen ? 'true' : 'false',
     'data-dragging': props.dragging ? 'true' : 'false',
     draggable: !disabled && !props.preview,
@@ -211,7 +209,7 @@ const NoteCard = React.memo(function NoteCard(props) {
             ),
             h('div', { className: 'SN_actionDivider', 'aria-hidden': 'true' }),
             h('div', { className: 'SN_actionRow' },
-              // DeepSeek 在复制左侧；归档 / 到项目统一从拖拽栏进入。
+              // DeepSeek 在复制左侧；归档统一从拖拽栏进入。
               h('button', {
                 type: 'button',
                 className: 'SN_mini SN_deepSeekMini',

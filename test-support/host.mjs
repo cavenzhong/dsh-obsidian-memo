@@ -35,20 +35,11 @@ const RPC_CHANNEL = '/sticky-notes'
 
 const RPC_ID = 'test-rpc-id'
 
-const FAKE_GENERATED = '# 测试项目\n\n## 诉求\n模拟内容\n'
-
 function fakeLlm() {
-  return {
-    async *stream(options) {
-      const prompt = options.messages[0].content[0].text
-      const name = /^项目名：(.+)$/mu.exec(prompt)?.[1]
-      const source = /^来源目标路径：(.+)$/mu.exec(prompt)?.[1]
-      const text = name && source ? JSON.stringify({ summary: '已建立模拟项目',
-        overview: `模拟内容：[[${source}|本次判断的依据]]。`, entry: '建档。' }) : FAKE_GENERATED
-      yield { type: 'text-delta', text }
-      yield { type: 'finish', reason: { kind: 'stop' } }
-    },
-  }
+  return { async *stream() {
+    yield { type: 'text-delta', text: '测试评论' }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  } }
 }
 
 function makeCtx(overrides = {}) {
@@ -227,14 +218,12 @@ async function makeCase(options = {}) {
   const dir = await mkdtemp(join(ROOT, 'case-'))
   const vault = join(dir, 'vault')
   const notesDir = join(vault, '进行时')
-  const projectDir = join(vault, '项目')
   const archiveDir = join(notesDir, '归档')
   await mkdir(notesDir, { recursive: true })
 
   const settings = {
     vaultPath: vault,
     notesDir,
-    projectDir,
     operationEngine: 'direct', // Existing fixtures cover the local filesystem engine, never the real desktop vault.
     archiveMode: 'local',
     archiveFolderName: '归档',
@@ -263,7 +252,6 @@ async function makeCase(options = {}) {
     dir,
     vault,
     notesDir,
-    projectDir,
     archiveDir,
     seeded,
     settingsPath: SETTINGS_FILE,

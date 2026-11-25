@@ -143,7 +143,7 @@ test('note：打开全文时刷新缓存中的外部修改', async () => {
   assert.equal(result.value.body, '外部新增的内容\n')
 })
 
-test('note：返回全文 blocks / comments / projects', async () => {
+test('note：返回全文 blocks / comments，不扩展 YAML 元数据', async () => {
   const c = await makeCase({
     notes: {
       '阅读.md': [
@@ -178,7 +178,7 @@ test('note：返回全文 blocks / comments / projects', async () => {
   assert.equal(result.value.body.includes('PROJECTS'), false)
   assert.equal(result.value.comments.length, 1)
   assert.equal(result.value.comments[0].label, '延伸')
-  assert.equal(result.value.projects, '"[[项目/甲|甲]]"')
+  assert.equal(result.value.projects, undefined)
 })
 
 test('archive：移动文件到归档目录，undoArchive 恢复', async () => {
@@ -348,7 +348,7 @@ test('v0.16 仅 AI 或图片参数变化时保留扫描缓存，扫描范围变�
   const settings = (await c.call('state')).value.settings
   const original = NotesScanner.prototype.reset
   const reset = t.mock.method(NotesScanner.prototype, 'reset', function () { return original.call(this) })
-  assert.equal((await c.call('saveSettings', { settings: { ...settings, projectPrompt: '新提示词', imageCompression: { enabled: false } } })).ok, true)
+  assert.equal((await c.call('saveSettings', { settings: { ...settings, imageCompression: { enabled: false } } })).ok, true)
   await c.call('state')
   assert.equal(reset.mock.callCount(), 0)
   assert.equal((await c.call('saveSettings', { settings: { ...settings, includeSubfolders: false } })).ok, true)

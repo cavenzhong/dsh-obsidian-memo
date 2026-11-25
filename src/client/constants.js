@@ -129,12 +129,10 @@ const WORKSPACE_POPOVER_WIDTH = 330;
 const EMPTY_SETTINGS = {
   vaultPath: '',
   notesDir: '',
-  projectDir: '',
   archiveMode: 'local',
   archiveFolderName: '归档',
   archiveDir: '',
   emojis: [],
-  projectPrompt: '',
   includeSubfolders: true,
   titleMode: DEFAULT_TITLE_MODE,
   fileNamePattern: DEFAULT_FILE_NAME_PATTERN,

@@ -398,7 +398,7 @@ test('scan：新增文件会改变 revision，删除文件后 notes 同步收缩
   assert.notEqual(afterRemove.revision, afterAdd.revision)
 })
 
-test('scan：readFull 返回 blocks / comments / projects，未知路径返回 null', async (t) => {
+test('scan：readFull 返回 blocks / comments，不解释 frontmatter 扩展字段，未知路径返回 null', async (t) => {
   const root = await makeRoot(t)
   const vault = join(root, 'vault')
   const notesDir = join(vault, '进行时')
@@ -435,7 +435,7 @@ test('scan：readFull 返回 blocks / comments / projects，未知路径返回 n
   assert.equal(full.path, file)
   // 阅读视图标题 = 文件名（不再是内容里的 `# 完整标题`）
   assert.equal(full.title, '完整')
-  assert.equal(full.projects, '"[[项目/甲|甲]]"')
+  assert.equal(full.projects, undefined, 'frontmatter 扩展字段不映射为便签功能字段')
   // blocks 保留标题块与首段，供阅读视图/AI 使用
   assert.deepEqual(
     full.blocks.map((block) => block.kind),

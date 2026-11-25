@@ -102,9 +102,9 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   const api = mod.__test
   api.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时/日记', color: 'mist' }], 'a')
   api.writeStoredWorkspaces('/vault-b', [{ id: 'b', path: '项目', color: 'moss' }], ALL)
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a', primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
-  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [{ id: 'a', path: '进行时/日记', color: 'mist' }], activeId: 'a', primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5, zen: false })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-b'), { items: [{ id: 'b', path: '项目', color: 'moss' }], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5, zen: false })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-c'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5, zen: false })
 
   storage.setItem(api.WORKSPACES_KEY, JSON.stringify({ version: 1, vaults: {
     '/vault-a': { items: [{ id: 'x', path: '进行时/日记' }, { id: 'y', path: '进行时/日记' }, { id: 'z', path: '.' }, { id: 'w', path: '../外面' }], activeId: 'missing' },
@@ -116,10 +116,10 @@ test('工作空间 localStorage：按仓库隔离、坏数据与重复项安全�
   assert.ok(api.WORKSPACE_COLORS.some((color) => color.id === migrated.items[0].color), '旧记录自动补一个预设纸色')
 
   storage.setItem(api.WORKSPACES_KEY, '{broken')
-  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
+  assert.deepEqual(api.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5, zen: false })
   const { mod: noStorage } = loadClient(t, { storage: null })
   assert.doesNotThrow(() => noStorage.__test.writeStoredWorkspaces('/vault-a', [{ id: 'a', path: '进行时' }], 'a'))
-  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5 })
+  assert.deepEqual(noStorage.__test.readStoredWorkspaces('/vault-a'), { items: [], activeId: ALL, primaryColor: 'paper', pinnedIds: [], companionId: null, split: 0.5, zen: false })
 })
 
 test('添加弹层定位：贴着「＋」，靠右时改为右对齐，窄栏不越出标签栏', (t) => {

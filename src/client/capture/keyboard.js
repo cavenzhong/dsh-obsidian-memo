@@ -24,7 +24,7 @@ function focusCaptureOnTab(event, { panel, form, title, busy }) {
     if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
     // Tab 仍保留按钮、卡片、输入框与浮层的原生焦点顺序。
     if (target?.closest?.(CAPTURE_TAB_PASSTHROUGH) ||
-      panel.querySelector('[aria-modal="true"],[role="menu"],.SN_drawer,.SN_projectOverlay,.SN_noteDrawer,[role="dialog"]')) return false;
+      panel.querySelector('[aria-modal="true"],[role="menu"],.SN_drawer,.SN_noteDrawer,[role="dialog"]')) return false;
   }
   event.preventDefault();
   event.stopPropagation?.();

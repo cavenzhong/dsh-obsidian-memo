@@ -1,10 +1,9 @@
 /** 主面板组合入口：连接数据、编辑和交互 hooks，再组织视图与操作回调。 */
 import { useComments } from './ai/use-comments.js';
 import { useJobNotifications } from './ai/use-job-notifications.js';
-import { useProjectDialog } from './ai/use-project-dialog.js';
 import { CaptureComposer } from './capture/composer.js';
 import { focusPanelForCapture } from './capture/keyboard.js';
-import { ConfirmDialog, ProjectDialog } from './components/dialogs.js';
+import { ConfirmDialog } from './components/dialogs.js';
 import { ToastStack } from './components/feedback.js';
 import { useToasts } from './components/use-toasts.js';
 import { EMPTY_SETTINGS } from './constants.js';
@@ -28,6 +27,8 @@ import { useWorkspaceShortcuts } from './panel/use-workspace-shortcuts.js';
 import { useWorkspaces } from './panel/use-workspaces.js';
 import { WorkspaceBar } from './panel/workspace-bar.js';
 import { WorkspacePanes } from './panel/workspace-panes.js';
+import { useZenNote, ZenDetailEmpty, ZenWorkspaceList } from './panel/zen-view.js';
+import { useZenLayout } from './panel/use-zen-layout.js';
 import { React, h } from './react.js';
 import { NoteDrawer } from './reader/note-drawer.js';
 import { useSidebarWide } from './sidebar-state.js';
@@ -120,12 +121,12 @@ function StickyNotesPanel(props) {
   });
   const headerGesture = useHeaderDrag({
     onTap() {
-      if (!noteDrawer || pinned) return;
+      if (!noteDrawer || pinned || workspaces.zen) return;
       closeNoteDrawer();
     },
     onPress() {
       // 编辑态在顶栏按下只退出编辑，不关抽屉；拖动仍可继续。
-      if (!(noteDrawer && editingRef.current)) return false;
+      if (workspaces.zen || !(noteDrawer && editingRef.current)) return false;
       suppressCardOpenRef.current = true;
       cancelEditing();
       return true;
@@ -149,9 +150,9 @@ function StickyNotesPanel(props) {
   // 0.18 工作空间：标签只做视图筛选；列表按仓库路径存 localStorage，不写仓库。
   const workspaces = useWorkspaces({
     t, tRef, aliveRef, request, viewRef, updateView, refreshNow, pushToast, pushErrorToast,
-    noteDrawerRef, closeNoteDrawer, editingRef,
+    noteDrawerRef, closeNoteDrawer, editingRef, restoringDraftRef,
   });
-  const { projectTarget, projectName, setProjectName, projectBusy, projectTargets, refreshProjectTargets, queueProjectDrop, notices, openProjectDialog, closeProjectDialog, confirmProject } = useProjectDialog({ aliveRef, jobs: view.jobs, projectDir: currentSettings.projectDir, vaultPath: currentSettings.vaultPath, notesDir: currentSettings.notesDir, projectKey: currentSettings.projectKey, projectDropConfirmEnabled: currentSettings.projectDropConfirmEnabled !== false, pushErrorToast, pushToast, refreshNow, request, setSortMenu, t });
+  const zenLayout = useZenLayout({ zen: workspaces.zen, pinned, panelRef, onClose: closeNoteDrawer });
   const { commentConfirm, localPending, requestComment, closeCommentConfirm, confirmComment } = useComments({ aliveRef, emojis, pushErrorToast, pushToast, refreshNow, request, setHoverPath, tRef, viewRef, watchedJobsRef });
   const { deletingIndex: deletingCommentIndex, deleteComment } = useCommentActions({
     aliveRef, noteDrawerRef, request, loadNote, refreshNow, replaceNote, pushToast, pushErrorToast, tRef,
@@ -161,24 +162,25 @@ function StickyNotesPanel(props) {
     refreshNow, request, setHoverPath, tRef, titleMode, updateView, viewRef,
   });
   const {
-    dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, dropTargetAnchor, endCardDrag,
-    startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, projectDrop, deepSeekDrop, chooseProjectTarget, workspaceDrop,
+    dragSession, dragSessionRef, dragMotionRef, dragNote, dropAction, dropTargetId, endCardDrag,
+    startCardDrag, hoverDragAction, clearDropTarget, deleteDrop, archiveDrop, deepSeekDrop, workspaceDrop,
   } = useCardDrag({
-    aliveRef, projectTargets, queueProjectDrop, requestDeepSeek: (note, anchor) => { deepseek.requestSend(note, anchor); },
-    panelRef, runArchive, runDelete, moveWorkspaceNote: workspaces.move, setDateMenu, setHoverPath, setSortMenu,
+    aliveRef, requestDeepSeek: (note, anchor) => { deepseek.requestSend(note, anchor); },
+    runArchive, runDelete, moveWorkspaceNote: workspaces.move, setDateMenu, setHoverPath, setSortMenu,
   });
-  React.useEffect(() => { if (dropAction === 'project') refreshProjectTargets(); }, [dropAction]);
   const wallModels = useWorkspaceWallModels({ paneEntries: workspaces.paneEntries, view, dateFilter, dateRealtime, nowTick, dateEnabled, sortId });
   const activeWall = wallModels.find(({ entry }) => entry.id === workspaces.activeId);
+  useZenNote({ enabled: workspaces.zen, loaded: view.loaded, notes: activeWall?.sortedNotes, noteDrawerRef,
+    editing, editingRef, restoringDraftRef, savingNoteRef, onOpen: openNoteDrawer, onClose: closeNoteDrawer });
   const visibleNotes = React.useMemo(() => activeWall.sortedNotes.concat(
     wallModels.filter((model) => model !== activeWall).flatMap((model) => model.sortedNotes),
   ), [activeWall, wallModels]);
-  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes: visibleNotes, view });
+  usePinnedNote({ closeNoteDrawer, editing, editingRef, noteDrawer, noteDrawerRef, openNoteDrawer, pinned, pinnedUserClosedRef, restoringDraftRef, savingNoteRef, sortedNotes: visibleNotes, view, suspended: workspaces.zen });
   const dateRangeLabel = t(dateFilterOption(dateFilter).labelKey);
   const includeSubfolders = currentSettings.includeSubfolders !== false;
-  const { dockRight } = useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned });
+  const { dockRight } = useDockOffset({ effectiveDrawerWidth, noteDrawer, panelRef, pinned: pinned || workspaces.zen });
   useCardReveal(reveal, noteDrawer?.path);
-  const anyOverlay = Boolean(sortMenu || dateMenu || commentConfirm || projectTarget || settingsOpen || noteDrawer);
+  const anyOverlay = Boolean(sortMenu || dateMenu || commentConfirm || settingsOpen || noteDrawer);
 
   function replaceNote(summary) {
     const next = replaceSummary(viewRef.current, summary);
@@ -275,17 +277,17 @@ function StickyNotesPanel(props) {
   }
 
   usePanelShortcuts({
-    anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeProjectDialog, closeSettings,
-    commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned,
-    pinnedUserClosedRef, projectBusy, projectTarget, runDelete, saveEditing, savingSettings, setDateMenu,
+    anyOverlay, cancelEditing, closeCommentConfirm, closeNoteDrawer, closeSettings,
+    commentConfirm, currentDrawerNote, dateMenu, editing, noteDrawer, panelRef, pinned, zen: workspaces.zen,
+    pinnedUserClosedRef, runDelete, saveEditing, savingSettings, setDateMenu,
     setSortMenu, settingsOpen, sortMenu,
   });
 
-  useWorkspaceShortcuts({ panelRef, enabled: Boolean(view.configured && currentSettings.vaultPath && currentSettings.notesDir) && !editing && !settingsOpen && !commentConfirm && !projectTarget
+  useWorkspaceShortcuts({ panelRef, enabled: Boolean(view.configured && currentSettings.vaultPath && currentSettings.notesDir) && !editing && !settingsOpen && !commentConfirm
       && !sortMenu && !dateMenu && !dragNote && !deepseek.menu && !selection.selectionMenu,
     entries: workspaces.entries,
     onSelect: workspaces.select,
-    onToggle: workspaces.entries.length > 1 ? workspaces.togglePin : undefined,
+    onToggle: !workspaces.zen && workspaces.entries.length > 1 ? workspaces.togglePin : undefined,
   });
 
   actionsRef.current = {
@@ -298,7 +300,7 @@ function StickyNotesPanel(props) {
     onCopy: copyNote,
     onDelete: runDelete,
     onDragStart: startCardDrag,
-    onDragEnd: () => dragSessionRef.current?.parked ? undefined : endCardDrag(),
+    onDragEnd: () => endCardDrag(),
     onDeepSeek: (note, anchor) => deepseek.requestSend(note, anchor),
   };
   const errorBanner = view.loaded
@@ -309,11 +311,10 @@ function StickyNotesPanel(props) {
   const noteDrawerProps = noteDrawer
     ? buildNoteDrawerProps({
       t, drawer: noteDrawer, editing, bodyDraft, saving: savingNote, drawerWidth: effectiveDrawerWidth,
-      resizing: resizingDrawer, pinned, paper: workspaces.paperForNote(drawerNote), emojis,
+      resizing: resizingDrawer, pinned: workspaces.zen || pinned, zen: workspaces.zen, paper: workspaces.paperForNote(drawerNote), emojis,
       pending: drawerPending,
       onComment: (emoji) => requestComment(currentDrawerNote(), emoji),
       onArchive: () => runArchive(currentDrawerNote()),
-      onProject: () => openProjectDialog(currentDrawerNote()),
       onOpenObsidian: () => openInObsidian(currentDrawerNote()),
       onCopy: () => copyNote(currentDrawerNote()),
       onDelete: () => runDelete(currentDrawerNote()),
@@ -330,13 +331,13 @@ function StickyNotesPanel(props) {
     ? h(WorkspaceBar, {
       t: t,
       entries: workspaces.entries,
-      activeId: workspaces.activeId, pinActive: workspaces.pinActive,
+      activeId: workspaces.activeId, pinActive: workspaces.pinActive, zen: workspaces.zen, onToggleZen: workspaces.toggleZen,
       visibleIds: workspaces.paneEntries.map(({ id }) => id), onTogglePin: workspaces.togglePin,
       vaultPath: currentSettings.vaultPath,
       notesDir: currentSettings.notesDir,
       request: request,
       history: currentSettings.folderHistory,
-      dragActive: Boolean(dragNote) && !dragSession?.parked,
+      dragActive: Boolean(dragNote),
       dropId: dropAction === 'workspace' ? dropTargetId : null,
       onSelect: workspaces.select,
       onAdd: workspaces.add,
@@ -357,8 +358,9 @@ function StickyNotesPanel(props) {
     className: 'SN_panel',
     'data-sticky-notes': '', lang: htmlLang,
     'data-card-dragging': dragNote ? 'true' : 'false',
-    'data-resizing': resizingDrawer ? 'true' : 'false',
+    'data-resizing': resizingDrawer || zenLayout.resizing ? 'true' : 'false',
     'data-sidebar-wide': sidebarWide === null ? undefined : (sidebarWide ? 'true' : 'false'),
+    'data-zen': workspaces.zen ? 'true' : 'false',
     ref: panelRef,
     onContextMenu: selection.handlePanelContextMenu,
     role: 'region',
@@ -381,20 +383,28 @@ function StickyNotesPanel(props) {
       h('button', { type: 'button', className: 'SN_textBtn', onClick: handleRefresh }, t('panel.retry')),
     ) : null,
     // 0.13 面板锁（§7.3）：锁定 = SN_body flex row，抽屉作为普通 flex 子项与墙并排。
-    h('div', { className: 'SN_body', 'data-pinned': pinned ? 'true' : 'false' },
+    h('div', { className: 'SN_body', 'data-pinned': pinned ? 'true' : 'false',
+      style: workspaces.zen ? { gridTemplateColumns: 'minmax(0,' + zenLayout.split + 'fr) minmax(0,' + (1 - zenLayout.split) + 'fr)' } : undefined },
       h('div', { className: 'SN_wallWrap', 'data-capture': view.configured ? 'true' : 'false', style: { '--sn-dock-right': dockRight + 'px' } },
-        h(WorkspacePanes, {
-          key: currentSettings.vaultPath || '', models: wallModels, activeId: workspaces.activeId,
-          onSelect: workspaces.select, split: workspaces.split, onSplit: workspaces.setSplit,
-          wallProps: { actionsRef, aliveRef, dateEnabled, dateFilter, dateRangeLabel, dateRealtime, dragNote, emojis,
-            handleRefresh, handleWallClick, handleWallMouseDown, hoverPath, loadError, localPending, noteDrawer,
-            onBackTopChange, onShowSubfolders: toggleSubfolders, openSettings, setDateMenu, sortId, t, view,
-            workspacePaperForNote: workspaces.paperForNote },
-        }),
+        workspaces.zen
+          ? h(ZenWorkspaceList, { model: activeWall, selectedPath: noteDrawer?.path, actionsRef, dragNote,
+            onOpen: (note) => {
+              if (note.path === noteDrawerRef.current?.path) return;
+              if (editingRef.current || restoringDraftRef.current) pushToast({ text: t('workspace.zenFinishEditing'), kind: 'info' });
+              else openNoteDrawer(note);
+            }, t })
+          : h(WorkspacePanes, {
+            key: currentSettings.vaultPath || '', models: wallModels, activeId: workspaces.activeId,
+            onSelect: workspaces.select, split: workspaces.split, onSplit: workspaces.setSplit,
+            wallProps: { actionsRef, aliveRef, dateEnabled, dateFilter, dateRangeLabel, dateRealtime, dragNote, emojis,
+              handleRefresh, handleWallClick, handleWallMouseDown, hoverPath, loadError, localPending, noteDrawer,
+              onBackTopChange, onShowSubfolders: toggleSubfolders, openSettings, setDateMenu, sortId, t, view,
+              workspacePaperForNote: workspaces.paperForNote },
+          }),
         h(CaptureComposer, {
-          t, enabled: view.configured, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
-          dragNote, dropAction, dropTargetId, projectParked: Boolean(dragSession?.parked), projectTargets,
-          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onProjectDrop: projectDrop, onProjectChoose: chooseProjectTarget, onDeleteDrop: deleteDrop, onDeepSeekDrop: deepSeekDrop,
+          t, enabled: view.configured, zen: workspaces.zen, imageCompression: currentSettings.imageCompression, titleMode: titleMode,
+          dragNote, dropAction,
+          onDragHover: hoverDragAction, onArchiveDrop: archiveDrop, onDeleteDrop: deleteDrop, onDeepSeekDrop: deepSeekDrop,
           captureWorkspace: wallModels.length === 2 ? workspaces.activeEntry.label : '',
           showBackTop: Boolean(backTopByWorkspace[workspaces.activeId]),
           onBackTop: () => panelRef.current?.querySelector('.SN_workspacePane[data-current="true"] .SN_wall')?.scrollTo({ top: 0, behavior: 'smooth' }),
@@ -411,10 +421,17 @@ function StickyNotesPanel(props) {
           onError: pushErrorToast,
         }),
       ),
-      pinned && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'inline', inline: true }) : null,
+      (pinned || workspaces.zen) && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'inline', inline: true, zen: workspaces.zen }) : null,
+      workspaces.zen && !noteDrawerProps ? h('section', { className: 'SN_zenDetail' }, h(ZenDetailEmpty, { t })) : null,
+      workspaces.zen ? h('div', { className: 'SN_zenDivider', role: 'separator', tabIndex: 0,
+        'aria-label': t('workspace.zenResize'), 'aria-orientation': 'vertical',
+        'aria-valuemin': 20, 'aria-valuemax': 50, 'aria-valuenow': Math.round(zenLayout.split * 100),
+        'data-sn-drag-ignore': 'true', style: { left: (zenLayout.split * 100) + '%' },
+        onPointerDown: zenLayout.startResize, onDoubleClick: zenLayout.reset, onKeyDown: zenLayout.onKeyDown,
+      }) : null,
     ),
     // 浮动抽屉以整个面板为定位边界，单屏和双屏都从顶栏右侧开始。
-    !pinned && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'overlay', inline: false }) : null,
+    !pinned && !workspaces.zen && noteDrawerProps ? h(NoteDrawer, { ...noteDrawerProps, key: 'overlay', inline: false }) : null,
     deepseek.menu
       ? h(SendMenu, {
         t: t,
@@ -436,8 +453,8 @@ function StickyNotesPanel(props) {
         onClose: selection.closeSelection,
       })
       : null,
-    h(ToastStack, { toasts: [...toasts, ...notices], onDismiss: dismissToast, t }),
-    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, action: dropAction, targetId: dropTargetId, targetAnchor: dropTargetAnchor, projectTargets,
+    h(ToastStack, { toasts, onDismiss: dismissToast, t }),
+    dragNote ? h(CardDragOverlay, { note: dragNote, point: dragSession.point, motionRef: dragMotionRef, zen: workspaces.zen, action: dropAction,
       workspaceLabel: dropAction === 'workspace' ? workspaces.labelFor(dropTargetId) : '',
       paper: workspaces.paperForNote(dragNote),
       archiveSettings: currentSettings, t }) : null,
@@ -458,18 +475,6 @@ function StickyNotesPanel(props) {
         onAddEmoji: addEmoji,
         onSave: saveSettingsDraft,
         onCancel: closeSettings,
-      })
-      : null,
-    projectTarget
-      ? h(ProjectDialog, {
-        t: t,
-        note: projectTarget,
-        name: projectName,
-        busy: projectBusy,
-        check: projectTarget.check,
-        onName: setProjectName,
-        onConfirm: confirmProject,
-        onCancel: closeProjectDialog,
       })
       : null,
     // 0.13 同类评论确认（§7.7）：确认后才发 comment。

@@ -28,7 +28,6 @@ function SettingsDrawer(props) {
   } = props;
   const [tab, setTab] = React.useState(props.initialTab || 'folders');
   const [activeEmoji, setActiveEmoji] = React.useState(null);
-  const [modelOptions, setModelOptions] = React.useState([]);
   const previousCount = React.useRef(draft?.emojis?.length || 0);
   const emojis = Array.isArray(draft?.emojis) ? draft.emojis : [];
   React.useEffect(() => {
@@ -36,18 +35,11 @@ function SettingsDrawer(props) {
     previousCount.current = emojis.length;
   }, [emojis.length]);
   React.useEffect(() => { if (props.initialTab) setTab(props.initialTab); }, [props.initialTab]);
-  React.useEffect(() => {
-    if (typeof request !== 'function' || tab !== 'ai' || modelOptions.length) return;
-    request('aiModels', {}).then((result) => setModelOptions(Array.isArray(result?.models) ? result.models : [])).catch(() => {});
-  }, [tab, modelOptions.length]);
   if (!draft) return null;
   const emojiIndex = Math.max(0, emojis.findIndex((item) => item.id === activeEmoji));
   const folderProps = { vaultPath: draft.vaultPath, history: draft.folderHistory, request };
   const disabled = Boolean(saving);
   const folderManagement = draft.operationEngine === 'direct';
-  const projectModelValue = draft.projectModel ? `${draft.projectModel.provider}\u0000${draft.projectModel.model}` : '';
-  // 已保存的模型可能已被 DSH 移除：保留一个占位选项，别让下拉静默变成空白。
-  const projectModelFallback = projectModelValue !== '' && !modelOptions.some((item) => `${item.provider}\u0000${item.model}` === projectModelValue);
 
   return h(Fragment, null,
     h('div', { className: 'SN_scrim', role: 'presentation', 'data-window-drag-exclude': '', onClick: saving ? undefined : onCancel }),
@@ -72,9 +64,9 @@ function SettingsDrawer(props) {
         }, h(CloseIcon, null)),
       ),
       h('div', { className: 'SN_settingsTabs', role: 'tablist', 'aria-label': t('settings.title') },
-        ['folders', 'notes', 'project', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
+        ['folders', 'notes', 'ai', 'config'].map((id) => h('button', { key: id, type: 'button', role: 'tab', className: 'SN_settingsTab',
           'aria-selected': tab === id, 'data-tab': id, onClick: () => setTab(id) }, t('settings.tab.' + id),
-          id === 'project' ? h('span', { className: 'SN_settingsBeta' }, 'Beta') : null))),
+))),
       h('div', { className: 'SN_drawerBody' },
         h('div', { className: 'SN_drawerSection', hidden: tab !== 'folders', 'data-settings-tab': 'folders' },
           firstSetup ? h('div', { className: 'SN_vaultSetupIntro' },
@@ -147,25 +139,6 @@ function SettingsDrawer(props) {
               value: draft.attachmentDir, field: 'attachmentDir', disabled, picking, onPatch, onPick,
             }))),
         h('div', { className: 'SN_settingsPage', hidden: tab !== 'ai', 'data-settings-tab': 'ai' },
-          h('section', { className: 'SN_drawerSection', 'data-settings-tab': 'ai-project' },
-            h('div', { className: 'SN_drawerSectionHead' },
-              h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectAi')),
-            ),
-            h('p', { className: 'SN_drawerSectionHint' }, t('settings.projectAiHint')),
-            h('label', { className: 'SN_field' }, t('settings.projectModel'), h('select', {
-              className: 'SN_textInput',
-              'aria-label': t('settings.projectModel'),
-              disabled,
-              value: projectModelValue,
-              onChange: (e) => { const item = modelOptions.find((candidate) => `${candidate.provider}\u0000${candidate.model}` === e.target.value); onPatch({ projectModel: item ? { provider: item.provider, model: item.model } : null }); },
-            },
-              h('option', { value: '' }, t('settings.projectModelDefault')),
-              projectModelFallback ? h('option', { value: projectModelValue }, `${draft.projectModel.provider} / ${draft.projectModel.model}`) : null,
-              modelOptions.map((item) => h('option', { key: `${item.provider}\u0000${item.model}`, value: `${item.provider}\u0000${item.model}` }, item.label || `${item.provider} / ${item.model}`)))),
-            h('label', { className: 'SN_imageSettingToggle' }, h('input', { type: 'checkbox', disabled, checked: draft.projectDropConfirmEnabled !== false,
-              onChange: (e) => onPatch({ projectDropConfirmEnabled: e.target.checked }) }), t('settings.projectDropConfirm')),
-            h(AiBudgetRow, { t, ai: draft.projectAi, disabled, onChange: (ai) => onPatch({ projectAi: ai }) }),
-          ),
           h('section', { className: 'SN_drawerSection', 'data-settings-tab': 'ai-emoji' },
             h('div', { className: 'SN_drawerSectionHead' },
               h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.emoji')),
@@ -226,18 +199,6 @@ function SettingsDrawer(props) {
               }),
             )),
           )),
-        h('section', { className: 'SN_drawerSection', hidden: tab !== 'project', 'data-settings-tab': 'project' },
-          h('p', { className: 'SN_projectBetaNotice', role: 'note' }, t('settings.projectBetaNotice')),
-          h('h3', { className: 'SN_drawerSectionTitle' }, t('settings.projectTab')),
-          h(SettingsPathField, { ...folderProps, t, label: t('settings.project'), hint: t('settings.projectHint'),
-            value: draft.projectDir, field: 'projectDir', disabled, picking, onPatch, onPick }),
-          h('label', { className: 'SN_field' }, t('settings.projectKey'), h('input', { className: 'SN_textInput',
-            value: draft.projectKey ?? 'PROJECT', disabled, maxLength: 64, onChange: (e) => onPatch({ projectKey: e.target.value }) })),
-          h('p', { className: 'SN_fieldHint' }, t('settings.projectKeyHint')),
-          ['projectCheckPrompt', 'projectPrompt', 'projectAddPrompt'].map((key) => h(PromptEditor, { key, t, label: t('settings.' + key), value: draft[key] || '', defaultValue: draft.promptDefaults?.[key], disabled,
-            onChange: (value) => onPatch({ [key]: value }) })),
-        ),
-
         h('div', { className: 'SN_settingsPage', hidden: tab !== 'config', 'data-settings-tab': 'config' },
           h(LanguageSettings, { t, value: language, onChange: onLanguageChange }),
           h(ConfigFileSettings, { t, config: draft.configFile, disabled, request, onSettings: onConfigSettings }),

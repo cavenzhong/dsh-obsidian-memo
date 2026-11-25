@@ -143,7 +143,6 @@ test('parseNote：空文本不炸', () => {
   assert.deepEqual(parsed.blocks, [])
   assert.deepEqual(parsed.comments, [])
   assert.equal(parsed.excerpt, '')
-  assert.equal(parsed.projects, null)
 })
 
 test('parseNote：分界线作为独立块保留', () => {
@@ -188,11 +187,6 @@ test('parseNote：maxComments 生效', () => {
   const text = '> [!note] a\n> 1\n\n> [!note] b\n> 2\n\n> [!note] c\n> 3\n'
   assert.equal(parseNote(text, { maxComments: 2 }).comments.length, 2)
   assert.equal(parseNote(text).comments.length, 3)
-})
-
-test('parseNote：projects 取 frontmatter 原文', () => {
-  assert.equal(parseNote(FULL_NOTE).projects, '"[[x/y|Y]]"')
-  assert.equal(parseNote('# no fm').projects, null)
 })
 
 test('summarizeImages：只取图片块、前 3 张、给出总数；非图片块忽略', () => {

@@ -100,6 +100,23 @@ test('v0.15 Enter：实际输入岛 hook 在捕获阶段拦截卡片与按钮，
   assert.ok(removals.some(([name, callback, capture]) => name === 'keydown' && callback === listener && capture === true))
 })
 
+test('Zen 不拦截标题列表的 Enter，退出后恢复快速记录快捷键', (t) => {
+  const runner = hookRunner(t), listeners = new Set()
+  const previous = globalThis.document
+  globalThis.document = {
+    addEventListener(name, callback, capture) { if (name === 'keydown' && capture) listeners.add(callback) },
+    removeEventListener(name, callback) { if (name === 'keydown') listeners.delete(callback) },
+  }
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous })
+  const render = (zen) => runner.render(runner.api.components.CaptureComposer, { enabled: true, zen, t: (key) => key })
+  render(false)
+  assert.equal(listeners.size, 1)
+  render(true)
+  assert.equal(listeners.size, 0)
+  render(false)
+  assert.equal(listeners.size, 1)
+})
+
 test('快速记录：Tab 展开正文，输入法 Enter 不提交；重名失败保留草稿，成功才清空', async (t) => {
   const runner = hookRunner(t)
   let pending = deferred(), count = 0, saved

@@ -72,7 +72,7 @@ test('reorderTask：拒绝代码样例、跨层级、跨段落或普通有序项
 });
 
 test('reorderTask：不能把含空行的缩进代码围栏切开后写回', async (t) => {
-  const original = ['- 普通圆点', '- [ ] 项目', '  ```js', '  const x = 1', '', '  const y = 2', '  ```'].join(LF);
+  const original = ['- 普通圆点', '- [ ] 任务', '  ```js', '  const x = 1', '', '  const y = 2', '  ```'].join(LF);
   const { path, move } = await setup(t, original);
   assert.equal((await move({ sourceLine: 1, targetLine: 0, after: false })).error?.code, 'bad-request');
   assert.equal(await readFile(path, 'utf8'), original);
@@ -95,16 +95,11 @@ test('reorderTask：并发旧版本只接受一次，写锁与 toggleTask 共用
   assert.equal(results.filter((result) => result.error?.code === 'conflict').length, 1);
 });
 
-test('设置提示词默认值：Host 覆盖全部项目与自定义预设，用户配置不覆盖默认元数据', async (t) => {
-  const { c } = await setup(t, '- [ ] 一', { projectCheckPrompt: '用户分析', projectPrompt: '用户项目', projectAddPrompt: '用户补充', emojis: [{ id: 'custom', emoji: '✨', label: '自定义', prompt: '用户预设' }] });
-  const state = (await c.call('state')).value;
-  const defaults = state.settings.promptDefaults;
-  for (const key of ['projectCheckPrompt', 'projectPrompt', 'projectAddPrompt', 'customEmoji']) {
-    assert.equal(typeof defaults[key], 'string');
-    assert.ok(defaults[key].length > 0);
-    assert.notEqual(defaults[key], state.settings[key]);
-  }
-  assert.ok(Object.keys(defaults.emojis).length > 0);
-  assert.equal(state.settings.emojis[0].prompt, '用户预设');
-  assert.equal(defaults.emojis.custom, undefined, '自定义预设恢复使用统一 customEmoji 默认值');
-});
+test('评论提示词默认值：Host 补齐自定义预设元数据', async (t) => {
+  const { c } = await setup(t, '- [ ] 一', { emojis: [{ id: 'custom', emoji: '✨', label: '自定义', prompt: '用户预设' }] });
+  const value = await c.call('state');
+  assert.equal(value.value.settings.emojis[0].prompt, '用户预设');
+  assert.equal(value.value.settings.emojis[0].callout, 'note');
+  assert.equal(value.value.settings.emojis[0].ai.preset, 'high');
+})
+;
